@@ -1,0 +1,81 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { UsersService } from './users.service.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { UpdateUserDto } from './dto/update-user.dto.js';
+import { BulkInviteDto } from './dto/bulk-invite.dto.js';
+import { SessionAuthGuard } from '../auth/guards/session-auth.guard.js';
+import { RolesGuard } from '../auth/guards/roles.guard.js';
+import { Roles } from '../auth/decorators/roles.decorator.js';
+
+@Controller('users')
+@UseGuards(SessionAuthGuard, RolesGuard)
+@Roles('admin')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  invite(@Body() dto: CreateUserDto) {
+    return this.usersService.invite(dto);
+  }
+
+  @Post('bulk')
+  bulkInvite(@Body() dto: BulkInviteDto) {
+    return this.usersService.bulkInvite(dto);
+  }
+
+  @Post('bulk-delete')
+  bulkDelete(@Body('ids') ids: string[]) {
+    return this.usersService.bulkDelete(ids);
+  }
+
+  @Get()
+  findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.findById(id);
+  }
+
+  @Patch(':id/suspend')
+  suspend(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.suspend(id);
+  }
+
+  @Patch(':id/unsuspend')
+  unsuspend(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.unsuspend(id);
+  }
+
+  @Patch(':id/email')
+  updateEmail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('email') newEmail: string,
+  ) {
+    return this.usersService.updateEmail(id, newEmail);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.usersService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.remove(id);
+  }
+}
