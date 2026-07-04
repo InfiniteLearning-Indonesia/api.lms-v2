@@ -6,6 +6,7 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { User } from './users/entities/user.entity.js';
+import { ClassesModule } from './classes/classes.module';
 
 @Module({
   imports: [
@@ -22,12 +23,13 @@ import { User } from './users/entities/user.entity.js';
         username: configService.get<string>('DB_USERNAME', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
         database: configService.get<string>('DB_NAME', 'lms_v2'),
-        entities: [User],
+        autoLoadEntities: true,
         synchronize: true, // true only for development
       }),
     }),
     AuthModule,
     UsersModule,
+    ClassesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
