@@ -53,13 +53,6 @@ export class UsersService {
 
     const savedUser = await this.usersRepository.save(user);
 
-    // Send email invitation asynchronously (non-blocking) ONLY if it's NOT a standard @gmail.com address
-    const isGmail = email.endsWith('@gmail.com');
-    if (!isGmail) {
-      this.mailService.sendInvitation(email, savedUser.name, savedUser.role)
-        .catch((err) => console.error('Failed to send mail in background:', err));
-    }
-
     return savedUser;
   }
 
@@ -337,13 +330,6 @@ export class UsersService {
 
     const updatedUser = await this.usersRepository.save(user);
 
-    // Re-send invitation ONLY if the updated email is NOT a standard @gmail.com address
-    const isGmail = cleanedEmail.endsWith('@gmail.com');
-    if (!isGmail) {
-      this.mailService.sendInvitation(cleanedEmail, updatedUser.name, updatedUser.role)
-        .catch((err) => console.error('Failed to send mail in background:', err));
-    }
-
     return updatedUser;
   }
 
@@ -388,5 +374,20 @@ export class UsersService {
     });
 
     return { deletedCount: result.affected || 0 };
+  }
+
+  async sendWarningEmail(id: string): Promise<{ success: boolean }> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User tidak ditemukan.');
+    }
+    if (user.email.endsWith('@gmail.com')) {
+      throw new BadRequestException(
+        'Pengguna menggunakan email @gmail.com, tidak memerlukan peringatan.',
+      );
+    }
+
+    await this.mailService.sendInvitation(user.email, user.name, user.role);
+    return { success: true };
   }
 }
