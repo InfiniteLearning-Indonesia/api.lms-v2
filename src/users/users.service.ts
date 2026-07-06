@@ -387,7 +387,8 @@ export class UsersService {
       );
     }
 
-    await this.mailService.sendInvitation(user.email, user.name, user.role);
+    await this.mailService.sendWarningEmail(user.email, user.name, user.role);
     return { success: true };
   }
 }
+

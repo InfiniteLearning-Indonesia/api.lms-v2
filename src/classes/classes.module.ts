@@ -8,14 +8,16 @@ import { Class } from './entities/class.entity';
 import { Enrollment } from './entities/enrollment.entity';
 import { Material } from './entities/material.entity';
 import { Assignment } from './entities/assignment.entity';
+import { Competency } from './entities/competency.entity';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment]),
+    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency]),
     UsersModule,
   ],
   controllers: [ClassesController],
   providers: [ClassesService],
 })
 export class ClassesModule {}
+

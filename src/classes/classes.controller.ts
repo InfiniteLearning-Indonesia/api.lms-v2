@@ -13,7 +13,20 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Get('mentor-classes')
+  async getMentorClasses(@Req() req: any) {
+    return this.classesService.findMentorClasses(req.user.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get('competencies')
+  async getCompetencies(@Req() req: any) {
+    return this.classesService.getCompetencies(req.query?.programId);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId')
+
   async getClassDetails(@Req() req: any) {
     return this.classesService.getClassDetails(req.params.classId);
   }

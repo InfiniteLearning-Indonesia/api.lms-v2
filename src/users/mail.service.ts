@@ -110,4 +110,67 @@ Role: ${roleLabel}
       return true;
     }
   }
+
+  async sendWarningEmail(
+    email: string,
+    name: string,
+    role: string,
+  ): Promise<boolean> {
+    const from = this.configService.get<string>(
+      'SMTP_FROM',
+      '"Infinite Learning LMS" <no-reply@infinitelearning.id>',
+    );
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <h2 style="color: #d9381e; margin-bottom: 20px;">Peringatan Resmi: Perbarui Akun Login LMS</h2>
+        <p>Halo <strong>${name}</strong>,</p>
+        <p>Kami mendeteksi bahwa alamat email yang Anda daftarkan di LMS Infinite Learning (<strong>${email}</strong>) bukan merupakan Akun Google Mail (@gmail.com).</p>
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #856404; font-weight: bold;">
+            Sistem otentikasi LMS kami secara eksklusif menggunakan Google OAuth. Oleh karena itu, Anda tidak akan dapat masuk menggunakan alamat email saat ini.
+          </p>
+        </div>
+        <p><strong>Tindakan yang Harus Dilakukan:</strong></p>
+        <ol>
+          <li>Segera hubungi <strong>Mentor</strong> atau <strong>Kaprodi / Admin</strong> yang bertanggung jawab atas kelas Anda.</li>
+          <li>Ajukan pembaruan alamat email dengan memberikan alamat email Google (Gmail) pribadi Anda yang aktif.</li>
+          <li>Setelah email Anda diperbarui oleh Admin di dalam sistem, Anda baru dapat masuk ke dalam LMS.</li>
+        </ol>
+        <hr style="border: 0; border-top: 1px solid #eee; margin-top: 30px;" />
+        <p style="font-size: 11px; color: #999; text-align: center;">
+          &copy; ${new Date().getFullYear()} Infinite Learning. Hak cipta dilindungi.
+        </p>
+      </div>
+    `;
+
+    if (this.transporter) {
+      try {
+        await this.transporter.sendMail({
+          from,
+          to: email,
+          subject: 'Peringatan: Perbarui Akun Login LMS ke Google Mail (Gmail)',
+          html: htmlContent,
+        });
+        this.logger.log(`Warning email sent successfully to ${email}`);
+        return true;
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to send warning email to ${email}: ${err.message}`,
+        );
+        return false;
+      }
+    } else {
+      this.logger.log(`
+=========================================
+[MOCK WARNING EMAIL SENT]
+To: ${email}
+Subject: Peringatan: Perbarui Akun Login LMS ke Google Mail (Gmail)
+Pesan: Harap segera hubungi mentor untuk memperbarui akun login ke Google Mail (Gmail) pribadi.
+=========================================
+      `);
+      return true;
+    }
+  }
 }
+

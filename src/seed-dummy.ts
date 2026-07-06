@@ -8,6 +8,7 @@ import { Class } from './classes/entities/class.entity.js';
 import { Material } from './classes/entities/material.entity.js';
 import { Assignment } from './classes/entities/assignment.entity.js';
 import { Enrollment } from './classes/entities/enrollment.entity.js';
+import { Competency } from './classes/entities/competency.entity.js';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -23,14 +24,15 @@ async function bootstrap() {
     const materialRepo = dataSource.getRepository(Material);
     const assignmentRepo = dataSource.getRepository(Assignment);
     const enrollmentRepo = dataSource.getRepository(Enrollment);
+    const competencyRepo = dataSource.getRepository(Competency);
 
     console.log('Cleaning up existing data...');
-    await dataSource.query('TRUNCATE TABLE enrollments, materials, assignments, classes, users, batches, programs CASCADE;');
+    await dataSource.query('TRUNCATE TABLE enrollments, materials, assignments, classes, competencies, users, batches, programs CASCADE;');
 
     console.log('Seeding Programs...');
-    const program1 = await programRepo.save(programRepo.create({ name: 'Web Development', description: 'Belajar membuat website dari nol hingga mahir' }));
+    const program1 = await programRepo.save(programRepo.create({ name: 'Web Development and UI/UX Design', description: 'Belajar membuat website dari nol hingga mahir serta desain UI/UX' }));
     const program2 = await programRepo.save(programRepo.create({ name: 'AI Development', description: 'Membangun kecerdasan buatan' }));
-    const program3 = await programRepo.save(programRepo.create({ name: 'Mobile Development', description: 'Membuat aplikasi Android dan iOS' }));
+    const program3 = await programRepo.save(programRepo.create({ name: 'Mobile Development and UI/UX Design', description: 'Membuat aplikasi Android dan iOS serta desain UI/UX' }));
     const program4 = await programRepo.save(programRepo.create({ name: 'Game Development', description: 'Membuat game dengan Unity/Unreal' }));
 
     console.log('Seeding Batches...');
@@ -44,6 +46,7 @@ async function bootstrap() {
       status: UserStatus.ACTIVE,
       whatsapp: '081263666474',
       selectedProgram: 'Web Development and UI/UX Design',
+      specialization: 'Mentor Web',
     }));
     const mentor2 = await userRepo.save(userRepo.create({
       email: 'mentor.ai@example.com',
@@ -52,7 +55,25 @@ async function bootstrap() {
       status: UserStatus.ACTIVE,
       whatsapp: '081234567891',
       selectedProgram: 'AI Development',
+      specialization: 'Mentor AI',
     }));
+
+    console.log('Seeding Competencies...');
+    await competencyRepo.save(competencyRepo.create({
+      programId: program1.id,
+      creatorMentorId: mentor1.id,
+      name: 'Kompetensi 1: Fundamental Web Development',
+      description: 'Dasar HTML5, CSS Modern (Flexbox/Grid), dan JavaScript ES6+',
+      category: 'Technical',
+    }));
+    await competencyRepo.save(competencyRepo.create({
+      programId: program1.id,
+      creatorMentorId: mentor1.id,
+      name: 'Kompetensi 2: Soft Skills (CCA)',
+      description: 'Communication, Critical Thinking, dan Leadership',
+      category: 'Soft Skills (CCA)',
+    }));
+
 
     const student = await userRepo.save(userRepo.create({
       email: 'riyandaazis00@gmail.com',
