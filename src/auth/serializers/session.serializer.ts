@@ -1,7 +1,7 @@
 import { PassportSerializer } from '@nestjs/passport';
 import { Injectable } from '@nestjs/common';
 import { UsersService } from '../../users/users.service.js';
-import { User } from '../../users/entities/user.entity.js';
+import { User, UserStatus } from '../../users/entities/user.entity.js';
 
 @Injectable()
 export class SessionSerializer extends PassportSerializer {
@@ -27,6 +27,9 @@ export class SessionSerializer extends PassportSerializer {
         user = await this.usersService.findByEmail(key);
       } else {
         user = await this.usersService.findById(key);
+      }
+      if (user && user.status === UserStatus.SUSPENDED) {
+        return done(new Error('Akun kamu telah di-suspend oleh Admin. Akses ditolak.'), null);
       }
       done(null, user);
     } catch (err: any) {

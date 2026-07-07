@@ -9,11 +9,12 @@ import { Enrollment } from './entities/enrollment.entity';
 import { Material } from './entities/material.entity';
 import { Assignment } from './entities/assignment.entity';
 import { Competency } from './entities/competency.entity';
+import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency]),
+    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, User]),
     UsersModule,
   ],
   controllers: [ClassesController],

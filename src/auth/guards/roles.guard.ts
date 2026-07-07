@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UsersService } from '../../users/users.service.js';
+import { UserStatus } from '../../users/entities/user.entity.js';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -37,6 +38,11 @@ export class RolesGuard implements CanActivate {
         'Anda tidak memiliki izin untuk mengakses resource ini.',
       );
     }
+
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new ForbiddenException('Akun kamu telah di-suspend oleh Admin. Akses ditolak.');
+    }
+
     return true;
   }
 }

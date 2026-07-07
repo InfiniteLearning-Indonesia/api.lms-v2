@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from '../../users/users.service.js';
+import { UserStatus } from '../../users/entities/user.entity.js';
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
@@ -19,6 +20,11 @@ export class SessionAuthGuard implements CanActivate {
     const user = await this.usersService.findById(request.session.userId);
     if (!user) {
       throw new UnauthorizedException('User session is invalid or user not found.');
+    }
+
+    if (user.status === UserStatus.SUSPENDED) {
+      request.session?.destroy?.(() => {});
+      throw new UnauthorizedException('Akun kamu telah di-suspend oleh Admin. Akses ditolak.');
     }
 
     request.user = user;

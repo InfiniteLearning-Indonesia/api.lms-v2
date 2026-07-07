@@ -9,7 +9,13 @@ export class Batch {
   name: string;
 
   @Column({ default: 'active' })
-  status: string; // active, completed
+  status: string; // draft, active, completed
+
+  @Column({ nullable: true })
+  programId?: string;
+
+  @Column('simple-array', { nullable: true })
+  includedProgramIds?: string[];
 
   @CreateDateColumn()
   createdAt: Date;

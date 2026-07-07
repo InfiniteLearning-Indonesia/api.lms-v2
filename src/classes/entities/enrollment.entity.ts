@@ -13,11 +13,11 @@ export class Enrollment {
   @Column()
   classId: string;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'studentId' })
   student: User;
 
-  @ManyToOne(() => Class)
+  @ManyToOne(() => Class, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'classId' })
   class: Class;
 

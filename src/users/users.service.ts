@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { User, UserStatus, UserRole } from './entities/user.entity.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
@@ -18,6 +18,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly mailService: MailService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
@@ -349,6 +350,11 @@ export class UsersService {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
+    // Clean up relational foreign keys before deleting user to prevent FK constraint error 23503
+    await this.dataSource.query('UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = $1', [id]);
+    await this.dataSource.query('UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM enrollments WHERE "studentId" = $1', [id]);
+
     await this.usersRepository.remove(user);
   }
 
@@ -368,6 +374,11 @@ export class UsersService {
     if (nonAdminIds.length === 0) {
       return { deletedCount: 0 };
     }
+
+    // Clean up relational foreign keys before bulk deleting users to prevent FK constraint error 23503
+    await this.dataSource.query('UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = ANY($1)', [nonAdminIds]);
+    await this.dataSource.query('UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = ANY($1)', [nonAdminIds]);
+    await this.dataSource.query('DELETE FROM enrollments WHERE "studentId" = ANY($1)', [nonAdminIds]);
 
     const result = await this.usersRepository.delete({
       id: In(nonAdminIds),

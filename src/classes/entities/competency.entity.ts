@@ -26,7 +26,7 @@ export class Competency {
   @JoinColumn({ name: 'programId' })
   program: Program;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'creatorMentorId' })
   creatorMentor: User;
 

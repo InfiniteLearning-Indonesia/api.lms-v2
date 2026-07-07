@@ -27,7 +27,7 @@ export class Class {
   @JoinColumn({ name: 'batchId' })
   batch: Batch;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'mentorId' })
   mentor: User;
 
