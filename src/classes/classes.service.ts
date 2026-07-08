@@ -205,6 +205,7 @@ export class ClassesService {
     const programs = await this.programRepository.find();
     const allClasses = await this.classRepository.find();
     const allEnrollments = await this.enrollmentRepository.find();
+    const allUsers = await this.userRepository.find();
 
     return batches.map(batch => {
       const batchClasses = allClasses.filter(c => c.batchId === batch.id);
@@ -214,9 +215,18 @@ export class ClassesService {
         ? programs.filter(p => batch.includedProgramIds?.includes(p.id))
         : programs;
 
+      const programsWithMentors = includedPrograms.map(p => {
+        const progMentors = allUsers.filter(u => u.role === UserRole.MENTOR && u.status === UserStatus.ACTIVE && (batchClasses.some(c => c.programId === p.id && c.mentorId === u.id) || u.selectedProgram === p.name));
+        return {
+          ...p,
+          mentorsCount: progMentors.length,
+          mentors: progMentors.map(m => ({ id: m.id, name: m.name, email: m.email, specialization: m.specialization })),
+        };
+      });
+
       return {
         ...batch,
-        includedPrograms,
+        includedPrograms: programsWithMentors,
         classCount: batchClasses.length,
         studentCount: batchEnrollments.length,
       };
@@ -366,6 +376,180 @@ export class ClassesService {
 
     await this.batchRepository.delete({ id: batch.id });
     return { success: true, message: `Batch "${batch.name}" berhasil dihapus sepenuhnya.` };
+  }
+
+  async assignBatchMentors(batchId: string, programId: string, mentorIds: string[]) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch tidak ditemukan');
+    const program = await this.programRepository.findOne({ where: { id: programId } });
+    if (!program) throw new NotFoundException('Program studi tidak ditemukan');
+
+    const batchClasses = await this.classRepository.find({ where: { batchId: batch.id, programId: program.id } });
+    const allMentors = await this.userRepository.find({ where: { role: UserRole.MENTOR } });
+
+    // Ensure classes exist for selected mentors
+    for (const mId of mentorIds) {
+      let cls = batchClasses.find(c => c.mentorId === mId);
+      if (!cls) {
+        cls = await this.classRepository.save(this.classRepository.create({
+          batchId: batch.id,
+          programId: program.id,
+          mentorId: mId,
+        }));
+        batchClasses.push(cls);
+      }
+      const m = allMentors.find(u => u.id === mId);
+      if (m && m.selectedProgram !== program.name) {
+        m.selectedProgram = program.name;
+        await this.userRepository.save(m);
+      }
+    }
+
+    // Remove or unassign mentors not in mentorIds for this program in this batch
+    for (const cls of batchClasses) {
+      if (cls.mentorId && !mentorIds.includes(cls.mentorId)) {
+        const enrollCount = await this.enrollmentRepository.count({ where: { classId: cls.id } });
+        if (enrollCount === 0 && batchClasses.length > 1) {
+          await this.classRepository.delete({ id: cls.id });
+        } else {
+          cls.mentorId = null as any;
+          await this.classRepository.save(cls);
+        }
+      }
+    }
+
+    return { success: true, message: `Berhasil memperbarui penugasan mentor untuk program ${program.name} di angkatan "${batch.name}".` };
+  }
+
+  async importAndEnrollBatch(batchId: string, payload: {
+    users: Array<{
+      name: string;
+      email: string;
+      whatsapp?: string;
+      institution?: string;
+      studyProgram?: string;
+      selectedProgram: string;
+    }>;
+    autoDistribute?: boolean;
+  }) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch tidak ditemukan');
+
+    const programs = await this.programRepository.find();
+    let importedCount = 0;
+    let enrolledCount = 0;
+    const distributionSummary: Record<string, number> = {};
+
+    for (const item of payload.users) {
+      if (!item.email || !item.name) continue;
+      
+      const cleanEmail = item.email.trim().toLowerCase();
+      const cleanName = item.name.trim();
+
+      // 1. Silent Whitelist / User Creation (Rule: Gmail silent, no spam)
+      let user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+      if (!user) {
+        user = await this.userRepository.save(this.userRepository.create({
+          email: cleanEmail,
+          name: cleanName,
+          role: UserRole.STUDENT,
+          status: UserStatus.INVITED, // Silent whitelist per Gmail rule
+          whatsapp: item.whatsapp ? item.whatsapp.replace(/\D/g, '') : undefined,
+          institution: item.institution ? item.institution.trim() : undefined,
+          studyProgram: item.studyProgram ? item.studyProgram.trim() : undefined,
+          selectedProgram: item.selectedProgram ? item.selectedProgram.trim() : undefined,
+        }));
+        importedCount++;
+      } else {
+        if (item.whatsapp) user.whatsapp = item.whatsapp.replace(/\D/g, '');
+        if (item.institution) user.institution = item.institution.trim();
+        if (item.studyProgram) user.studyProgram = item.studyProgram.trim();
+        if (item.selectedProgram) user.selectedProgram = item.selectedProgram.trim();
+        await this.userRepository.save(user);
+        importedCount++;
+      }
+
+      // 2. Auto-Enrollment into selectedProgram within target Batch
+      if (user.selectedProgram) {
+        let prog = programs.find(p => p.name.toLowerCase() === user.selectedProgram?.toLowerCase());
+        if (!prog) {
+          prog = await this.programRepository.save(this.programRepository.create({
+            name: user.selectedProgram,
+            description: `Program studi ${user.selectedProgram}`,
+          }));
+          programs.push(prog);
+          
+          if (!batch.includedProgramIds) batch.includedProgramIds = [];
+          if (!batch.includedProgramIds.includes(prog.id)) {
+            batch.includedProgramIds.push(prog.id);
+            await this.batchRepository.save(batch);
+          }
+        }
+
+        let cls = await this.classRepository.findOne({ where: { programId: prog.id, batchId: batch.id } });
+        if (!cls) {
+          cls = await this.classRepository.save(this.classRepository.create({
+            programId: prog.id,
+            batchId: batch.id,
+          }));
+        }
+
+        const existingEnroll = await this.enrollmentRepository.findOne({ where: { studentId: user.id, classId: cls.id } });
+        if (!existingEnroll) {
+          await this.enrollmentRepository.save(this.enrollmentRepository.create({
+            studentId: user.id,
+            classId: cls.id,
+          }));
+          enrolledCount++;
+          distributionSummary[prog.name] = (distributionSummary[prog.name] || 0) + 1;
+        }
+      }
+    }
+
+    // 3. Auto-Distribution across mentors for each program in this batch
+    if (payload.autoDistribute) {
+      const allMentors = await this.userRepository.find({ where: { role: UserRole.MENTOR, status: UserStatus.ACTIVE } });
+      const batchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
+      const allEnrollments = await this.enrollmentRepository.find();
+
+      for (const prog of programs) {
+        const progMentors = allMentors.filter(m => m.selectedProgram === prog.name || batchClasses.some(c => c.programId === prog.id && c.mentorId === m.id));
+        if (progMentors.length > 0) {
+          const progClasses = batchClasses.filter(c => c.programId === prog.id);
+          const progEnrollments = allEnrollments.filter(e => progClasses.some(c => c.id === e.classId));
+          
+          const mentorClasses: Class[] = [];
+          for (const m of progMentors) {
+            let mCls = progClasses.find(c => c.mentorId === m.id);
+            if (!mCls) {
+              mCls = await this.classRepository.save(this.classRepository.create({
+                programId: prog.id,
+                batchId: batch.id,
+                mentorId: m.id,
+              }));
+              progClasses.push(mCls);
+            }
+            mentorClasses.push(mCls);
+          }
+
+          progEnrollments.forEach((enroll, idx) => {
+            const targetClass = mentorClasses[idx % mentorClasses.length];
+            if (enroll.classId !== targetClass.id) {
+              enroll.classId = targetClass.id;
+              this.enrollmentRepository.save(enroll);
+            }
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      totalImported: importedCount,
+      totalEnrolled: enrolledCount,
+      distributionSummary,
+      message: `Berhasil memproses ${importedCount} data murid: ${enrolledCount} terdaftar ke program studi dan didistribusikan.`,
+    };
   }
 
   async createProgramBatch(payload: { programId: string; batchName: string }) {

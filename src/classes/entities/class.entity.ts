@@ -16,8 +16,8 @@ export class Class {
   @Column()
   batchId: string;
 
-  @Column({ nullable: true })
-  mentorId: string;
+  @Column({ type: 'varchar', nullable: true })
+  mentorId?: string | null;
 
   @ManyToOne(() => Program)
   @JoinColumn({ name: 'programId' })

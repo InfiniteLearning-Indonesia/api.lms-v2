@@ -49,6 +49,18 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Post('batches/:batchId/import-enroll')
+  async importAndEnrollBatch(@Req() req: any, @Body() body: { users: Array<{ name: string; email: string; whatsapp?: string; institution?: string; studyProgram?: string; selectedProgram: string }>; autoDistribute?: boolean }) {
+    return this.classesService.importAndEnrollBatch(req.params.batchId, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('batches/:batchId/assign-mentors')
+  async assignBatchMentors(@Req() req: any, @Body() body: { programId: string; mentorIds: string[] }) {
+    return this.classesService.assignBatchMentors(req.params.batchId, body.programId, body.mentorIds);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Patch('batch-status')
   async updateBatchStatus(@Body() body: { status: 'active' | 'completed'; batchId?: string; programId?: string }) {
     return this.classesService.updateBatchStatus(body);
