@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
 import { Class } from './entities/class.entity.js';
 import { Material } from './entities/material.entity.js';
@@ -29,7 +29,7 @@ export class ClassesService {
     private batchRepository: Repository<Batch>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   async findMyClasses(studentId: string) {
     const enrollments = await this.enrollmentRepository.find({
@@ -43,7 +43,27 @@ export class ClassesService {
       },
     });
 
-    return enrollments.map(e => e.class);
+    const enrichedClasses = await Promise.all(
+      enrollments.map(async (e) => {
+        const cls = e.class;
+        const relatedClasses = await this.classRepository.find({
+          where: { programId: cls.programId, batchId: cls.batchId }
+        });
+        const relatedClassIds = relatedClasses.map(c => c.id);
+
+        const assignments = await this.assignmentRepository.find({
+          where: { classId: In(relatedClassIds) },
+          order: { createdAt: 'ASC' }
+        });
+
+        return {
+          ...cls,
+          assignments
+        };
+      })
+    );
+
+    return enrichedClasses;
   }
 
   async findMentorClasses(mentorId: string) {
@@ -52,8 +72,6 @@ export class ClassesService {
       relations: {
         program: true,
         batch: true,
-        materials: true,
-        assignments: true,
       },
     });
 
@@ -65,8 +83,23 @@ export class ClassesService {
           relations: { student: true },
         });
         const enrolledStudents = enrollments.map((e) => e.student).filter(Boolean);
+
+        const relatedClasses = await this.classRepository.find({
+          where: { programId: cls.programId, batchId: cls.batchId }
+        });
+        const relatedClassIds = relatedClasses.map(c => c.id);
+
+        const materials = await this.materialRepository.find({
+          where: { classId: In(relatedClassIds) }
+        });
+        const assignments = await this.assignmentRepository.find({
+          where: { classId: In(relatedClassIds) }
+        });
+
         return {
           ...cls,
+          materials,
+          assignments,
           enrolledStudentsCount: enrolledStudents.length,
           enrolledStudents,
         };
@@ -111,7 +144,7 @@ export class ClassesService {
 
     const result = await Promise.all(programs.map(async (prog) => {
       const classes = allClasses.filter(c => c.programId === prog.id);
-      
+
       const progBatches = allBatches.filter(b => !b.includedProgramIds || b.includedProgramIds.length === 0 || b.includedProgramIds.includes(prog.id) || b.programId === prog.id);
       const activeBatch = allBatches.find(b => b.status === 'active' && (!b.includedProgramIds || b.includedProgramIds.length === 0 || b.includedProgramIds.includes(prog.id) || b.programId === prog.id)) || null;
       const batchHistory = progBatches.filter(b => b.status !== 'active' || b.id !== activeBatch?.id).map(b => ({
@@ -121,7 +154,7 @@ export class ClassesService {
         createdAt: b.createdAt
       }));
 
-      const programMentors = allUsers.filter(u => 
+      const programMentors = allUsers.filter(u =>
         (u.role === UserRole.MENTOR || u.role === UserRole.ADMIN) &&
         u.status === UserStatus.ACTIVE &&
         (u.selectedProgram === prog.name || classes.some(c => c.mentorId === u.id))
@@ -210,7 +243,7 @@ export class ClassesService {
     return batches.map(batch => {
       const batchClasses = allClasses.filter(c => c.batchId === batch.id);
       const batchEnrollments = allEnrollments.filter(e => batchClasses.some(c => c.id === e.classId));
-      
+
       const includedPrograms = batch.includedProgramIds && batch.includedProgramIds.length > 0
         ? programs.filter(p => batch.includedProgramIds?.includes(p.id))
         : programs;
@@ -299,7 +332,7 @@ export class ClassesService {
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
 
     if (payload.name) batch.name = payload.name;
-    
+
     if (payload.status) {
       if (payload.status === 'active' && batch.status !== 'active') {
         const activeBatches = await this.batchRepository.find({ where: { status: 'active' } });
@@ -442,7 +475,7 @@ export class ClassesService {
 
     for (const item of payload.users) {
       if (!item.email || !item.name) continue;
-      
+
       const cleanEmail = item.email.trim().toLowerCase();
       const cleanName = item.name.trim();
 
@@ -478,7 +511,7 @@ export class ClassesService {
             description: `Program studi ${user.selectedProgram}`,
           }));
           programs.push(prog);
-          
+
           if (!batch.includedProgramIds) batch.includedProgramIds = [];
           if (!batch.includedProgramIds.includes(prog.id)) {
             batch.includedProgramIds.push(prog.id);
@@ -517,7 +550,7 @@ export class ClassesService {
         if (progMentors.length > 0) {
           const progClasses = batchClasses.filter(c => c.programId === prog.id);
           const progEnrollments = allEnrollments.filter(e => progClasses.some(c => c.id === e.classId));
-          
+
           const mentorClasses: Class[] = [];
           for (const m of progMentors) {
             let mCls = progClasses.find(c => c.mentorId === m.id);
@@ -697,7 +730,7 @@ export class ClassesService {
     const allUsers = await this.userRepository.find();
     const programStudents = allUsers.filter(u => u.role === UserRole.STUDENT && u.selectedProgram === programName);
     const primaryMentors = allUsers.filter(u => u.role === UserRole.MENTOR && u.status === UserStatus.ACTIVE && u.selectedProgram === programName && !u.specialization?.includes('UI/UX') && !u.specialization?.includes('Professional'));
-    
+
     const secondaryMentors = allUsers.filter(u => u.role === UserRole.MENTOR && u.status === UserStatus.ACTIVE && u.specialization?.includes('UI/UX'));
     const supportingMentors = allUsers.filter(u => u.role === UserRole.MENTOR && u.status === UserStatus.ACTIVE && u.specialization?.includes('Professional'));
 
@@ -728,6 +761,102 @@ export class ClassesService {
     return competencies;
   }
 
+  private validateCompetencyAuthor(programName: string, specialization: string | null, category: string) {
+    if (!specialization) return false;
+
+    // Rule 9: Soft Skills (CCA) -> Mentor Professional
+    if (category === 'Soft Skills (CCA)') {
+      return specialization.includes('Professional');
+    }
+
+    // Rule 10: Capstone Project -> Mentor UI/UX
+    if (category === 'Capstone Project') {
+      return specialization.includes('UI/UX');
+    }
+
+    // Category Technical
+    const progLower = programName.toLowerCase();
+    const specLower = specialization.toLowerCase();
+
+    // Rule 5 & 6: AI and Game are exclusive to their respective mentors
+    if (progLower.includes('ai')) return specLower.includes('ai');
+    if (progLower.includes('game')) return specLower.includes('game');
+
+    // Rule 7 & 8: Web and Mobile can be Mentor Web/Mobile or Mentor UI/UX (UI/UX handles Capstone usually, but Rule 7/8 says dipegang bersama untuk Web/Mobile)
+    if (progLower.includes('web')) return specLower.includes('web') || specLower.includes('ui/ux');
+    if (progLower.includes('mobile')) return specLower.includes('mobile') || specLower.includes('ui/ux');
+
+    return false;
+  }
+
+  async createCompetency(mentorId: string, payload: { name: string; category: string; programId: string }) {
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || mentor.role !== UserRole.MENTOR) throw new ForbiddenException('Hanya mentor yang dapat membuat kompetensi.');
+
+    const program = await this.programRepository.findOne({ where: { id: payload.programId } });
+    if (!program) throw new NotFoundException('Program tidak ditemukan.');
+
+    if (!this.validateCompetencyAuthor(program.name, mentor.specialization, payload.category)) {
+      throw new ForbiddenException(`Mentor dengan spesialisasi ${mentor.specialization || 'Umum'} tidak berwenang membuat kompetensi kategori ${payload.category} untuk program ini.`);
+    }
+
+    const competency = this.competencyRepository.create({
+      name: payload.name,
+      category: payload.category,
+      programId: program.id,
+      creatorMentorId: mentor.id,
+    });
+    return await this.competencyRepository.save(competency);
+  }
+
+  async createMaterial(mentorId: string, classId: string, payload: { title: string; type: string; competency: string; url: string; content?: string }) {
+    const cls = await this.classRepository.findOne({ where: { id: classId }, relations: { batch: true, program: true } });
+    if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
+
+    // Rule 23: Batch Read Only
+    if (cls.batch?.status === 'completed') throw new ForbiddenException('Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
+
+    // Validate if mentor is assigned to this class
+    if (cls.mentorId !== mentorId) throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+
+    // We skip deep competency validation here assuming the UI filters it properly, but we could re-validate based on category if needed.
+
+    const material = this.materialRepository.create({
+      classId: cls.id,
+      title: payload.title,
+      type: payload.type,
+      competency: payload.competency,
+      url: payload.url,
+      content: payload.content,
+    });
+    return await this.materialRepository.save(material);
+  }
+
+  async createAssignment(mentorId: string, classId: string, payload: { title: string; description: string; competency: string; dueDate: string }) {
+    const cls = await this.classRepository.findOne({ where: { id: classId }, relations: { batch: true, program: true } });
+    if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
+
+    // Rule 23: Batch Read Only
+    if (cls.batch?.status === 'completed') throw new ForbiddenException('Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
+
+    if (cls.mentorId !== mentorId) throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+
+    const assignment = this.assignmentRepository.create({
+      classId: cls.id,
+      title: payload.title,
+      description: payload.description,
+      competency: payload.competency,
+      dueDate: new Date(payload.dueDate),
+    });
+    return await this.assignmentRepository.save(assignment);
+  }
+
 
   async getClassDetails(classId: string) {
     let classEntity: Class | null = null;
@@ -741,8 +870,6 @@ export class ClassesService {
           program: true,
           batch: true,
           mentor: true,
-          materials: true,
-          assignments: true
         },
       });
     }
@@ -751,17 +878,39 @@ export class ClassesService {
       throw new NotFoundException('Kelas tidak ditemukan');
     }
 
+    const relatedClasses = await this.classRepository.find({
+      where: { programId: classEntity.programId, batchId: classEntity.batchId }
+    });
+    const relatedClassIds = relatedClasses.map(c => c.id);
+
+    classEntity.materials = await this.materialRepository.find({
+      where: { classId: In(relatedClassIds) },
+      order: { createdAt: 'ASC' }
+    });
+    classEntity.assignments = await this.assignmentRepository.find({
+      where: { classId: In(relatedClassIds) },
+      order: { createdAt: 'ASC' }
+    });
+
     return classEntity;
   }
 
   async getMaterialDetails(classId: string, materialId: string) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let materialEntity: Material | null = null;
-    
-    if (uuidRegex.test(materialId)) {
-      materialEntity = await this.materialRepository.findOne({
-        where: { id: materialId, classId },
-      });
+
+    if (uuidRegex.test(materialId) && uuidRegex.test(classId)) {
+      const cls = await this.classRepository.findOne({ where: { id: classId } });
+      if (cls) {
+        const relatedClasses = await this.classRepository.find({
+          where: { programId: cls.programId, batchId: cls.batchId }
+        });
+        const relatedClassIds = relatedClasses.map(c => c.id);
+
+        materialEntity = await this.materialRepository.findOne({
+          where: { id: materialId, classId: In(relatedClassIds) },
+        });
+      }
     }
 
     if (!materialEntity) {
@@ -774,11 +923,19 @@ export class ClassesService {
   async getAssignmentDetails(classId: string, assignmentId: string) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let assignmentEntity: Assignment | null = null;
-    
-    if (uuidRegex.test(assignmentId)) {
-      assignmentEntity = await this.assignmentRepository.findOne({
-        where: { id: assignmentId, classId },
-      });
+
+    if (uuidRegex.test(assignmentId) && uuidRegex.test(classId)) {
+      const cls = await this.classRepository.findOne({ where: { id: classId } });
+      if (cls) {
+        const relatedClasses = await this.classRepository.find({
+          where: { programId: cls.programId, batchId: cls.batchId }
+        });
+        const relatedClassIds = relatedClasses.map(c => c.id);
+
+        assignmentEntity = await this.assignmentRepository.findOne({
+          where: { id: assignmentId, classId: In(relatedClassIds) },
+        });
+      }
     }
 
     if (!assignmentEntity) {
