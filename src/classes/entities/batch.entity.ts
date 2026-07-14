@@ -1,5 +1,11 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
+export enum BatchStatus {
+  DRAFT = 'draft',
+  ACTIVE = 'active',
+  COMPLETED = 'completed',
+}
+
 @Entity('batches')
 export class Batch {
   @PrimaryGeneratedColumn('uuid')
@@ -8,8 +14,8 @@ export class Batch {
   @Column()
   name: string;
 
-  @Column({ default: 'active' })
-  status: string; // draft, active, completed
+  @Column({ type: 'enum', enum: BatchStatus, default: BatchStatus.ACTIVE })
+  status: BatchStatus; // draft, active, completed
 
   @Column({ nullable: true })
   programId?: string;

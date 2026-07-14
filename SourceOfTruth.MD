@@ -51,6 +51,15 @@ Entitas Program merepresentasikan kurikulum terpadu yang disediakan oleh LMS:
 * **Program Web Development and UI/UX Design**
 * **Program Mobile Development and UI/UX Design**
 
+## 5. Entitas Cohort (Batch)
+
+Entitas Cohort (Batch) merupakan wadah siklus pembelajaran yang menaungi entitas Program, Mentor, dan Student dalam satu periode waktu tertentu. 
+Aturan operasional Cohort adalah sebagai berikut:
+- **Tunggal dan Eksklusif**: Secara mutlak, hanya boleh ada 1 (satu) Cohort yang berstatus *Active* pada satu waktu.
+- **Relasi Wajib**: Setiap pendaftaran (enrollment) Mentor dan Student wajib terikat pada Cohort yang sedang aktif. Ketiadaan Cohort aktif akan memblokir sistem enrollment.
+- **Isolasi Data**: Data pembelajaran (kelas, materi, nilai) bersifat eksklusif untuk Cohort tersebut. Jika Cohort berakhir, maka ia beralih menjadi arsip historis (*Read-Only*) dan tidak dapat dimodifikasi oleh entitas mana pun.
+- **Fleksibilitas Program**: Saat Admin membuat Cohort baru, Admin dapat mengikutsertakan program baru, mendaftarkan mentor baru, dan menerima murid baru. Cohort bersifat universal namun ketat terhadap program yang diikutsertakan di dalamnya. 
+
 ---
 
 # Bab 3: Diagram Hubungan Domain (High Level Domain Diagrams)
@@ -397,6 +406,7 @@ Setiap poin di bawah ini merupakan aturan validasi logika (*hard constraints*) y
 * **Rule 26 (Global Cohort Batch Management & Opt-In Programs)**: Pembuatan dan pengelolaan siklus angkatan (*Batch / Cohort*) dilakukan secara terpusat di tingkat institusi melalui menu khusus **Manajemen Angkatan / Batch**. Saat membuat atau mengonfigurasi sebuah batch, Admin menentukan program studi resmi mana saja yang diikutsertakan (*opt-in checked programs*), termasuk kemampuan menambahkan program baru secara langsung. Seluruh program yang dicentang akan berjalan berbarengan dalam satu rentang periode batch tersebut. Program studi yang tidak diikutsertakan tidak akan terbuka pada siklus batch tersebut.
 * **Rule 27 (Single Active Batch Constraint & Lifecycle Flexibility)**: Mutlak hanya boleh ada **1 (satu) Batch yang berstatus `ACTIVE`** dalam satu waktu untuk seluruh program yang berjalan. Sistem menyediakan status **`DRAFT / UPCOMING`** untuk persiapan pendaftaran murid dan mentor pada angkatan masa depan tanpa mengganggu atau mematikan batch yang sedang aktif. Apabila sebuah batch masih dalam kondisi kosong (*Empty Batch* — belum ada materi, tugas, atau progres belajar), Admin diberikan fleksibilitas untuk mengedit, mereset, atau menghapusnya tanpa langsung terbuang ke dalam tabel arsip Read-Only.
 * **Rule 28 (Re-Enrollment & Progress Isolation)**: Setiap relasi akademik diikat oleh kombinasi unik `(User, Program, Batch)`. Apabila seorang murid mendaftar ulang (*re-enroll*) pada program studi yang sama di batch/angkatan baru, seluruh progres pembelajaran (materi, tugas, absensi, dan nilai) pada batch baru tersebut wajib dimulai dari 0 (*fresh start*). Riwayat nilai dan progres dari batch lamanya tetap dipertahankan secara utuh di dalam arsip Read-Only batch sebelumnya demi validitas historis.
+* **Rule 29 (Mandatory Program Assignment)**: Setiap entitas Student dan Mentor **wajib** memiliki program studi sejak pertama kali akun mereka dibuat (via Admin Whitelist). Sistem mutlak menolak entitas "Tak Berprogram". Otoritas ini memastikan bahwa tidak ada partisipan yang berada dalam status mengambang tanpa kewajiban akademik.
 
 ---
 
@@ -436,11 +446,10 @@ Demi menjaga stabilitas operasional ratusan siswa dan kesinambungan kurikulum an
 Bab ini mengatur alur pendaftaran siswa binaan dan pembagian tanggung jawab operasional antara Admin dan Mentor:
 
 1. **Alur Pendaftaran Murid Binaan (*Enrollment Cases*)**:
-   * **Case 1 (No-Program Mentor & No-Program Student)**: Pendaftaran siswa yang belum memilih program ke mentor yang belum memiliki alokasi kelas. Sistem otomatis mengikat program studi pada kedua akun tersebut dan membuat *enrollment* kelas.
-   * **Case 2 (Active Program Mentor & No-Program Student)**: Pendaftaran siswa tanpa program ke mentor yang sudah mengampu program aktif. Siswa otomatis terdaftar ke program yang sama dengan mentor tersebut.
-   * **Case 3 (Cross-Program Student Transfer)**: Pemindahan siswa yang sudah ber-program ke program baru. Sesuai **Rule 25**, sistem menjalankan **Clean Transfer** yang menghapus seluruh progres, absensi, dan nilai di program lama agar siswa memulai lembaran baru di program tujuan.
+   * **Case 1 (Student Distribution)**: Pendaftaran siswa yang baru masuk ke dalam kelas. Sesuai **Rule 29**, siswa sudah memiliki program sejak dibuat. Mentor utama (Primary Mentor) hanya perlu mendistribusikan siswa tersebut ke dalam personal tutelage mereka, atau siswa dapat dibagikan otomatis oleh sistem.
+   * **Case 2 (Cross-Program Student Transfer)**: Pemindahan siswa yang sudah ber-program ke program baru. Sesuai **Rule 25**, sistem menjalankan **Clean Transfer** yang menghapus seluruh progres, absensi, dan nilai di program lama agar siswa memulai lembaran baru di program tujuan.
 2. **Delegasi Wewenang Operasional (*Delegated Authority*)**:
-   * Sesuai **Rule 17**, Admin mendelegasikan wewenang operasional kepada *Primary Mentor* untuk melakukan pendaftaran siswa (Case 1 & Case 2), pengeditan data akademik, serta penonaktifan siswa di dalam programnya sendiri.
+   * Sesuai **Rule 17**, Admin mendelegasikan wewenang operasional kepada *Primary Mentor* untuk melakukan pendaftaran siswa (Case 1), pengeditan data akademik, serta penonaktifan siswa di dalam programnya sendiri.
    * Mentor dilarang melakukan *Hard Delete* (Rule 24). Hak penghapusan dan override lintas program secara mutlak tetap dipegang oleh Administrator.
 3. **Distribusi Otomatis Modulo & Round-Robin (*Web & Mobile Tracks*)**:
-   * Khusus pada program kolaboratif (Web & Mobile Development), sistem menyediakan eksekusi otomatis yang membagi siswa secara rata (*Round-Robin*) kepada tim Mentor Utama, dan mengalihkan sisa pembagian (*remainder*) kepada Mentor UI/UX dan Mentor Professional sesuai **Rule 16**.
+   * Khusus pada program kolaboratif (Web & Mobile Development), sistem menyediakan eksekusi otomatis yang membagi siswa secara rata (*Round-Robin*) kepada tim Mentor Utama, dan mengalihkan sisa pembagian (*remainder*) kepada Mentor UI/UX dan Mentor Professional sesuai **Rule 16**.

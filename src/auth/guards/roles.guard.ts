@@ -33,7 +33,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const user = request.user;
-    if (!user || !requiredRoles.includes(user.role)) {
+    if (!user || !user.roles || !requiredRoles.some(role => user.roles.includes(role))) {
       throw new ForbiddenException(
         'Anda tidak memiliki izin untuk mengakses resource ini.',
       );

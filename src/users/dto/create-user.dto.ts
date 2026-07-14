@@ -9,7 +9,12 @@ export class CreateUserDto {
   email: string;
 
   @IsEnum(UserRole)
-  role: UserRole;
+  @IsOptional()
+  role?: UserRole;
+
+  @IsEnum(UserRole, { each: true })
+  @IsOptional()
+  roles?: UserRole[];
 
   @IsString()
   @IsOptional()

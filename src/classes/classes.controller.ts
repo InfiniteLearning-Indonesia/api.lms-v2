@@ -1,79 +1,78 @@
 import { Controller, Get, Post, Patch, Delete, Body, UseGuards, Req } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('classes')
+@UseGuards(SessionAuthGuard, RolesGuard)
 export class ClassesController {
   constructor(private readonly classesService: ClassesService) {}
 
-  @UseGuards(SessionAuthGuard)
   @Get('my-classes')
   async getMyClasses(@Req() req: any) {
     return this.classesService.findMyClasses(req.user.id);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Get('mentor-classes')
   async getMentorClasses(@Req() req: any) {
     return this.classesService.findMentorClasses(req.user.id);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Get('programs-list')
   async getProgramsList() {
     return this.classesService.getProgramsWithDetails();
   }
 
-  @UseGuards(SessionAuthGuard)
   @Get('batches')
   async getAllBatches() {
     return this.classesService.getAllBatches();
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('batches')
+  @Roles('admin')
   async createGlobalBatch(@Body() body: { name: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[] }) {
     return this.classesService.createGlobalBatch(body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Patch('batches/:batchId')
+  @Roles('admin')
   async updateGlobalBatch(@Req() req: any, @Body() body: { name?: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[] }) {
     return this.classesService.updateGlobalBatch(req.params.batchId, body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Delete('batches/:batchId')
+  @Roles('admin')
   async deleteGlobalBatch(@Req() req: any) {
     return this.classesService.deleteGlobalBatch(req.params.batchId);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('batches/:batchId/import-enroll')
+  @Roles('admin')
   async importAndEnrollBatch(@Req() req: any, @Body() body: { users: Array<{ name: string; email: string; whatsapp?: string; institution?: string; studyProgram?: string; selectedProgram: string }>; autoDistribute?: boolean }) {
     return this.classesService.importAndEnrollBatch(req.params.batchId, body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('batches/:batchId/assign-mentors')
+  @Roles('admin')
   async assignBatchMentors(@Req() req: any, @Body() body: { programId: string; mentorIds: string[] }) {
     return this.classesService.assignBatchMentors(req.params.batchId, body.programId, body.mentorIds);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Patch('batch-status')
+  @Roles('admin')
   async updateBatchStatus(@Body() body: { status: 'active' | 'completed'; batchId?: string; programId?: string }) {
     return this.classesService.updateBatchStatus(body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('program-create-batch')
+  @Roles('admin')
   async createProgramBatch(@Body() body: { programId: string; batchName: string }) {
     return this.classesService.createProgramBatch(body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('program-enroll')
+  @Roles('admin', 'mentor')
   async enrollStudent(@Body() body: {
     studentId: string;
     programName: string;
@@ -83,14 +82,14 @@ export class ClassesController {
     return this.classesService.enrollStudentToProgram(body);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('program-assign-mentor')
+  @Roles('admin')
   async assignMentor(@Body() body: { mentorId: string; programName: string }) {
     return this.classesService.assignMentorToProgram(body.mentorId, body.programName);
   }
 
-  @UseGuards(SessionAuthGuard)
   @Post('program-distribute-modulo')
+  @Roles('admin')
   async distributeModulo(@Body() body: { programName: string }) {
     return this.classesService.distributeModulo(body.programName);
   }
@@ -117,6 +116,12 @@ export class ClassesController {
   @Get(':classId/assignment/:assignmentId')
   async getAssignmentDetails(@Req() req: any) {
     return this.classesService.getAssignmentDetails(req.params.classId, req.params.assignmentId);
+  }
+
+  @Post('handover-mentor')
+  @Roles('admin')
+  async handoverMentor(@Body() body: { oldMentorId: string; newMentorId: string; programId: string }) {
+    return this.classesService.handoverMentor(body.oldMentorId, body.newMentorId, body.programId);
   }
 }
 

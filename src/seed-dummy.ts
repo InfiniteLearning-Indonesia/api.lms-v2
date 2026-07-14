@@ -27,7 +27,7 @@ async function bootstrap() {
     await userRepo.save(userRepo.create({
       email: 'arifiansaputra43@gmail.com',
       name: 'Arifian Saputra',
-      role: UserRole.ADMIN,
+      roles: [UserRole.ADMIN],
       status: UserStatus.ACTIVE,
       whatsapp: '081234567890',
     }));

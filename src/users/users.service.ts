@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
@@ -41,10 +42,15 @@ export class UsersService {
       throw new ConflictException(`User dengan email ${email} sudah terdaftar.`);
     }
 
+    const targetRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
+    if ((targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) && !dto.selectedProgram) {
+      throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
+    }
+
     const user = this.usersRepository.create({
       name: dto.name,
       email,
-      role: dto.role,
+      roles: targetRoles,
       status: UserStatus.INVITED,
       whatsapp: dto.whatsapp || null,
       institution: dto.institution || null,
@@ -350,6 +356,29 @@ export class UsersService {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
+    if (user.roles.includes(UserRole.STUDENT)) {
+      const activeEnrollments = await this.dataSource.query(`
+        SELECT COUNT(*) as count FROM enrollments e
+        INNER JOIN classes c ON e."classId" = c.id
+        INNER JOIN batches b ON c."batchId" = b.id
+        WHERE e."studentId" = $1 AND b.status = 'active'
+      `, [id]);
+      if (parseInt(activeEnrollments[0].count, 10) > 0) {
+        throw new ForbiddenException('Siswa tidak dapat dihapus karena terdaftar pada Batch yang sedang aktif (Rule 19).');
+      }
+    }
+
+    if (user.roles.includes(UserRole.MENTOR)) {
+      const activeClasses = await this.dataSource.query(`
+        SELECT COUNT(*) as count FROM classes c
+        INNER JOIN batches b ON c."batchId" = b.id
+        WHERE c."mentorId" = $1 AND b.status = 'active'
+      `, [id]);
+      if (parseInt(activeClasses[0].count, 10) > 0) {
+        throw new ForbiddenException('Mentor tidak dapat dihapus karena bertugas pada Batch yang sedang aktif (Rule 19).');
+      }
+    }
+
     // Clean up relational foreign keys before deleting user to prevent FK constraint error 23503
     await this.dataSource.query('UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = $1', [id]);
     await this.dataSource.query('UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1', [id]);
@@ -368,11 +397,38 @@ export class UsersService {
     });
 
     const nonAdminIds = users
-      .filter((u) => u.role !== UserRole.ADMIN)
+      .filter((u) => !u.roles.includes(UserRole.ADMIN))
       .map((u) => u.id);
 
     if (nonAdminIds.length === 0) {
       return { deletedCount: 0 };
+    }
+
+    for (const u of users) {
+      if (!nonAdminIds.includes(u.id)) continue;
+      
+      if (u.roles.includes(UserRole.STUDENT)) {
+        const activeEnrollments = await this.dataSource.query(`
+          SELECT COUNT(*) as count FROM enrollments e
+          INNER JOIN classes c ON e."classId" = c.id
+          INNER JOIN batches b ON c."batchId" = b.id
+          WHERE e."studentId" = $1 AND b.status = 'active'
+        `, [u.id]);
+        if (parseInt(activeEnrollments[0].count, 10) > 0) {
+          throw new ForbiddenException(`Siswa ${u.name} tidak dapat dihapus karena terdaftar pada Batch yang sedang aktif (Rule 19).`);
+        }
+      }
+
+      if (u.roles.includes(UserRole.MENTOR)) {
+        const activeClasses = await this.dataSource.query(`
+          SELECT COUNT(*) as count FROM classes c
+          INNER JOIN batches b ON c."batchId" = b.id
+          WHERE c."mentorId" = $1 AND b.status = 'active'
+        `, [u.id]);
+        if (parseInt(activeClasses[0].count, 10) > 0) {
+          throw new ForbiddenException(`Mentor ${u.name} tidak dapat dihapus karena bertugas pada Batch yang sedang aktif (Rule 19).`);
+        }
+      }
     }
 
     // Clean up relational foreign keys before bulk deleting users to prevent FK constraint error 23503
