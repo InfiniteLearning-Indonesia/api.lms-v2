@@ -21,6 +21,9 @@ export class Assignment {
     @Column({ type: 'timestamp', nullable: true })
     dueDate: Date;
 
+    @Column({ type: 'jsonb', nullable: true })
+    rubric: any;
+
     @ManyToOne(() => Class, (cls) => cls.assignments)
     @JoinColumn({ name: 'classId' })
     class: Class;

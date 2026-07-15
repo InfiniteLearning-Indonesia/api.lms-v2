@@ -1143,4 +1143,23 @@ export class ClassesService {
       message: `Berhasil melakukan handover tugas bimbingan dari ${oldMentor.name} ke ${newMentor.name} untuk program ${program.name}. Sebanyak ${transferCount} kelas dialihkan.`
     };
   }
+
+  async updateAssignmentRubric(classId: string, assignmentId: string, rubric: any) {
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId, classId },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found in this class');
+    }
+
+    assignment.rubric = rubric;
+    await this.assignmentRepository.save(assignment);
+
+    return {
+      success: true,
+      message: 'Rubric updated successfully',
+      rubric: assignment.rubric,
+    };
+  }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, UseGuards, Req, Param } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -123,5 +123,16 @@ export class ClassesController {
   async handoverMentor(@Body() body: { oldMentorId: string; newMentorId: string; programId: string }) {
     return this.classesService.handoverMentor(body.oldMentorId, body.newMentorId, body.programId);
   }
-}
 
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put(':classId/assignment/:assignmentId/rubric')
+  async updateAssignmentRubric(
+      @Req() req: any,
+      @Param('classId') classId: string,
+      @Param('assignmentId') assignmentId: string,
+      @Body() body: { rubric: any }
+  ) {
+      return this.classesService.updateAssignmentRubric(classId, assignmentId, body.rubric);
+  }
+}
