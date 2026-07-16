@@ -123,5 +123,11 @@ export class ClassesController {
   async handoverMentor(@Body() body: { oldMentorId: string; newMentorId: string; programId: string }) {
     return this.classesService.handoverMentor(body.oldMentorId, body.newMentorId, body.programId);
   }
+
+  @Post('user-batches')
+  @Roles('admin')
+  async updateUserBatches(@Body() body: { userId: string; batchIds: string[] }) {
+    return this.classesService.updateUserBatches(body.userId, body.batchIds);
+  }
 }
 

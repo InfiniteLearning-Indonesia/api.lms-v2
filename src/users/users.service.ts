@@ -30,8 +30,46 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.find({ order: { createdAt: 'DESC' } });
+  async findAll(): Promise<any[]> {
+    const users = await this.usersRepository.find({ order: { createdAt: 'DESC' } });
+    
+    // Fetch student enrollments
+    const studentEnrollments = await this.dataSource.query(`
+      SELECT e."studentId", b.id as "batchId", b.name as "batchName"
+      FROM enrollments e
+      JOIN classes c ON e."classId" = c.id
+      JOIN batches b ON c."batchId" = b.id
+    `);
+
+    // Fetch mentor class assignments
+    const mentorClasses = await this.dataSource.query(`
+      SELECT c."mentorId", b.id as "batchId", b.name as "batchName"
+      FROM classes c
+      JOIN batches b ON c."batchId" = b.id
+      WHERE c."mentorId" IS NOT NULL
+    `);
+
+    return users.map((user) => {
+      let userBatches: any[] = [];
+      const roles = user.roles || [];
+      if (roles.includes(UserRole.STUDENT)) {
+        const enrolls = studentEnrollments.filter((e: any) => e.studentId === user.id);
+        userBatches = enrolls.map((e: any) => ({ id: e.batchId, name: e.batchName }));
+      } else if (roles.includes(UserRole.MENTOR)) {
+        const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
+        userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
+      }
+
+      // Deduplicate batches
+      const uniqueBatches = Array.from(
+        new Map(userBatches.map((b) => [b.id, b])).values()
+      );
+
+      return {
+        ...user.toJSON(),
+        batches: uniqueBatches,
+      };
+    });
   }
 
   async invite(dto: CreateUserDto): Promise<User> {
@@ -43,8 +81,14 @@ export class UsersService {
     }
 
     const targetRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
-    if ((targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) && !dto.selectedProgram) {
-      throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
+    if (targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) {
+      if (!dto.selectedProgram) {
+        throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
+      }
+      const activeBatches = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active'`);
+      if (activeBatches.length === 0) {
+        throw new BadRequestException('Pendaftaran dibatalkan: Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
+      }
     }
 
     const user = this.usersRepository.create({
@@ -56,6 +100,7 @@ export class UsersService {
       institution: dto.institution || null,
       studyProgram: dto.studyProgram || null,
       selectedProgram: dto.selectedProgram || null,
+      specialization: dto.specialization || null,
     });
 
     const savedUser = await this.usersRepository.save(user);
