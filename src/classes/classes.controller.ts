@@ -101,6 +101,24 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Post('competencies')
+  async createCompetency(@Req() req: any, @Body() body: { name: string; category: string; programId: string; phase?: string }) {
+    return this.classesService.createCompetency(req.user.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Put('competencies/:id')
+  async updateCompetency(@Req() req: any, @Body() body: { name?: string; category?: string; phase?: string }) {
+    return this.classesService.updateCompetency(req.user.id, req.params.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('competencies/:id')
+  async deleteCompetency(@Req() req: any) {
+    return this.classesService.deleteCompetency(req.user.id, req.params.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId')
   async getClassDetails(@Req() req: any) {
     return this.classesService.getClassDetails(req.params.classId);
@@ -126,13 +144,63 @@ export class ClassesController {
 
   @UseGuards(SessionAuthGuard)
   @Roles('mentor', 'admin')
-  @Put(':classId/assignment/:assignmentId/rubric')
-  async updateAssignmentRubric(
+  @Put('competency/:competencyId/rubric')
+  async updateCompetencyRubric(
       @Req() req: any,
-      @Param('classId') classId: string,
-      @Param('assignmentId') assignmentId: string,
+      @Param('competencyId') competencyId: string,
       @Body() body: { rubric: any }
   ) {
-      return this.classesService.updateAssignmentRubric(classId, assignmentId, body.rubric);
+      return this.classesService.updateCompetencyRubric(competencyId, body.rubric);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post(':classId/assignment/:assignmentId/submit')
+  async submitAssignment(
+    @Req() req: any,
+    @Param('assignmentId') assignmentId: string,
+    @Body() body: { link: string }
+  ) {
+    return this.classesService.submitAssignment(req.user.id, assignmentId, body.link);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get(':classId/assignment/:assignmentId/submissions/me')
+  async getMySubmission(
+    @Req() req: any,
+    @Param('assignmentId') assignmentId: string
+  ) {
+    return this.classesService.getStudentSubmission(req.user.id, assignmentId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Get(':classId/assignment/:assignmentId/submissions')
+  async getSubmissions(@Param('assignmentId') assignmentId: string) {
+    return this.classesService.getSubmissions(assignmentId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put(':classId/assignment/:assignmentId/submissions/:submissionId/grade')
+  async gradeSubmission(
+    @Req() req: any,
+    @Param('submissionId') submissionId: string,
+    @Body() body: { score: number; manualFeedback: string }
+  ) {
+    return this.classesService.gradeSubmission(submissionId, req.user.id, body.score, body.manualFeedback);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post(':classId/assignment/:assignmentId/submissions/:submissionId/ai-evaluate')
+  async aiEvaluateSubmission(@Param('submissionId') submissionId: string) {
+    return this.classesService.aiEvaluateSubmission(submissionId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put('assignments/weights')
+  async updateAssignmentWeights(@Body() body: { updates: Array<{ id: string; weight: number }> }) {
+    return this.classesService.updateAssignmentWeights(body.updates);
   }
 }

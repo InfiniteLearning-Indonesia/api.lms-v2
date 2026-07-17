@@ -9,6 +9,7 @@ import { Competency } from './entities/competency.entity.js';
 import { Program } from './entities/program.entity.js';
 import { Batch, BatchStatus } from './entities/batch.entity.js';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
+import { Submission } from './entities/submission.entity.js';
 
 @Injectable()
 export class ClassesService {
@@ -29,6 +30,8 @@ export class ClassesService {
     private batchRepository: Repository<Batch>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Submission)
+    private submissionRepository: Repository<Submission>,
   ) { }
 
   async findMyClasses(studentId: string) {
@@ -93,7 +96,8 @@ export class ClassesService {
           where: { classId: In(relatedClassIds) }
         });
         const assignments = await this.assignmentRepository.find({
-          where: { classId: In(relatedClassIds) }
+          where: { classId: In(relatedClassIds) },
+          relations: { submissions: true },
         });
 
         return {
@@ -929,7 +933,7 @@ export class ClassesService {
     return false;
   }
 
-  async createCompetency(mentorId: string, payload: { name: string; category: string; programId: string }) {
+  async createCompetency(mentorId: string, payload: { name: string; category: string; programId: string; phase?: string }) {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Hanya mentor yang dapat membuat kompetensi.');
 
@@ -943,10 +947,43 @@ export class ClassesService {
     const competency = this.competencyRepository.create({
       name: payload.name,
       category: payload.category,
+      phase: payload.phase || 'Micro',
       programId: program.id,
       creatorMentorId: mentor.id,
     });
     return await this.competencyRepository.save(competency);
+  }
+
+  async updateCompetency(mentorId: string, id: string, payload: { name?: string; category?: string; phase?: string }) {
+    const competency = await this.competencyRepository.findOne({ where: { id } });
+    if (!competency) throw new NotFoundException('Kompetensi tidak ditemukan.');
+
+    // Only creators or admins can edit (simplified rule for mentor)
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    if (payload.name) competency.name = payload.name;
+    if (payload.category) competency.category = payload.category;
+    if (payload.phase) competency.phase = payload.phase;
+
+    return await this.competencyRepository.save(competency);
+  }
+
+  async deleteCompetency(mentorId: string, id: string) {
+    const competency = await this.competencyRepository.findOne({ where: { id } });
+    if (!competency) throw new NotFoundException('Kompetensi tidak ditemukan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    // Check if there are assignments using this competency
+    const assignmentsUsingIt = await this.assignmentRepository.count({ where: { competency: id } });
+    if (assignmentsUsingIt > 0) {
+      throw new ForbiddenException('Tidak dapat menghapus kompetensi karena masih ada tugas yang tertaut.');
+    }
+
+    await this.competencyRepository.remove(competency);
+    return { success: true };
   }
 
   async createMaterial(mentorId: string, classId: string, payload: { title: string; type: string; competency: string; url: string; content?: string }) {
@@ -1144,22 +1181,141 @@ export class ClassesService {
     };
   }
 
-  async updateAssignmentRubric(classId: string, assignmentId: string, rubric: any) {
-    const assignment = await this.assignmentRepository.findOne({
-      where: { id: assignmentId, classId },
+  async updateCompetencyRubric(competencyId: string, rubric: any) {
+    const competency = await this.competencyRepository.findOne({
+      where: { id: competencyId },
     });
 
-    if (!assignment) {
-      throw new NotFoundException('Assignment not found in this class');
+    if (!competency) {
+      throw new NotFoundException('Competency not found');
     }
 
-    assignment.rubric = rubric;
-    await this.assignmentRepository.save(assignment);
+    competency.rubric = rubric;
+    await this.competencyRepository.save(competency);
 
     return {
       success: true,
       message: 'Rubric updated successfully',
-      rubric: assignment.rubric,
+      rubric: competency.rubric,
     };
+  }
+
+  async submitAssignment(studentId: string, assignmentId: string, link: string) {
+    let submission = await this.submissionRepository.findOne({
+      where: { studentId, assignmentId },
+    });
+    if (!submission) {
+      submission = this.submissionRepository.create({ studentId, assignmentId });
+    }
+    submission.link = link;
+    submission.status = 'submitted';
+    await this.submissionRepository.save(submission);
+    return { success: true, submission };
+  }
+
+  async getStudentSubmission(studentId: string, assignmentId: string) {
+    return this.submissionRepository.findOne({
+      where: { studentId, assignmentId },
+      relations: { assignment: true }
+    });
+  }
+
+  async getSubmissions(assignmentId: string) {
+    return this.submissionRepository.find({
+      where: { assignmentId },
+      relations: { student: true },
+    });
+  }
+
+  async gradeSubmission(submissionId: string, mentorId: string, score: number, manualFeedback: string) {
+    const submission = await this.submissionRepository.findOne({ 
+      where: { id: submissionId },
+      relations: { assignment: true }
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+    
+    let finalScore = score;
+    let feedback = manualFeedback;
+
+    // Check if late (createdAt > assignment.dueDate)
+    if (submission.assignment && submission.assignment.dueDate) {
+      const dueDate = new Date(submission.assignment.dueDate);
+      const submittedAt = new Date(submission.createdAt);
+      if (submittedAt > dueDate) {
+        finalScore = Math.max(0, finalScore - 2);
+        const lateMsg = '[Sistem] Mentee mengumpulkan terlambat. Nilai dikurangi 2 poin secara otomatis.';
+        feedback = feedback ? feedback + '\n\n' + lateMsg : lateMsg;
+      }
+    }
+
+    submission.score = finalScore;
+    submission.manualFeedback = feedback;
+    submission.gradedByMentorId = mentorId;
+    submission.status = 'graded';
+    await this.submissionRepository.save(submission);
+    return { success: true, submission };
+  }
+
+  async aiEvaluateSubmission(submissionId: string) {
+    const submission = await this.submissionRepository.findOne({
+      where: { id: submissionId },
+      relations: { assignment: { class: { program: true } } },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+
+    const assignment = submission.assignment;
+    if (!assignment) throw new NotFoundException('Assignment missing');
+
+    let rubric = null;
+    if (assignment.competency) {
+      const competencyObj = await this.competencyRepository.findOne({ where: { name: assignment.competency, program: { id: assignment.class.program.id } } });
+      if (competencyObj) rubric = competencyObj.rubric;
+    }
+
+    try {
+      const prompt = `Please evaluate the following submission link based on the rubric provided. This is an automated assessment prompt. 
+Link: ${submission.link}
+Rubric: ${JSON.stringify(rubric)}
+Return a JSON object with 'score' (0-100) and 'feedback'.`;
+
+      const response = await fetch('http://127.0.0.1:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama3', // adjust model if needed
+          prompt: prompt,
+          stream: false,
+          format: 'json',
+        }),
+      });
+
+      if (!response.ok) {
+         console.error('Ollama response not ok:', response.statusText);
+         throw new Error('Ollama request failed');
+      }
+
+      const data = await response.json();
+      const parsed = JSON.parse(data.response);
+      submission.score = parsed.score;
+      submission.aiFeedback = parsed.feedback;
+      submission.status = 'ai_draft';
+      await this.submissionRepository.save(submission);
+      return { success: true, submission };
+    } catch (e) {
+      console.error('AI evaluation failed', e);
+      // Fallback draft if ollama is not reachable or fails
+      submission.score = 75;
+      submission.aiFeedback = "Evaluasi AI gagal atau server AI tidak aktif. Ini adalah nilai draft fallback.";
+      submission.status = 'ai_draft';
+      await this.submissionRepository.save(submission);
+      return { success: true, submission, message: 'AI fallback used' };
+    }
+  }
+
+  async updateAssignmentWeights(updates: Array<{ id: string; weight: number }>) {
+    for (const update of updates) {
+      await this.assignmentRepository.update({ id: update.id }, { weight: update.weight });
+    }
+    return { success: true, message: 'Weights updated' };
   }
 }
