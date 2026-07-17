@@ -19,8 +19,14 @@ export class Competency {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ type: 'varchar', default: 'Micro' }) // Micro, Massive
+  phase: string;
+
   @Column({ type: 'varchar', default: 'Technical' }) // Technical, Soft Skills (CCA), Capstone Project
   category: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  rubric: any;
 
   @ManyToOne(() => Program)
   @JoinColumn({ name: 'programId' })

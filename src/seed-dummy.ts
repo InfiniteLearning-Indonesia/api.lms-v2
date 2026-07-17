@@ -32,6 +32,49 @@ async function bootstrap() {
       whatsapp: '081234567890',
     }));
 
+    await userRepo.save(userRepo.create({
+      email: 'infinitelearnhost@gmail.com',
+      name: 'Infinite Learning',
+      roles: [UserRole.ADMIN],
+      status: UserStatus.ACTIVE,
+      whatsapp: '081263666474',
+    }));
+
+    await userRepo.save(userRepo.create({
+      email: 'febriyann.personal@gmail.com',
+      name: 'Riyanda Azis Febrian',
+      roles: [UserRole.MENTOR],
+      status: UserStatus.ACTIVE,
+      whatsapp: '081263666474',
+    }));
+
+    await userRepo.save(userRepo.create({
+      email: 'yuotosaka43@gmail.com',
+      name: 'Mentee AI',
+      roles: [UserRole.STUDENT],
+      status: UserStatus.ACTIVE,
+      whatsapp: '081263666474',
+      selectedProgram: 'AI Development'
+    }));
+
+    await userRepo.save(userRepo.create({
+      email: 'riyandaazis00@gmail.com',
+      name: 'Student Riyan',
+      roles: [UserRole.STUDENT],
+      status: UserStatus.ACTIVE,
+      whatsapp: '081263666474',
+      selectedProgram: 'Web Development and UI/UX Design'
+    }));
+
+    await userRepo.save(userRepo.create({
+      email: 'autumnswallowtail7@gmail.com',
+      name: 'Student Arifian',
+      roles: [UserRole.STUDENT],
+      status: UserStatus.ACTIVE,
+      whatsapp: '081263666474',
+      selectedProgram: 'Web Development and UI/UX Design'
+    }));
+
     console.log('✅ Admin account and 4 Official Programs seeded successfully! Database is completely clean and ready for scratch testing.');
   } catch (error: any) {
     console.error(`❌ Seeding failed: ${error.message}`);

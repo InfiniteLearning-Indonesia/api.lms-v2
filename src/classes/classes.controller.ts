@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, UseGuards, Req, Param } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('classes')
 @UseGuards(SessionAuthGuard, RolesGuard)
 export class ClassesController {
-  constructor(private readonly classesService: ClassesService) {}
+  constructor(private readonly classesService: ClassesService) { }
 
   @Get('my-classes')
   async getMyClasses(@Req() req: any) {
@@ -101,15 +101,47 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Post('competencies')
+  async createCompetency(@Req() req: any, @Body() body: { name: string; category: string; programId: string; phase?: string }) {
+    return this.classesService.createCompetency(req.user.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Put('competencies/:id')
+  async updateCompetency(@Req() req: any, @Body() body: { name?: string; category?: string; phase?: string }) {
+    return this.classesService.updateCompetency(req.user.id, req.params.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('competencies/:id')
+  async deleteCompetency(@Req() req: any) {
+    return this.classesService.deleteCompetency(req.user.id, req.params.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId')
   async getClassDetails(@Req() req: any) {
     return this.classesService.getClassDetails(req.params.classId);
   }
 
   @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post(':classId/material')
+  async createMaterial(@Req() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classesService.createMaterial(req.user.id, classId, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId/material/:materialId')
   async getMaterialDetails(@Req() req: any) {
     return this.classesService.getMaterialDetails(req.params.classId, req.params.materialId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post(':classId/assignment')
+  async createAssignment(@Req() req: any, @Param('classId') classId: string, @Body() body: any) {
+    return this.classesService.createAssignment(req.user.id, classId, body);
   }
 
   @UseGuards(SessionAuthGuard)
@@ -129,5 +161,66 @@ export class ClassesController {
   async updateUserBatches(@Body() body: { userId: string; batchIds: string[] }) {
     return this.classesService.updateUserBatches(body.userId, body.batchIds);
   }
-}
 
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put('competency/:competencyId/rubric')
+  async updateCompetencyRubric(
+    @Req() req: any,
+    @Param('competencyId') competencyId: string,
+    @Body() body: { rubric: any }
+  ) {
+    return this.classesService.updateCompetencyRubric(competencyId, body.rubric);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post(':classId/assignment/:assignmentId/submit')
+  async submitAssignment(
+    @Req() req: any,
+    @Param('assignmentId') assignmentId: string,
+    @Body() body: { link: string }
+  ) {
+    return this.classesService.submitAssignment(req.user.id, assignmentId, body.link);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get(':classId/assignment/:assignmentId/submissions/me')
+  async getMySubmission(
+    @Req() req: any,
+    @Param('assignmentId') assignmentId: string
+  ) {
+    return this.classesService.getStudentSubmission(req.user.id, assignmentId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Get(':classId/assignment/:assignmentId/submissions')
+  async getSubmissions(@Param('assignmentId') assignmentId: string) {
+    return this.classesService.getSubmissions(assignmentId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put(':classId/assignment/:assignmentId/submissions/:submissionId/grade')
+  async gradeSubmission(
+    @Req() req: any,
+    @Param('submissionId') submissionId: string,
+    @Body() body: { score: number; manualFeedback: string }
+  ) {
+    return this.classesService.gradeSubmission(submissionId, req.user.id, body.score, body.manualFeedback);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post(':classId/assignment/:assignmentId/submissions/:submissionId/ai-evaluate')
+  async aiEvaluateSubmission(@Param('submissionId') submissionId: string) {
+    return this.classesService.aiEvaluateSubmission(submissionId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put('assignments/weights')
+  async updateAssignmentWeights(@Body() body: { updates: Array<{ id: string; weight: number }> }) {
+    return this.classesService.updateAssignmentWeights(body.updates);
+  }
+}
