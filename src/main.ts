@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import session from 'express-session';
 import passport from 'passport';
 import { AppModule } from './app.module.js';
+import { DataSource } from 'typeorm';
+import { User, UserRole, UserStatus } from './users/entities/user.entity.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,6 +14,24 @@ async function bootstrap() {
   const port = configService.get<number>('PORT', 7000);
   const sessionSecret = configService.get<string>('SESSION_SECRET', 'change-me');
   const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+
+  // Bootstrap: ensure bootstrap admin exists (idempotent upsert)
+  const dataSource = app.get(DataSource);
+  const userRepo = dataSource.getRepository(User);
+  const adminEmail = configService.get<string>('ADMIN_EMAIL', 'arifiansaputra43@gmail.com');
+  const adminName = configService.get<string>('ADMIN_NAME', 'Arifian Saputra');
+  const existing = await userRepo.findOne({ where: { email: adminEmail } });
+  if (!existing) {
+    await userRepo.save(
+      userRepo.create({
+        email: adminEmail,
+        name: adminName,
+        roles: [UserRole.ADMIN],
+        status: UserStatus.ACTIVE,
+      }),
+    );
+    console.log(`✅ Bootstrap: admin "${adminEmail}" created.`);
+  }
 
   // Validation pipe
   app.useGlobalPipes(

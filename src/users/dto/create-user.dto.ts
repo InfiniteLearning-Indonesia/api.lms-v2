@@ -32,7 +32,15 @@ export class CreateUserDto {
   @IsOptional()
   selectedProgram?: string;
 
+  @IsString()
+  @IsOptional()
+  specialization?: string;
+
   @IsBoolean()
   @IsOptional()
   sendEmail?: boolean;
+
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string;
 }

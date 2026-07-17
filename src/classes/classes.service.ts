@@ -247,18 +247,53 @@ export class ClassesService {
         ? programs.filter(p => batch.includedProgramIds?.includes(p.id))
         : programs;
 
-      const programsWithMentors = includedPrograms.map(p => {
-        const progMentors = allUsers.filter(u => u.roles.includes(UserRole.MENTOR) && u.status === UserStatus.ACTIVE && (batchClasses.some(c => c.programId === p.id && c.mentorId === u.id) || u.selectedProgram === p.name));
+      const programsWithDetails = includedPrograms.map(p => {
+        const progClasses = batchClasses.filter(c => c.programId === p.id);
+        const progEnrollments = batchEnrollments.filter(e => progClasses.some(c => c.id === e.classId));
+
+        const progMentors = allUsers.filter(u =>
+          (u.roles.includes(UserRole.MENTOR) || u.roles.includes(UserRole.ADMIN)) &&
+          u.status === UserStatus.ACTIVE &&
+          (progClasses.some(c => c.mentorId === u.id) || u.selectedProgram === p.name)
+        );
+
+        const progStudents = allUsers.filter(u =>
+          u.roles.includes(UserRole.STUDENT) &&
+          progEnrollments.some(e => e.studentId === u.id)
+        );
+
         return {
           ...p,
           mentorsCount: progMentors.length,
-          mentors: progMentors.map(m => ({ id: m.id, name: m.name, email: m.email, specialization: m.specialization })),
+          mentors: progMentors.map(m => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            whatsapp: m.whatsapp,
+            status: m.status,
+            specialization: m.specialization
+          })),
+          studentsCount: progStudents.length,
+          students: progStudents.map(s => {
+            const enroll = progEnrollments.find(e => e.studentId === s.id);
+            const cls = progClasses.find(c => c.id === enroll?.classId);
+            const mentor = progMentors.find(m => m.id === cls?.mentorId);
+            return {
+              id: s.id,
+              name: s.name,
+              email: s.email,
+              whatsapp: s.whatsapp,
+              status: s.status,
+              selectedProgram: s.selectedProgram,
+              mentorName: mentor ? mentor.name : (progMentors.map(m => m.name).join(', ') || 'Seluruh Mentor Program')
+            };
+          })
         };
       });
 
       return {
         ...batch,
-        includedPrograms: programsWithMentors,
+        includedPrograms: programsWithDetails,
         classCount: batchClasses.length,
         studentCount: batchEnrollments.length,
       };
@@ -640,6 +675,18 @@ export class ClassesService {
     mentorId?: string;
     isCase3Transfer?: boolean;
   }) {
+    // Validate program exists first
+    const program = await this.programRepository.findOne({ where: { name: payload.programName } });
+    if (!program) {
+      throw new BadRequestException(`Program studi "${payload.programName}" tidak ditemukan di database.`);
+    }
+
+    // Validate active batch exists BEFORE any state mutation (Rule 27 + Entitas 5)
+    const batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    if (!batch) {
+      throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum mendaftarkan siswa.');
+    }
+
     const student = await this.userRepository.findOne({ where: { id: payload.studentId } });
     if (!student) throw new NotFoundException('Siswa tidak ditemukan');
 
@@ -654,117 +701,113 @@ export class ClassesService {
     student.selectedProgram = payload.programName;
     await this.userRepository.save(student);
 
-    const program = await this.programRepository.findOne({ where: { name: payload.programName } });
-    if (program) {
-      let batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
-      if (!batch) {
-        throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
-      }
-      
-      if (!batch.includedProgramIds) batch.includedProgramIds = [];
-      if (!batch.includedProgramIds.includes(program.id)) {
-        batch.includedProgramIds.push(program.id);
-        await this.batchRepository.save(batch);
-      }
+    if (!batch.includedProgramIds) batch.includedProgramIds = [];
+    if (!batch.includedProgramIds.includes(program.id)) {
+      batch.includedProgramIds.push(program.id);
+      await this.batchRepository.save(batch);
+    }
 
-      let mentorIdToUse = payload.mentorId;
-      if (!mentorIdToUse) {
-        const existingClass = await this.classRepository.findOne({ where: { programId: program.id } });
-        if (existingClass?.mentorId) {
-          mentorIdToUse = existingClass.mentorId;
-        } else {
-          const activeMentors = await this.userRepository.find({ where: { status: UserStatus.ACTIVE } });
-          const anyMentor = activeMentors.find(u => u.roles.includes(UserRole.MENTOR) && u.selectedProgram === payload.programName);
-          mentorIdToUse = anyMentor?.id;
-        }
+    let mentorIdToUse = payload.mentorId;
+    if (!mentorIdToUse) {
+      const existingClass = await this.classRepository.findOne({ where: { programId: program.id } });
+      if (existingClass?.mentorId) {
+        mentorIdToUse = existingClass.mentorId;
+      } else {
+        const activeMentors = await this.userRepository.find({ where: { status: UserStatus.ACTIVE } });
+        const anyMentor = activeMentors.find(u => u.roles.includes(UserRole.MENTOR) && u.selectedProgram === payload.programName);
+        mentorIdToUse = anyMentor?.id;
       }
+    }
 
-      if (mentorIdToUse) {
-        const mentor = await this.userRepository.findOne({ where: { id: mentorIdToUse } });
-        if (mentor) {
-          const spec = mentor.specialization || '';
-          if (payload.programName.includes('AI')) {
-            if (!spec.includes('AI')) {
-              throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program AI (Rule 1).`);
-            }
-          } else if (payload.programName.includes('Game')) {
-            if (!spec.includes('Game')) {
-              throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Game (Rule 2).`);
-            }
-          } else if (payload.programName.includes('Web')) {
-            if (!spec.includes('Web') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
-              throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Web (Rule 3).`);
-            }
-          } else if (payload.programName.includes('Mobile')) {
-            if (!spec.includes('Mobile') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
-              throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Mobile (Rule 4).`);
-            }
+    if (mentorIdToUse) {
+      const mentor = await this.userRepository.findOne({ where: { id: mentorIdToUse } });
+      if (mentor) {
+        const spec = mentor.specialization || '';
+        if (payload.programName.includes('AI')) {
+          if (!spec.includes('AI')) {
+            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program AI (Rule 1).`);
           }
-
-          if (!mentor.selectedProgram) {
-            mentor.selectedProgram = payload.programName;
-            await this.userRepository.save(mentor);
+        } else if (payload.programName.includes('Game')) {
+          if (!spec.includes('Game')) {
+            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Game (Rule 2).`);
+          }
+        } else if (payload.programName.includes('Web')) {
+          if (!spec.includes('Web') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
+            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Web (Rule 3).`);
+          }
+        } else if (payload.programName.includes('Mobile')) {
+          if (!spec.includes('Mobile') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
+            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Mobile (Rule 4).`);
           }
         }
-      }
 
-      let cls = await this.classRepository.findOne({ where: { programId: program.id, ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}) } });
-      if (!cls) {
-        cls = await this.classRepository.save(this.classRepository.create({
-          programId: program.id,
-          batchId: batch.id,
-          ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}),
-        }));
-      }
-
-      // Ensure exactly 1 personal mentor by deleting any existing enrollments in this program
-      const allProgramClasses = await this.classRepository.find({ where: { programId: program.id } });
-      const programClassIds = allProgramClasses.map(c => c.id);
-      
-      const existingEnrolls = await this.enrollmentRepository.find({ where: { studentId: student.id } });
-      for (const e of existingEnrolls) {
-        if (programClassIds.includes(e.classId)) {
-          await this.enrollmentRepository.delete({ id: e.id });
+        if (!mentor.selectedProgram) {
+          mentor.selectedProgram = payload.programName;
+          await this.userRepository.save(mentor);
         }
       }
+    }
 
-      await this.enrollmentRepository.save(this.enrollmentRepository.create({
-        studentId: student.id,
-        classId: cls.id,
+    let cls = await this.classRepository.findOne({ where: { programId: program.id, ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}) } });
+    if (!cls) {
+      cls = await this.classRepository.save(this.classRepository.create({
+        programId: program.id,
+        batchId: batch.id,
+        ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}),
       }));
     }
+
+    // Ensure exactly 1 personal mentor by deleting any existing enrollments in this program
+    const allProgramClasses = await this.classRepository.find({ where: { programId: program.id } });
+    const programClassIds = allProgramClasses.map(c => c.id);
+
+    const existingEnrolls = await this.enrollmentRepository.find({ where: { studentId: student.id } });
+    for (const e of existingEnrolls) {
+      if (programClassIds.includes(e.classId)) {
+        await this.enrollmentRepository.delete({ id: e.id });
+      }
+    }
+
+    await this.enrollmentRepository.save(this.enrollmentRepository.create({
+      studentId: student.id,
+      classId: cls.id,
+    }));
 
     return { success: true, student };
   }
 
   async assignMentorToProgram(mentorId: string, programName: string) {
+    // Validate program exists first
+    const program = await this.programRepository.findOne({ where: { name: programName } });
+    if (!program) {
+      throw new BadRequestException(`Program studi "${programName}" tidak ditemukan di database.`);
+    }
+
+    // Validate active batch exists BEFORE any state mutation
+    const batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    if (!batch) {
+      throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum meng-assign mentor.');
+    }
+
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor) throw new NotFoundException('Mentor tidak ditemukan');
 
     mentor.selectedProgram = programName;
     await this.userRepository.save(mentor);
 
-    const program = await this.programRepository.findOne({ where: { name: programName } });
-    if (program) {
-      let batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
-      if (!batch) {
-        throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
-      }
-      
-      if (!batch.includedProgramIds) batch.includedProgramIds = [];
-      if (!batch.includedProgramIds.includes(program.id)) {
-        batch.includedProgramIds.push(program.id);
-        await this.batchRepository.save(batch);
-      }
+    if (!batch.includedProgramIds) batch.includedProgramIds = [];
+    if (!batch.includedProgramIds.includes(program.id)) {
+      batch.includedProgramIds.push(program.id);
+      await this.batchRepository.save(batch);
+    }
 
-      let cls = await this.classRepository.findOne({ where: { programId: program.id, mentorId: mentor.id } });
-      if (!cls) {
-        await this.classRepository.save(this.classRepository.create({
-          programId: program.id,
-          batchId: batch.id,
-          mentorId: mentor.id,
-        }));
-      }
+    let cls = await this.classRepository.findOne({ where: { programId: program.id, mentorId: mentor.id } });
+    if (!cls) {
+      await this.classRepository.save(this.classRepository.create({
+        programId: program.id,
+        batchId: batch.id,
+        mentorId: mentor.id,
+      }));
     }
 
     return { success: true, mentor };
@@ -792,22 +835,22 @@ export class ClassesService {
 
     const studentsInBatch = programStudents.filter(s => enrollments.some(e => e.studentId === s.id));
 
-    const primaryMentors = allUsers.filter(u => 
-      u.roles.includes(UserRole.MENTOR) && 
-      u.status === UserStatus.ACTIVE && 
-      u.selectedProgram === programName && 
-      !u.specialization?.includes('UI/UX') && 
+    const primaryMentors = allUsers.filter(u =>
+      u.roles.includes(UserRole.MENTOR) &&
+      u.status === UserStatus.ACTIVE &&
+      u.selectedProgram === programName &&
+      !u.specialization?.includes('UI/UX') &&
       !u.specialization?.includes('Professional')
     );
 
-    const secondaryMentors = allUsers.filter(u => 
-      u.roles.includes(UserRole.MENTOR) && 
-      u.status === UserStatus.ACTIVE && 
+    const secondaryMentors = allUsers.filter(u =>
+      u.roles.includes(UserRole.MENTOR) &&
+      u.status === UserStatus.ACTIVE &&
       u.specialization?.includes('UI/UX')
     );
-    const supportingMentors = allUsers.filter(u => 
-      u.roles.includes(UserRole.MENTOR) && 
-      u.status === UserStatus.ACTIVE && 
+    const supportingMentors = allUsers.filter(u =>
+      u.roles.includes(UserRole.MENTOR) &&
+      u.status === UserStatus.ACTIVE &&
       u.specialization?.includes('Professional')
     );
 
@@ -1181,6 +1224,110 @@ export class ClassesService {
     };
   }
 
+  async updateUserBatches(userId: string, batchIds: string[]) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User tidak ditemukan.');
+    }
+
+    const isStudent = user.roles.includes(UserRole.STUDENT);
+    const isMentor = user.roles.includes(UserRole.MENTOR);
+
+    if (!isStudent && !isMentor) {
+      throw new BadRequestException('Hanya Student dan Mentor yang dapat dikaitkan dengan Cohort/Batch.');
+    }
+
+    if (isStudent) {
+      if (!user.selectedProgram) {
+        throw new BadRequestException('Siswa wajib memiliki program studi sebelum dikaitkan dengan Batch.');
+      }
+      const program = await this.programRepository.findOne({ where: { name: user.selectedProgram } });
+      if (!program) {
+        throw new BadRequestException(`Program studi "${user.selectedProgram}" tidak ditemukan.`);
+      }
+
+      // Get current enrollments
+      const currentEnrollments = await this.enrollmentRepository.find({
+        where: { studentId: userId },
+        relations: { class: true }
+      });
+
+      // 1. Remove enrollments that are NOT in the list of batchIds
+      for (const e of currentEnrollments) {
+        if (!batchIds.includes(e.class.batchId)) {
+          await this.enrollmentRepository.delete({ id: e.id });
+        }
+      }
+
+      // 2. Add new enrollments for target batches
+      for (const bId of batchIds) {
+        const hasEnroll = currentEnrollments.some(e => e.class.batchId === bId);
+        if (!hasEnroll) {
+          // Find or create class for this program and batch
+          let cls = await this.classRepository.findOne({ where: { programId: program.id, batchId: bId } });
+          if (!cls) {
+            // Find an active mentor for this program to set as initial mentor, if any
+            const activeMentors = await this.userRepository.find({ where: { status: UserStatus.ACTIVE } });
+            const anyMentor = activeMentors.find(u => u.roles.includes(UserRole.MENTOR) && u.selectedProgram === user.selectedProgram);
+            cls = await this.classRepository.save(this.classRepository.create({
+              programId: program.id,
+              batchId: bId,
+              mentorId: anyMentor?.id || null,
+            }));
+          }
+
+          await this.enrollmentRepository.save(this.enrollmentRepository.create({
+            studentId: userId,
+            classId: cls.id,
+          }));
+        }
+      }
+    }
+
+    if (isMentor) {
+      if (!user.selectedProgram) {
+        throw new BadRequestException('Mentor wajib memiliki program studi sebelum dikaitkan dengan Batch.');
+      }
+      const program = await this.programRepository.findOne({ where: { name: user.selectedProgram } });
+      if (!program) {
+        throw new BadRequestException(`Program studi "${user.selectedProgram}" tidak ditemukan.`);
+      }
+
+      // Find all classes assigned to this mentor
+      const currentClasses = await this.classRepository.find({
+        where: { mentorId: userId }
+      });
+
+      // 1. Unassign from classes that are NOT in batchIds
+      for (const cls of currentClasses) {
+        if (!batchIds.includes(cls.batchId)) {
+          cls.mentorId = null;
+          await this.classRepository.save(cls);
+        }
+      }
+
+      // 2. Assign to classes in target batchIds
+      for (const bId of batchIds) {
+        const isAssigned = currentClasses.some(c => c.batchId === bId);
+        if (!isAssigned) {
+          let cls = await this.classRepository.findOne({ where: { programId: program.id, batchId: bId } });
+          if (cls) {
+            cls.mentorId = userId;
+            await this.classRepository.save(cls);
+          } else {
+            await this.classRepository.save(this.classRepository.create({
+              programId: program.id,
+              batchId: bId,
+              mentorId: userId
+            }));
+          }
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
   async updateCompetencyRubric(competencyId: string, rubric: any) {
     const competency = await this.competencyRepository.findOne({
       where: { id: competencyId },
@@ -1228,12 +1375,12 @@ export class ClassesService {
   }
 
   async gradeSubmission(submissionId: string, mentorId: string, score: number, manualFeedback: string) {
-    const submission = await this.submissionRepository.findOne({ 
+    const submission = await this.submissionRepository.findOne({
       where: { id: submissionId },
       relations: { assignment: true }
     });
     if (!submission) throw new NotFoundException('Submission not found');
-    
+
     let finalScore = score;
     let feedback = manualFeedback;
 
@@ -1290,8 +1437,8 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       });
 
       if (!response.ok) {
-         console.error('Ollama response not ok:', response.statusText);
-         throw new Error('Ollama request failed');
+        console.error('Ollama response not ok:', response.statusText);
+        throw new Error('Ollama request failed');
       }
 
       const data = await response.json();

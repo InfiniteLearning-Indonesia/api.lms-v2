@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('classes')
 @UseGuards(SessionAuthGuard, RolesGuard)
 export class ClassesController {
-  constructor(private readonly classesService: ClassesService) {}
+  constructor(private readonly classesService: ClassesService) { }
 
   @Get('my-classes')
   async getMyClasses(@Req() req: any) {
@@ -142,15 +142,21 @@ export class ClassesController {
     return this.classesService.handoverMentor(body.oldMentorId, body.newMentorId, body.programId);
   }
 
+  @Post('user-batches')
+  @Roles('admin')
+  async updateUserBatches(@Body() body: { userId: string; batchIds: string[] }) {
+    return this.classesService.updateUserBatches(body.userId, body.batchIds);
+  }
+
   @UseGuards(SessionAuthGuard)
   @Roles('mentor', 'admin')
   @Put('competency/:competencyId/rubric')
   async updateCompetencyRubric(
-      @Req() req: any,
-      @Param('competencyId') competencyId: string,
-      @Body() body: { rubric: any }
+    @Req() req: any,
+    @Param('competencyId') competencyId: string,
+    @Body() body: { rubric: any }
   ) {
-      return this.classesService.updateCompetencyRubric(competencyId, body.rubric);
+    return this.classesService.updateCompetencyRubric(competencyId, body.rubric);
   }
 
   @UseGuards(SessionAuthGuard)
