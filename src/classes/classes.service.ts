@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not, IsNull } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
 import { Class } from './entities/class.entity.js';
 import { Material } from './entities/material.entity.js';
@@ -10,6 +10,7 @@ import { Program } from './entities/program.entity.js';
 import { Batch, BatchStatus } from './entities/batch.entity.js';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
+import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
 
 @Injectable()
 export class ClassesService {
@@ -32,9 +33,77 @@ export class ClassesService {
     private userRepository: Repository<User>,
     @InjectRepository(Submission)
     private submissionRepository: Repository<Submission>,
+    @InjectRepository(Logbook)
+    private logbookRepository: Repository<Logbook>,
   ) { }
 
+  async healEnrollments() {
+    try {
+      const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+      if (!activeBatch) return;
+
+      const enrollments = await this.enrollmentRepository.find({
+        relations: { class: true }
+      });
+
+      const mentors = await this.userRepository.find();
+      const mentorUsers = mentors.filter(u => 
+        u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR
+      );
+
+      for (const enroll of enrollments) {
+        const cls = enroll.class;
+        if (!cls || cls.batchId !== activeBatch.id) continue;
+
+        // If the class has no mentor
+        if (!cls.mentorId) {
+          // 1. Check if there's already a class with a mentor for this program and batch
+          const classWithMentor = await this.classRepository.findOne({
+            where: {
+              programId: cls.programId,
+              batchId: cls.batchId,
+              mentorId: Not(IsNull())
+            }
+          });
+
+          if (classWithMentor) {
+            await this.enrollmentRepository.update(enroll.id, { classId: classWithMentor.id });
+            console.log(`[Heal] Moved student enrollment ${enroll.id} to class with mentor ${classWithMentor.mentorId}`);
+          } else {
+            // 2. Try to find a mentor user assigned to this program (active or invited)
+            const program = await this.programRepository.findOne({ where: { id: cls.programId } });
+            if (program) {
+              const programMentor = mentorUsers.find(m => m.selectedProgram === program.name);
+              if (programMentor) {
+                // Create a class for this mentor
+                let mentorClass = await this.classRepository.findOne({
+                  where: {
+                    programId: program.id,
+                    batchId: activeBatch.id,
+                    mentorId: programMentor.id
+                  }
+                });
+                if (!mentorClass) {
+                  mentorClass = await this.classRepository.save(this.classRepository.create({
+                    programId: program.id,
+                    batchId: activeBatch.id,
+                    mentorId: programMentor.id
+                  }));
+                }
+                await this.enrollmentRepository.update(enroll.id, { classId: mentorClass.id });
+                console.log(`[Heal] Created class and moved student enrollment ${enroll.id} to mentor ${programMentor.name}`);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Heal] Error healing enrollments:', err);
+    }
+  }
+
   async findMyClasses(studentId: string) {
+    await this.healEnrollments();
     const enrollments = await this.enrollmentRepository.find({
       where: { studentId },
       relations: {
@@ -70,6 +139,7 @@ export class ClassesService {
   }
 
   async findMentorClasses(mentorId: string) {
+    await this.healEnrollments();
     let classes = await this.classRepository.find({
       where: { mentorId },
       relations: {
@@ -116,6 +186,7 @@ export class ClassesService {
   // ─── PROGRAM MANAGEMENT ENDPOINTS (ADMIN & MENTOR TAB) ───
 
   async getProgramsWithDetails() {
+    await this.healEnrollments();
     const officialNames = [
       'AI Development',
       'Game Development',
@@ -158,13 +229,19 @@ export class ClassesService {
         createdAt: b.createdAt
       }));
 
+      const activeBatchClasses = classes.filter(c => c.batchId === activeBatch?.id);
+      const activeBatchClassIds = activeBatchClasses.map(c => c.id);
+
       const programMentors = allUsers.filter(u =>
         (u.roles.includes(UserRole.MENTOR) || u.roles.includes(UserRole.ADMIN)) &&
         u.status === UserStatus.ACTIVE &&
-        (u.selectedProgram === prog.name || classes.some(c => c.mentorId === u.id))
+        activeBatch && activeBatchClasses.some(c => c.mentorId === u.id)
       );
 
-      const programStudents = allUsers.filter(u => u.roles.includes(UserRole.STUDENT) && u.selectedProgram === prog.name);
+      const programStudents = allUsers.filter(u => 
+        u.roles.includes(UserRole.STUDENT) && 
+        allEnrollments.some(e => e.studentId === u.id && activeBatchClassIds.includes(e.classId))
+      );
 
       return {
         id: prog.id,
@@ -177,7 +254,7 @@ export class ClassesService {
         mentors: programMentors.map(m => ({ id: m.id, name: m.name, email: m.email, whatsapp: m.whatsapp, status: m.status, specialization: m.specialization })),
         studentsCount: programStudents.length,
         students: programStudents.map(s => {
-          const enroll = allEnrollments.find(e => e.studentId === s.id);
+          const enroll = allEnrollments.find(e => e.studentId === s.id && activeBatchClassIds.includes(e.classId));
           const cls = allClasses.find(c => c.id === enroll?.classId);
           const mentor = programMentors.find(m => m.id === cls?.mentorId);
           return {
@@ -187,7 +264,7 @@ export class ClassesService {
             whatsapp: s.whatsapp,
             status: s.status,
             selectedProgram: s.selectedProgram,
-            mentorName: mentor ? mentor.name : (programMentors.map(m => m.name).join(', ') || 'Seluruh Mentor Program')
+            mentorName: mentor ? mentor.name : 'Belum Ditentukan'
           };
         }),
       };
@@ -305,6 +382,8 @@ export class ClassesService {
     status?: string;
     includedProgramIds?: string[];
     newProgramNames?: string[];
+    startDate?: string | Date;
+    endDate?: string | Date;
   }) {
     const status = (payload.status as BatchStatus) || BatchStatus.DRAFT;
 
@@ -339,6 +418,8 @@ export class ClassesService {
       name: payload.name,
       status,
       includedProgramIds: programIds,
+      startDate: payload.startDate ? new Date(payload.startDate) : null,
+      endDate: payload.endDate ? new Date(payload.endDate) : null,
     }))) as Batch;
 
     if (status === BatchStatus.ACTIVE) {
@@ -361,11 +442,15 @@ export class ClassesService {
     status?: string;
     includedProgramIds?: string[];
     newProgramNames?: string[];
+    startDate?: string | Date;
+    endDate?: string | Date;
   }) {
     const batch = await this.batchRepository.findOne({ where: { id: batchId } });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
 
     if (payload.name) batch.name = payload.name;
+    if (payload.startDate !== undefined) batch.startDate = payload.startDate ? new Date(payload.startDate) : null;
+    if (payload.endDate !== undefined) batch.endDate = payload.endDate ? new Date(payload.endDate) : null;
 
     if (payload.status) {
       const castStatus = payload.status as BatchStatus;
@@ -709,12 +794,23 @@ export class ClassesService {
 
     let mentorIdToUse = payload.mentorId;
     if (!mentorIdToUse) {
-      const existingClass = await this.classRepository.findOne({ where: { programId: program.id } });
-      if (existingClass?.mentorId) {
-        mentorIdToUse = existingClass.mentorId;
+      // 1. Try to find an existing class with a mentor for this program in the active batch
+      const classWithMentor = await this.classRepository.findOne({
+        where: {
+          programId: program.id,
+          batchId: batch.id,
+          mentorId: Not(IsNull())
+        }
+      });
+      if (classWithMentor?.mentorId) {
+        mentorIdToUse = classWithMentor.mentorId;
       } else {
-        const activeMentors = await this.userRepository.find({ where: { status: UserStatus.ACTIVE } });
-        const anyMentor = activeMentors.find(u => u.roles.includes(UserRole.MENTOR) && u.selectedProgram === payload.programName);
+        // 2. Try to find any mentor user assigned to this program (active or invited status!)
+        const mentors = await this.userRepository.find();
+        const anyMentor = mentors.find(u => 
+          (u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR) && 
+          u.selectedProgram === payload.programName
+        );
         mentorIdToUse = anyMentor?.id;
       }
     }
@@ -748,12 +844,18 @@ export class ClassesService {
       }
     }
 
-    let cls = await this.classRepository.findOne({ where: { programId: program.id, ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}) } });
+    let cls = await this.classRepository.findOne({
+      where: {
+        programId: program.id,
+        batchId: batch.id,
+        mentorId: mentorIdToUse || IsNull()
+      }
+    });
     if (!cls) {
       cls = await this.classRepository.save(this.classRepository.create({
         programId: program.id,
         batchId: batch.id,
-        ...(mentorIdToUse ? { mentorId: mentorIdToUse } : {}),
+        mentorId: mentorIdToUse || null,
       }));
     }
 
@@ -803,11 +905,30 @@ export class ClassesService {
 
     let cls = await this.classRepository.findOne({ where: { programId: program.id, mentorId: mentor.id } });
     if (!cls) {
-      await this.classRepository.save(this.classRepository.create({
+      cls = await this.classRepository.save(this.classRepository.create({
         programId: program.id,
         batchId: batch.id,
         mentorId: mentor.id,
       }));
+    }
+
+    // Move any students currently in a mentor-less class for this program/batch to this mentor's class
+    const mentorlessClass = await this.classRepository.findOne({
+      where: {
+        programId: program.id,
+        batchId: batch.id,
+        mentorId: IsNull()
+      }
+    });
+
+    if (mentorlessClass) {
+      const mentorlessEnrollments = await this.enrollmentRepository.find({
+        where: { classId: mentorlessClass.id }
+      });
+      for (const enroll of mentorlessEnrollments) {
+        await this.enrollmentRepository.update(enroll.id, { classId: cls.id });
+        console.log(`[Assign Mentor] Moved student enrollment ${enroll.id} to new mentor ${mentor.name}`);
+      }
     }
 
     return { success: true, mentor };
@@ -1464,5 +1585,153 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       await this.assignmentRepository.update({ id: update.id }, { weight: update.weight });
     }
     return { success: true, message: 'Weights updated' };
+  }
+  // ================= LOGBOOK BULANAN =================
+  async getStudentLogbooks(studentId: string, batchId: string) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch not found');
+    
+    // Auto-calculate total months from batch startDate and endDate
+    let totalMonths = 0;
+    if (batch.startDate && batch.endDate) {
+      const start = new Date(batch.startDate);
+      const end = new Date(batch.endDate);
+      totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    }
+    
+    if (totalMonths <= 0) totalMonths = 1; // Fallback to at least 1 month if misconfigured
+
+    const logbooks = await this.logbookRepository.find({
+      where: { studentId, batchId },
+      order: { monthIndex: 'ASC' }
+    });
+
+    return { totalMonths, startDate: batch.startDate, logbooks };
+  }
+
+  async submitLogbook(studentId: string, batchId: string, payload: any) {
+    // Validate word count (min 200 words total)
+    const totalWords = (payload.q1_experience + ' ' + payload.q2_progress + ' ' + payload.q3_challenges + ' ' + payload.q4_competencies)
+      .trim().split(/\s+/).length;
+      
+    if (totalWords < 200) {
+      throw new BadRequestException('Logbook harus berisi minimal 200 kata secara keseluruhan.');
+    }
+
+    let logbook = await this.logbookRepository.findOne({
+      where: { studentId, batchId, monthIndex: payload.monthIndex }
+    });
+
+    if (logbook && logbook.status === LogbookStatus.ACCEPTED) {
+      throw new ForbiddenException('Logbook yang sudah diterima tidak dapat diubah lagi.');
+    }
+
+    if (!logbook) {
+      logbook = this.logbookRepository.create({
+        studentId,
+        batchId,
+        monthIndex: payload.monthIndex,
+      });
+    }
+
+    logbook.q1_experience = payload.q1_experience;
+    logbook.q2_progress = payload.q2_progress;
+    logbook.q3_challenges = payload.q3_challenges;
+    logbook.q4_competencies = payload.q4_competencies;
+    logbook.status = LogbookStatus.PENDING; // Always reset to pending on submit/resubmit
+
+    return this.logbookRepository.save(logbook);
+  }
+
+  async getMentorStudentLogbooks(mentorId: string, batchId: string) {
+    // 1. Get all classes mentored by this mentor in this batch
+    const mentoredClasses = await this.classRepository.find({
+      where: { mentorId, batchId },
+      relations: { program: true }
+    });
+
+    if (!mentoredClasses.length) return [];
+
+    const classIds = mentoredClasses.map(c => c.id);
+
+    // 2. Get all students enrolled in these classes
+    const enrollments = await this.enrollmentRepository.find({
+      where: { classId: In(classIds) },
+      relations: { student: true }
+    });
+
+    if (!enrollments.length) return [];
+    
+    // Ensure uniqueness if a student is in multiple classes mentored by same mentor (unlikely but safe)
+    const uniqueStudentIds = Array.from(new Set(enrollments.map(e => e.studentId)));
+
+    // 3. Get all logbooks for these students in this batch
+    const logbooks = await this.logbookRepository.find({
+      where: { batchId, studentId: In(uniqueStudentIds) },
+      relations: { student: true },
+      order: { monthIndex: 'ASC' }
+    });
+
+    // We also need the batch total months to render UI properly per student
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    let totalMonths = 0;
+    if (batch?.startDate && batch?.endDate) {
+      const start = new Date(batch.startDate);
+      const end = new Date(batch.endDate);
+      totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    }
+    if (totalMonths <= 0) totalMonths = 1;
+
+    // 4. Group by student
+    const studentsMap = new Map();
+    for (const enrollment of enrollments) {
+      if (!studentsMap.has(enrollment.studentId)) {
+        studentsMap.set(enrollment.studentId, {
+          student: enrollment.student,
+          class: mentoredClasses.find(c => c.id === enrollment.classId),
+          logbooks: []
+        });
+      }
+    }
+
+    for (const logbook of logbooks) {
+      if (studentsMap.has(logbook.studentId)) {
+        studentsMap.get(logbook.studentId).logbooks.push(logbook);
+      }
+    }
+
+    return {
+      totalMonths,
+      students: Array.from(studentsMap.values())
+    };
+  }
+
+  async reviewLogbook(mentorId: string, logbookId: string, status: LogbookStatus, feedback?: string) {
+    const logbook = await this.logbookRepository.findOne({ 
+      where: { id: logbookId },
+      relations: { batch: true }
+    });
+    
+    if (!logbook) throw new NotFoundException('Logbook not found');
+
+    // Verify if mentor has rights to this student's logbook
+    const mentoredClasses = await this.classRepository.find({
+      where: { mentorId, batchId: logbook.batchId }
+    });
+    const classIds = mentoredClasses.map(c => c.id);
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { studentId: logbook.studentId, classId: In(classIds) }
+    });
+
+    if (!enrollment) {
+      throw new ForbiddenException('You are not the mentor of this student in this batch');
+    }
+
+    logbook.status = status;
+    if (feedback !== undefined) {
+      logbook.mentorFeedback = feedback;
+    }
+
+    return this.logbookRepository.save(logbook);
   }
 }

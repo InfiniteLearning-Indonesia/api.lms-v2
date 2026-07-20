@@ -49,11 +49,13 @@ export class UsersController {
   }
 
   @Patch(':id/suspend')
+  @Roles('admin', 'mentor')
   suspend(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.suspend(id);
   }
 
   @Patch(':id/unsuspend')
+  @Roles('admin', 'mentor')
   unsuspend(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.unsuspend(id);
   }

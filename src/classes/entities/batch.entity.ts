@@ -23,6 +23,12 @@ export class Batch {
   @Column('simple-array', { nullable: true })
   includedProgramIds?: string[];
 
+  @Column({ type: 'timestamp', nullable: true })
+  startDate?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  endDate?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

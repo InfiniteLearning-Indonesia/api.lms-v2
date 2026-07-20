@@ -31,13 +31,13 @@ export class ClassesController {
 
   @Post('batches')
   @Roles('admin')
-  async createGlobalBatch(@Body() body: { name: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[] }) {
+  async createGlobalBatch(@Body() body: { name: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[]; startDate?: string; endDate?: string }) {
     return this.classesService.createGlobalBatch(body);
   }
 
   @Patch('batches/:batchId')
   @Roles('admin')
-  async updateGlobalBatch(@Req() req: any, @Body() body: { name?: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[] }) {
+  async updateGlobalBatch(@Req() req: any, @Body() body: { name?: string; status?: string; includedProgramIds?: string[]; newProgramNames?: string[]; startDate?: string; endDate?: string }) {
     return this.classesService.updateGlobalBatch(req.params.batchId, body);
   }
 
@@ -222,5 +222,31 @@ export class ClassesController {
   @Put('assignments/weights')
   async updateAssignmentWeights(@Body() body: { updates: Array<{ id: string; weight: number }> }) {
     return this.classesService.updateAssignmentWeights(body.updates);
+  }
+
+  // ================= LOGBOOK BULANAN =================
+  
+  @Get('batches/:batchId/logbooks/student')
+  @Roles('student')
+  async getStudentLogbooks(@Req() req: any, @Param('batchId') batchId: string) {
+    return this.classesService.getStudentLogbooks(req.user.id, batchId);
+  }
+
+  @Post('batches/:batchId/logbooks/student')
+  @Roles('student')
+  async submitLogbook(@Req() req: any, @Param('batchId') batchId: string, @Body() body: any) {
+    return this.classesService.submitLogbook(req.user.id, batchId, body);
+  }
+
+  @Get('batches/:batchId/logbooks/mentor')
+  @Roles('mentor')
+  async getMentorStudentLogbooks(@Req() req: any, @Param('batchId') batchId: string) {
+    return this.classesService.getMentorStudentLogbooks(req.user.id, batchId);
+  }
+
+  @Patch('batches/logbooks/:logbookId/review')
+  @Roles('mentor')
+  async reviewLogbook(@Req() req: any, @Param('logbookId') logbookId: string, @Body() body: { status: any, feedback?: string }) {
+    return this.classesService.reviewLogbook(req.user.id, logbookId, body.status, body.feedback);
   }
 }
