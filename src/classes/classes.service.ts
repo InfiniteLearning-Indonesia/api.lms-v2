@@ -10,6 +10,7 @@ import { Program } from './entities/program.entity.js';
 import { Batch, BatchStatus } from './entities/batch.entity.js';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
+import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 
 @Injectable()
 export class ClassesService {
@@ -24,6 +25,8 @@ export class ClassesService {
     private assignmentRepository: Repository<Assignment>,
     @InjectRepository(Competency)
     private competencyRepository: Repository<Competency>,
+    @InjectRepository(RubrikAssessment)
+    private rubrikAssessmentRepository: Repository<RubrikAssessment>,
     @InjectRepository(Program)
     private programRepository: Repository<Program>,
     @InjectRepository(Batch)
@@ -1026,6 +1029,54 @@ export class ClassesService {
     }
 
     await this.competencyRepository.remove(competency);
+    return { success: true };
+  }
+
+  async createRubrikAssessment(mentorId: string, payload: { name: string; programId: string; phase?: string; competencies?: any[] }) {
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    const rubrik = this.rubrikAssessmentRepository.create({
+      name: payload.name,
+      phase: payload.phase || 'Micro',
+      programId: payload.programId,
+      creatorMentorId: mentor.id,
+      competencies: payload.competencies || [],
+      subAssessments: payload.subAssessments || []
+    });
+    return await this.rubrikAssessmentRepository.save(rubrik);
+  }
+
+  async getRubrikAssessmentsByProgram(programId: string) {
+    return await this.rubrikAssessmentRepository.find({ 
+      where: { programId },
+      order: { createdAt: 'ASC' }
+    });
+  }
+
+  async updateRubrikAssessment(mentorId: string, id: string, payload: { name?: string; phase?: string; competencies?: any[]; subAssessments?: any[] }) {
+    const rubrik = await this.rubrikAssessmentRepository.findOne({ where: { id } });
+    if (!rubrik) throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    if (payload.name) rubrik.name = payload.name;
+    if (payload.phase) rubrik.phase = payload.phase;
+    if (payload.competencies) rubrik.competencies = payload.competencies;
+    if (payload.subAssessments) rubrik.subAssessments = payload.subAssessments;
+
+    return await this.rubrikAssessmentRepository.save(rubrik);
+  }
+
+  async deleteRubrikAssessment(mentorId: string, id: string) {
+    const rubrik = await this.rubrikAssessmentRepository.findOne({ where: { id } });
+    if (!rubrik) throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    await this.rubrikAssessmentRepository.remove(rubrik);
     return { success: true };
   }
 

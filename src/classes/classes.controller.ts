@@ -119,6 +119,30 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Get('programs/:programId/rubrik-assessments')
+  async getRubrikAssessmentsByProgram(@Req() req: any, @Param('programId') programId: string) {
+    return this.classesService.getRubrikAssessmentsByProgram(programId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('rubrik-assessments')
+  async createRubrikAssessment(@Req() req: any, @Body() body: { name: string; programId: string; phase?: string; competencies?: any[]; subAssessments?: any[] }) {
+    return this.classesService.createRubrikAssessment(req.user.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Put('rubrik-assessments/:id')
+  async updateRubrikAssessment(@Req() req: any, @Param('id') id: string, @Body() body: { name?: string; phase?: string; competencies?: any[]; subAssessments?: any[] }) {
+    return this.classesService.updateRubrikAssessment(req.user.id, id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('rubrik-assessments/:id')
+  async deleteRubrikAssessment(@Req() req: any, @Param('id') id: string) {
+    return this.classesService.deleteRubrikAssessment(req.user.id, id);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId')
   async getClassDetails(@Req() req: any) {
     return this.classesService.getClassDetails(req.params.classId);
