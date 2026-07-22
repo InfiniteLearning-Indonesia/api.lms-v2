@@ -8,6 +8,9 @@ import { User, UserStatus } from '../users/entities/user.entity';
 import { CreateAttendanceDto, BulkCreateAttendanceDto } from './dto/attendance.dto';
 import * as crypto from 'crypto';
 
+import { PermissionRequest } from './entities/permission-request.entity';
+import { CreatePermissionRequestDto } from './dto/permission-request.dto';
+
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
@@ -17,6 +20,8 @@ export class AttendanceService {
     private attendanceRepository: Repository<Attendance>,
     @InjectRepository(Holiday)
     private holidayRepository: Repository<Holiday>,
+    @InjectRepository(PermissionRequest)
+    private permissionRequestRepository: Repository<PermissionRequest>,
     @InjectRepository(Batch)
     private batchRepository: Repository<Batch>,
     @InjectRepository(User)
@@ -116,8 +121,8 @@ export class AttendanceService {
 
     while (current <= endLimit) {
       const dayOfWeek = current.getDay();
-      // Skip weekends (0 = Sunday, 6 = Saturday)
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      // Skip weekends (0 = Sunday, 6 = Saturday) and Fridays (5 = Asynchronous Off-day)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && dayOfWeek !== 5) {
         // Format to YYYY-MM-DD using local timezone to prevent UTC shift
         const dateString = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
         // Skip national holidays
@@ -298,5 +303,50 @@ export class AttendanceService {
     }
     
     return { success: false, message: 'Student is not suspended' };
+  }
+
+  async createPermissionRequest(dto: CreatePermissionRequestDto) {
+    const permReq = this.permissionRequestRepository.create({
+      studentId: dto.studentId,
+      batchId: dto.batchId,
+      date: dto.date,
+      category: dto.category,
+      reason: dto.reason,
+      proofFiles: dto.proofFiles || [],
+      mentorChatFiles: dto.mentorChatFiles || []
+    });
+
+    const saved = await this.permissionRequestRepository.save(permReq);
+
+    // Automatically upsert attendance as Izin/Sakit for that date
+    await this.upsertAttendance({
+      studentId: dto.studentId,
+      batchId: dto.batchId,
+      date: dto.date,
+      status: AttendanceStatus.IZIN_SAKIT
+    });
+
+    return saved;
+  }
+
+  async getPermissionRequests(batchId?: string, studentId?: string, date?: string) {
+    const query = this.permissionRequestRepository.createQueryBuilder('perm')
+      .leftJoinAndSelect('perm.student', 'student')
+      .leftJoinAndSelect('perm.batch', 'batch');
+
+    if (batchId) {
+      query.andWhere('perm.batchId = :batchId', { batchId });
+    }
+
+    if (studentId) {
+      query.andWhere('perm.studentId = :studentId', { studentId });
+    }
+
+    if (date) {
+      query.andWhere('perm.date = :date', { date });
+    }
+
+    query.orderBy('perm.createdAt', 'DESC');
+    return query.getMany();
   }
 }

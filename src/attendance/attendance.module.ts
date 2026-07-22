@@ -4,6 +4,7 @@ import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
 import { Attendance } from './entities/attendance.entity';
 import { Holiday } from './entities/holiday.entity';
+import { PermissionRequest } from './entities/permission-request.entity';
 import { Batch } from '../classes/entities/batch.entity';
 import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
@@ -11,7 +12,7 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attendance, Holiday, Batch, User]),
+    TypeOrmModule.forFeature([Attendance, Holiday, PermissionRequest, Batch, User]),
     AuthModule,
     UsersModule
   ],

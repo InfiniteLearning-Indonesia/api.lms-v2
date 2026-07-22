@@ -3,6 +3,8 @@ import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto, BulkCreateAttendanceDto } from './dto/attendance.dto';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard.js';
 
+import { CreatePermissionRequestDto } from './dto/permission-request.dto';
+
 @Controller('attendance')
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
@@ -23,6 +25,22 @@ export class AttendanceController {
     const m = month ? parseInt(month) : undefined;
     const y = year ? parseInt(year) : undefined;
     return this.attendanceService.getBatchActiveDays(batchId, m, y);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('permission-requests')
+  async createPermissionRequest(@Body() dto: CreatePermissionRequestDto) {
+    return this.attendanceService.createPermissionRequest(dto);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get('permission-requests')
+  async getPermissionRequests(
+    @Query('batchId') batchId?: string,
+    @Query('studentId') studentId?: string,
+    @Query('date') date?: string
+  ) {
+    return this.attendanceService.getPermissionRequests(batchId, studentId, date);
   }
 
   @UseGuards(SessionAuthGuard)
