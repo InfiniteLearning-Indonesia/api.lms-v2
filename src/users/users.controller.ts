@@ -28,8 +28,18 @@ export class UsersController {
     return this.usersService.invite(dto);
   }
 
+  @Post('invite')
+  inviteAlias(@Body() dto: CreateUserDto) {
+    return this.usersService.invite(dto);
+  }
+
   @Post('bulk')
   bulkInvite(@Body() dto: BulkInviteDto) {
+    return this.usersService.bulkInvite(dto);
+  }
+
+  @Post('bulk-import-csv')
+  bulkInviteAlias(@Body() dto: BulkInviteDto) {
     return this.usersService.bulkInvite(dto);
   }
 

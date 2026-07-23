@@ -105,6 +105,59 @@ export class UsersService {
 
     const savedUser = await this.usersRepository.save(user);
 
+    // Auto-enroll student into active batch class for their selected program
+    if (targetRoles.includes(UserRole.STUDENT) && dto.selectedProgram) {
+      try {
+        const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active' LIMIT 1`);
+        if (activeBatchRes.length > 0) {
+          const activeBatchId = activeBatchRes[0].id;
+          const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [dto.selectedProgram]);
+          if (progRes.length > 0) {
+            const programId = progRes[0].id;
+
+            const mentorRes = await this.dataSource.query(
+              `SELECT id FROM users WHERE ("roles"::text LIKE '%mentor%' OR role = 'mentor') AND "selectedProgram" = $1 LIMIT 1`,
+              [dto.selectedProgram]
+            );
+            const mentorId = mentorRes.length > 0 ? mentorRes[0].id : null;
+
+            let classRes = await this.dataSource.query(
+              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 ${mentorId ? 'AND "mentorId" = $3' : ''} LIMIT 1`,
+              mentorId ? [programId, activeBatchId, mentorId] : [programId, activeBatchId]
+            );
+
+            if (classRes.length === 0) {
+              classRes = await this.dataSource.query(
+                `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+                [programId, activeBatchId]
+              );
+            }
+
+            let classId: string;
+            if (classRes.length > 0) {
+              classId = classRes[0].id;
+              if (mentorId) {
+                await this.dataSource.query(`UPDATE classes SET "mentorId" = $1 WHERE id = $2`, [mentorId, classId]);
+              }
+            } else {
+              const newClass = await this.dataSource.query(
+                `INSERT INTO classes (id, "programId", "batchId", "mentorId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW()) RETURNING id`,
+                [programId, activeBatchId, mentorId]
+              );
+              classId = newClass[0].id;
+            }
+
+            await this.dataSource.query(
+              `INSERT INTO enrollments (id, "studentId", "classId", "enrolledAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
+              [savedUser.id, classId]
+            );
+          }
+        }
+      } catch (autoEnrollErr) {
+        console.error(`Auto-enrollment error on invite for ${savedUser.email}:`, autoEnrollErr);
+      }
+    }
+
     return savedUser;
   }
 

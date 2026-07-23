@@ -7,7 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { User } from './users/entities/user.entity.js';
 import { ClassesModule } from './classes/classes.module';
-
+import { AttendanceModule } from './attendance/attendance.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -30,6 +30,7 @@ import { ClassesModule } from './classes/classes.module';
     AuthModule,
     UsersModule,
     ClassesModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

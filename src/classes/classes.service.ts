@@ -49,6 +49,63 @@ export class ClassesService {
       const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
       if (!activeBatch) return;
 
+      const allUsers = await this.userRepository.find();
+      const studentUsers = allUsers.filter(u =>
+        (u.roles?.includes(UserRole.STUDENT) || u.role === UserRole.STUDENT) && u.selectedProgram
+      );
+      const mentorUsers = allUsers.filter(u =>
+        u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR
+      );
+
+      // Step 1: Auto-enroll any student with selectedProgram who has NO enrollment in active batch
+      for (const student of studentUsers) {
+        if (!student.selectedProgram) continue;
+        const program = await this.programRepository.findOne({ where: { name: student.selectedProgram } });
+        if (!program) continue;
+
+        const activeBatchClasses = await this.classRepository.find({ where: { batchId: activeBatch.id } });
+        const activeClassIds = activeBatchClasses.map(c => c.id);
+
+        let existingEnrollment: Enrollment | null = null;
+        if (activeClassIds.length > 0) {
+          existingEnrollment = await this.enrollmentRepository.findOne({
+            where: { studentId: student.id, classId: In(activeClassIds) }
+          });
+        }
+
+        if (!existingEnrollment) {
+          let programMentor = mentorUsers.find(m => m.selectedProgram === program.name);
+          let mentorClass = await this.classRepository.findOne({
+            where: {
+              programId: program.id,
+              batchId: activeBatch.id,
+              mentorId: programMentor ? programMentor.id : IsNull()
+            }
+          });
+
+          if (!mentorClass) {
+            mentorClass = await this.classRepository.findOne({
+              where: { programId: program.id, batchId: activeBatch.id }
+            });
+          }
+
+          if (!mentorClass) {
+            mentorClass = await this.classRepository.save(this.classRepository.create({
+              programId: program.id,
+              batchId: activeBatch.id,
+              mentorId: programMentor ? programMentor.id : null
+            }));
+          }
+
+          await this.enrollmentRepository.save(this.enrollmentRepository.create({
+            studentId: student.id,
+            classId: mentorClass.id
+          }));
+          console.log(`[Heal] Auto-enrolled student ${student.email} (${student.name}) into program ${program.name} class ${mentorClass.id}`);
+        }
+      }
+
+      // Step 2: Heal existing enrollments where class has no mentor
       const enrollments = await this.enrollmentRepository.find({
         relations: { class: true }
       });
@@ -105,7 +162,7 @@ export class ClassesService {
         }
       }
     } catch (err) {
-      console.error('[Heal] Error healing enrollments:', err);
+      console.error('[Heal Error]', err);
     }
   }
 
@@ -1842,5 +1899,46 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
 
     return this.logbookRepository.save(logbook);
+  }
+
+  async assignMentorToProgramById(programId: string, mentorId: string) {
+    const program = await this.programRepository.findOne({ where: { id: programId } });
+    if (!program) {
+      throw new BadRequestException('Program studi tidak ditemukan');
+    }
+    return this.assignMentorToProgram(mentorId, program.name);
+  }
+
+  async enrollStudentToProgramById(
+    programId: string,
+    body: { studentId: string; mentorId?: string; cleanTransfer?: boolean; isCase3Transfer?: boolean },
+  ) {
+    const program = await this.programRepository.findOne({ where: { id: programId } });
+    if (!program) {
+      throw new BadRequestException('Program studi tidak ditemukan');
+    }
+    return this.enrollStudentToProgram({
+      studentId: body.studentId,
+      programName: program.name,
+      mentorId: body.mentorId,
+      isCase3Transfer: body.cleanTransfer ?? body.isCase3Transfer,
+    });
+  }
+
+  async saveMentorMatrix(batchId: string, matrix: Record<string, any>) {
+    if (!matrix) return { success: true };
+    for (const [programId, mentors] of Object.entries(matrix)) {
+      const mentorIds = Array.isArray(mentors)
+        ? mentors.map((m: any) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
+        : typeof mentors === 'string'
+          ? [mentors]
+          : mentors && mentors.id
+            ? [mentors.id]
+            : [];
+      if (mentorIds.length > 0) {
+        await this.assignBatchMentors(batchId, programId, mentorIds);
+      }
+    }
+    return { success: true };
   }
 }

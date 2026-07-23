@@ -59,6 +59,18 @@ export class ClassesController {
     return this.classesService.assignBatchMentors(req.params.batchId, body.programId, body.mentorIds);
   }
 
+  @Post('batches/:batchId/mentor-matrix')
+  @Roles('admin')
+  async saveMentorMatrix(@Param('batchId') batchId: string, @Body() body: { matrix: Record<string, any> }) {
+    return this.classesService.saveMentorMatrix(batchId, body.matrix);
+  }
+
+  @Post('batches/:batchId/activate')
+  @Roles('admin')
+  async activateBatch(@Param('batchId') batchId: string) {
+    return this.classesService.updateBatchStatus({ status: 'active', batchId });
+  }
+
   @Patch('batch-status')
   @Roles('admin')
   async updateBatchStatus(@Body() body: { status: 'active' | 'completed'; batchId?: string; programId?: string }) {
@@ -82,10 +94,28 @@ export class ClassesController {
     return this.classesService.enrollStudentToProgram(body);
   }
 
+  @Post('programs/:programId/enroll-student')
+  @Roles('admin', 'mentor')
+  async enrollStudentByProgramId(
+    @Param('programId') programId: string,
+    @Body() body: { studentId: string; mentorId?: string; cleanTransfer?: boolean; isCase3Transfer?: boolean },
+  ) {
+    return this.classesService.enrollStudentToProgramById(programId, body);
+  }
+
   @Post('program-assign-mentor')
   @Roles('admin')
   async assignMentor(@Body() body: { mentorId: string; programName: string }) {
     return this.classesService.assignMentorToProgram(body.mentorId, body.programName);
+  }
+
+  @Post('programs/:programId/assign-mentor')
+  @Roles('admin')
+  async assignMentorByProgramId(
+    @Param('programId') programId: string,
+    @Body() body: { mentorId: string },
+  ) {
+    return this.classesService.assignMentorToProgramById(programId, body.mentorId);
   }
 
   @Post('program-distribute-modulo')
