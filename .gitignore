@@ -57,4 +57,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Graphify temp steps and local files
 step*.ps1
-graphify-out/cost.json
+graphify-out/
+

@@ -11,6 +11,8 @@ import * as crypto from 'crypto';
 import { PermissionRequest } from './entities/permission-request.entity';
 import { CreatePermissionRequestDto } from './dto/permission-request.dto';
 
+import { StorageService } from '../storage/storage.service';
+
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
@@ -26,6 +28,7 @@ export class AttendanceService {
     private batchRepository: Repository<Batch>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private storageService: StorageService,
   ) {}
 
   async syncHolidays(year: number): Promise<void> {
@@ -306,14 +309,24 @@ export class AttendanceService {
   }
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {
+    // Upload files to Cloudflare R2
+    const uploadedProofFiles = await this.storageService.uploadMultipleBase64(
+      dto.proofFiles || [],
+      'permissions/proofs',
+    );
+    const uploadedMentorChatFiles = await this.storageService.uploadMultipleBase64(
+      dto.mentorChatFiles || [],
+      'permissions/chat-proofs',
+    );
+
     const permReq = this.permissionRequestRepository.create({
       studentId: dto.studentId,
       batchId: dto.batchId,
       date: dto.date,
       category: dto.category,
       reason: dto.reason,
-      proofFiles: dto.proofFiles || [],
-      mentorChatFiles: dto.mentorChatFiles || []
+      proofFiles: uploadedProofFiles,
+      mentorChatFiles: uploadedMentorChatFiles,
     });
 
     const saved = await this.permissionRequestRepository.save(permReq);
@@ -323,7 +336,7 @@ export class AttendanceService {
       studentId: dto.studentId,
       batchId: dto.batchId,
       date: dto.date,
-      status: AttendanceStatus.IZIN_SAKIT
+      status: AttendanceStatus.IZIN_SAKIT,
     });
 
     return saved;

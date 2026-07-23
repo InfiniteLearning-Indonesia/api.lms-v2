@@ -9,12 +9,14 @@ import { Batch } from '../classes/entities/batch.entity';
 import { User } from '../users/entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Attendance, Holiday, PermissionRequest, Batch, User]),
     AuthModule,
-    UsersModule
+    UsersModule,
+    StorageModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
