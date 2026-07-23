@@ -143,6 +143,22 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Get('programs/:programId/rubrik-assessments/scores')
+  async getAssessmentScores(@Param('programId') programId: string) {
+    return this.classesService.getAssessmentScores(programId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('programs/:programId/rubrik-assessments/import-scores')
+  async importAssessmentScores(
+    @Req() req: any,
+    @Param('programId') programId: string,
+    @Body() body: { scores: Array<{ email?: string, name?: string, rubrikAssessmentId: string, score: number }> }
+  ) {
+    return this.classesService.importAssessmentScores(req.user.id, programId, body.scores);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId')
   async getClassDetails(@Req() req: any) {
     return this.classesService.getClassDetails(req.params.classId);

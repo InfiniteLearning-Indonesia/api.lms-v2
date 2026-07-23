@@ -12,6 +12,8 @@ import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
 import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 
+import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity.js';
+
 @Injectable()
 export class ClassesService {
   constructor(
@@ -27,6 +29,8 @@ export class ClassesService {
     private competencyRepository: Repository<Competency>,
     @InjectRepository(RubrikAssessment)
     private rubrikAssessmentRepository: Repository<RubrikAssessment>,
+    @InjectRepository(RubrikAssessmentScore)
+    private rubrikAssessmentScoreRepository: Repository<RubrikAssessmentScore>,
     @InjectRepository(Program)
     private programRepository: Repository<Program>,
     @InjectRepository(Batch)
@@ -942,7 +946,7 @@ export class ClassesService {
   }
 
   async getCompetencies(programId?: string) {
-    const whereClause = programId ? { programId } : {};
+    const whereClause = programId ? [{ programId }, { isGlobal: true }] : {};
     const competencies = await this.competencyRepository.find({
       where: whereClause,
       relations: { program: true, creatorMentor: true },
@@ -979,22 +983,24 @@ export class ClassesService {
     return false;
   }
 
-  async createCompetency(mentorId: string, payload: { name: string; category: string; programId: string; phase?: string }) {
+  async createCompetency(mentorId: string, payload: { name: string; category: string; programId?: string; phase?: string; isGlobal?: boolean }) {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Hanya mentor yang dapat membuat kompetensi.');
 
-    const program = await this.programRepository.findOne({ where: { id: payload.programId } });
-    if (!program) throw new NotFoundException('Program tidak ditemukan.');
-
-    if (!this.validateCompetencyAuthor(program.name, mentor.specialization, payload.category)) {
-      throw new ForbiddenException(`Mentor dengan spesialisasi ${mentor.specialization || 'Umum'} tidak berwenang membuat kompetensi kategori ${payload.category} untuk program ini.`);
+    let program: any = null;
+    if (!payload.isGlobal) {
+      if (!payload.programId) throw new BadRequestException('Program ID diperlukan untuk kompetensi spesifik.');
+      program = await this.programRepository.findOne({ where: { id: payload.programId } });
+      if (!program) throw new NotFoundException('Program tidak ditemukan.');
+      // Otoritas ditiadakan sementara agar semua mentor program bisa edit
     }
 
     const competency = this.competencyRepository.create({
       name: payload.name,
       category: payload.category,
       phase: payload.phase || 'Micro',
-      programId: program.id,
+      programId: payload.isGlobal ? null : payload.programId,
+      isGlobal: payload.isGlobal || false,
       creatorMentorId: mentor.id,
     });
     return await this.competencyRepository.save(competency);
@@ -1032,14 +1038,15 @@ export class ClassesService {
     return { success: true };
   }
 
-  async createRubrikAssessment(mentorId: string, payload: { name: string; programId: string; phase?: string; competencies?: any[] }) {
+  async createRubrikAssessment(mentorId: string, payload: { name: string; programId?: string; phase?: string; competencies?: any[]; subAssessments?: any[]; isGlobal?: boolean }) {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
 
     const rubrik = this.rubrikAssessmentRepository.create({
       name: payload.name,
       phase: payload.phase || 'Micro',
-      programId: payload.programId,
+      programId: payload.isGlobal ? null : payload.programId,
+      isGlobal: payload.isGlobal || false,
       creatorMentorId: mentor.id,
       competencies: payload.competencies || [],
       subAssessments: payload.subAssessments || []
@@ -1049,7 +1056,7 @@ export class ClassesService {
 
   async getRubrikAssessmentsByProgram(programId: string) {
     return await this.rubrikAssessmentRepository.find({ 
-      where: { programId },
+      where: [{ programId }, { isGlobal: true }],
       order: { createdAt: 'ASC' }
     });
   }
@@ -1078,6 +1085,57 @@ export class ClassesService {
 
     await this.rubrikAssessmentRepository.remove(rubrik);
     return { success: true };
+  }
+
+  async getAssessmentScores(programId: string) {
+    const rubriks = await this.rubrikAssessmentRepository.find({ where: { programId } });
+    if (rubriks.length === 0) return [];
+    
+    return await this.rubrikAssessmentScoreRepository.find({
+      where: { rubrikAssessmentId: In(rubriks.map(r => r.id)) }
+    });
+  }
+
+  async importAssessmentScores(mentorId: string, programId: string, scores: Array<{ email?: string, name?: string, rubrikAssessmentId: string, score: number }>) {
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    const allUsers = await this.userRepository.find();
+    const students = allUsers.filter(u => u.roles && u.roles.includes(UserRole.STUDENT));
+    
+    const studentsByEmail = new Map(students.map(s => [s.email.toLowerCase(), s]));
+    const studentsByName = new Map(students.map(s => [s.name.toLowerCase(), s]));
+
+    let importedCount = 0;
+
+    for (const item of scores) {
+      if (!item.rubrikAssessmentId || isNaN(item.score)) continue;
+
+      let student: User | undefined = undefined;
+      if (item.email && studentsByEmail.has(item.email.toLowerCase())) {
+        student = studentsByEmail.get(item.email.toLowerCase());
+      } else if (item.name && studentsByName.has(item.name.toLowerCase())) {
+        student = studentsByName.get(item.name.toLowerCase());
+      }
+
+      if (!student) continue;
+
+      let record = await this.rubrikAssessmentScoreRepository.findOne({
+        where: { studentId: student.id, rubrikAssessmentId: item.rubrikAssessmentId }
+      });
+
+      if (!record) {
+        record = this.rubrikAssessmentScoreRepository.create({
+          studentId: student.id,
+          rubrikAssessmentId: item.rubrikAssessmentId,
+        });
+      }
+      record.score = item.score;
+      await this.rubrikAssessmentScoreRepository.save(record);
+      importedCount++;
+    }
+
+    return { success: true, importedCount };
   }
 
   async createMaterial(mentorId: string, classId: string, payload: { title: string; type: string; competency: string; url: string; content?: string }) {

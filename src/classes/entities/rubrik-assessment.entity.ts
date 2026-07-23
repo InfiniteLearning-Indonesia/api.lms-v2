@@ -7,8 +7,11 @@ export class RubrikAssessment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  programId: string;
+  @Column({ nullable: true })
+  programId: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  isGlobal: boolean;
 
   @Column({ nullable: true })
   creatorMentorId: string | null;
