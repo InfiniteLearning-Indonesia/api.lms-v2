@@ -12,16 +12,17 @@ import { Competency } from './entities/competency.entity';
 import { RubrikAssessment } from './entities/rubrik-assessment.entity';
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity';
 import { Submission } from './entities/submission.entity';
+import { Logbook } from './entities/logbook.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, RubrikAssessment, RubrikAssessmentScore, Submission, User]),
+    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, RubrikAssessment, RubrikAssessmentScore, Submission, Logbook, User]),
     UsersModule,
   ],
   controllers: [ClassesController],
   providers: [ClassesService],
 })
-export class ClassesModule {}
+export class ClassesModule { }
 
