@@ -81,6 +81,11 @@ export class UsersService {
     }
 
     const targetRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
+    if (targetRoles.includes(UserRole.FACILITATOR)) {
+      if (!dto.selectedProgram && !dto.programId) {
+        throw new BadRequestException('Facilitator wajib dipautkan dengan Program tertentu.');
+      }
+    }
     if (targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) {
       if (!dto.selectedProgram) {
         throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
@@ -88,6 +93,21 @@ export class UsersService {
       const activeBatches = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active'`);
       if (activeBatches.length === 0) {
         throw new BadRequestException('Pendaftaran dibatalkan: Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
+      }
+    }
+
+    let programId = dto.programId || null;
+    let selectedProgram = dto.selectedProgram || null;
+
+    if (selectedProgram && !programId) {
+      const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [selectedProgram]);
+      if (progRes.length > 0) {
+        programId = progRes[0].id;
+      }
+    } else if (programId && !selectedProgram) {
+      const progRes = await this.dataSource.query(`SELECT name FROM programs WHERE id = $1 LIMIT 1`, [programId]);
+      if (progRes.length > 0) {
+        selectedProgram = progRes[0].name;
       }
     }
 
@@ -99,7 +119,8 @@ export class UsersService {
       whatsapp: dto.whatsapp || null,
       institution: dto.institution || null,
       studyProgram: dto.studyProgram || null,
-      selectedProgram: dto.selectedProgram || null,
+      selectedProgram: selectedProgram,
+      programId: programId,
       specialization: dto.specialization || null,
     });
 

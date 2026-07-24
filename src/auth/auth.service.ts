@@ -20,10 +20,6 @@ export class AuthService {
       throw new ForbiddenException('Akun kamu belum terdaftar. Hubungi Admin.');
     }
 
-    if (user.status === UserStatus.SUSPENDED) {
-      throw new ForbiddenException('Akun kamu telah di-suspend.');
-    }
-
     // First time login: bind Google ID and activate account
     if (!user.googleId) {
       return this.usersService.activateOnFirstLogin(

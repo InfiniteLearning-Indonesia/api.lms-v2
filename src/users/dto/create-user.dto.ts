@@ -34,6 +34,10 @@ export class CreateUserDto {
 
   @IsString()
   @IsOptional()
+  programId?: string;
+
+  @IsString()
+  @IsOptional()
   specialization?: string;
 
   @IsBoolean()

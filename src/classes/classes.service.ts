@@ -110,10 +110,6 @@ export class ClassesService {
         relations: { class: true }
       });
 
-      const mentors = await this.userRepository.find();
-      const mentorUsers = mentors.filter(u =>
-        u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR
-      );
 
       for (const enroll of enrollments) {
         const cls = enroll.class;

@@ -8,6 +8,7 @@ import {
 
 export enum UserRole {
   ADMIN = 'admin',
+  FACILITATOR = 'facilitator',
   MENTOR = 'mentor',
   STUDENT = 'student',
 }
@@ -71,6 +72,9 @@ export class User {
   selectedProgram: string | null;
 
   @Column({ type: 'varchar', nullable: true })
+  programId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
   specialization: string | null;
 
   @UpdateDateColumn()
@@ -85,6 +89,10 @@ export class User {
     return this.hasRole(UserRole.ADMIN);
   }
 
+  get isFacilitator(): boolean {
+    return this.hasRole(UserRole.FACILITATOR);
+  }
+
   get isMentor(): boolean {
     return this.hasRole(UserRole.MENTOR);
   }
@@ -96,6 +104,7 @@ export class User {
   // Backward-compat getter: returns the "primary" role for display purposes
   get role(): UserRole {
     if (this.roles?.includes(UserRole.ADMIN)) return UserRole.ADMIN;
+    if (this.roles?.includes(UserRole.FACILITATOR)) return UserRole.FACILITATOR;
     if (this.roles?.includes(UserRole.MENTOR)) return UserRole.MENTOR;
     return UserRole.STUDENT;
   }
@@ -116,6 +125,7 @@ export class User {
       institution: this.institution,
       studyProgram: this.studyProgram,
       selectedProgram: this.selectedProgram,
+      programId: this.programId,
       specialization: this.specialization,
       updatedAt: this.updatedAt,
     };
