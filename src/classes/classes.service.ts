@@ -110,11 +110,6 @@ export class ClassesService {
         relations: { class: true }
       });
 
-      const mentors = await this.userRepository.find();
-      const mentorUsers = mentors.filter(u =>
-        u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR
-      );
-
       for (const enroll of enrollments) {
         const cls = enroll.class;
         if (!cls || cls.batchId !== activeBatch.id) continue;
@@ -200,6 +195,173 @@ export class ClassesService {
     );
 
     return enrichedClasses;
+  }
+
+  async findMyGrades(studentId: string) {
+    const student = await this.userRepository.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Student tidak ditemukan');
+
+    const enrollments = await this.enrollmentRepository.find({
+      where: { studentId },
+      relations: {
+        class: {
+          program: true,
+          batch: true,
+          mentor: true
+        }
+      }
+    });
+
+    const results: any[] = [];
+
+    for (const enroll of enrollments) {
+      const cls = enroll.class;
+      if (!cls || !cls.program) continue;
+
+      const program = cls.program;
+      const batch = cls.batch;
+
+      // 1. Fetch competencies
+      const competencies = await this.competencyRepository.find({
+        where: [
+          { programId: program.id },
+          { isGlobal: true }
+        ],
+        order: { createdAt: 'ASC' }
+      });
+
+      // 2. Fetch rubrik assessments
+      const rubrikAssessments = await this.rubrikAssessmentRepository.find({
+        where: [
+          { programId: program.id },
+          { isGlobal: true }
+        ],
+        order: { createdAt: 'ASC' }
+      });
+
+      // 3. Fetch imported external scores
+      const externalScores = await this.rubrikAssessmentScoreRepository.find({
+        where: { studentId, rubrikAssessment: { programId: program.id } },
+        relations: { rubrikAssessment: true }
+      });
+
+      // Helper for minimum score 65.0
+      const ensureMin = (val: number) => {
+        if (!val || isNaN(val) || val < 65) return 65.0;
+        return Math.min(100, Math.round(val * 10) / 10);
+      };
+
+      // 4. Calculate Micro Phase Items (for Transcript)
+      const microRAs = rubrikAssessments.filter(r => !r.phase || r.phase === 'Micro');
+      const microComps = competencies.filter(c => !c.phase || c.phase === 'Micro');
+
+      const microItems = microRAs.map(ra => {
+        const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
+        const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
+        return {
+          id: ra.id,
+          name: ra.name,
+          category: 'Rubrik Assessment',
+          phase: 'Micro',
+          score: ensureMin(rawScore)
+        };
+      });
+
+      if (microItems.length === 0) {
+        for (const comp of microComps) {
+          microItems.push({
+            id: comp.id,
+            name: comp.name,
+            category: comp.category || 'Kompetensi',
+            phase: 'Micro',
+            score: 65.0
+          });
+        }
+      }
+
+      const totalMicroScore = microItems.length > 0
+        ? ensureMin(microItems.reduce((acc, curr) => acc + curr.score, 0) / microItems.length)
+        : 65.0;
+
+      // 5. Calculate Massive Phase Items (for Certificate)
+      const massiveRAs = rubrikAssessments.filter(r => r.phase === 'Massive');
+      const massiveComps = competencies.filter(c => c.phase === 'Massive');
+
+      const massiveItems = massiveRAs.map(ra => {
+        const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
+        const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
+        return {
+          id: ra.id,
+          name: ra.name,
+          category: 'Rubrik Assessment',
+          phase: 'Massive',
+          score: ensureMin(rawScore)
+        };
+      });
+
+      if (massiveItems.length === 0) {
+        for (const comp of massiveComps) {
+          massiveItems.push({
+            id: comp.id,
+            name: comp.name,
+            category: comp.category || 'Kompetensi',
+            phase: 'Massive',
+            score: 65.0
+          });
+        }
+      }
+
+      const totalMassiveScore = massiveItems.length > 0
+        ? ensureMin(massiveItems.reduce((acc, curr) => acc + curr.score, 0) / massiveItems.length)
+        : 65.0;
+
+      const finalScore = ensureMin((totalMicroScore * 0.4) + (totalMassiveScore * 0.6));
+      let predicate = 'Satisfactory';
+      if (finalScore >= 90) predicate = 'With Distinction';
+      else if (finalScore >= 80) predicate = 'Very Good';
+      else if (finalScore >= 70) predicate = 'Good';
+
+      results.push({
+        student: {
+          id: student.id,
+          name: student.name,
+          email: student.email,
+          institution: student.institution || 'Infinite Learning Partner',
+          studyProgram: student.studyProgram || 'Studi Independen'
+        },
+        program: {
+          id: program.id,
+          name: program.name,
+          batchName: batch?.name || 'Batch Active'
+        },
+        mentor: cls.mentor ? { name: cls.mentor.name, email: cls.mentor.email } : null,
+        microItems,
+        totalMicroScore,
+        massiveItems,
+        totalMassiveScore,
+        finalScore,
+        predicate,
+        isCertificateReleased: cls.isCertificateReleased || false
+      });
+    }
+
+    return results;
+  }
+
+  async releaseCertificate(mentorId: string, programId: string) {
+    let classes = await this.classRepository.find({ where: { programId, mentorId } });
+    if (classes.length === 0) {
+      classes = await this.classRepository.find({ where: { programId } });
+      if (classes.length === 0) throw new NotFoundException('Kelas program tidak ditemukan.');
+    }
+
+    const nextState = !classes[0].isCertificateReleased;
+    for (const cls of classes) {
+      cls.isCertificateReleased = nextState;
+      await this.classRepository.save(cls);
+    }
+
+    return { success: true, isCertificateReleased: nextState };
   }
 
   async findMentorClasses(mentorId: string) {
@@ -923,13 +1085,13 @@ export class ClassesService {
       }));
     }
 
-    // Ensure exactly 1 personal mentor by deleting any existing enrollments in this program
-    const allProgramClasses = await this.classRepository.find({ where: { programId: program.id } });
-    const programClassIds = allProgramClasses.map(c => c.id);
+    // Ensure mentee only has 1 program enrollment per batch
+    const allBatchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
+    const batchClassIds = allBatchClasses.map(c => c.id);
 
     const existingEnrolls = await this.enrollmentRepository.find({ where: { studentId: student.id } });
     for (const e of existingEnrolls) {
-      if (programClassIds.includes(e.classId)) {
+      if (batchClassIds.includes(e.classId)) {
         await this.enrollmentRepository.delete({ id: e.id });
       }
     }
@@ -1262,6 +1424,29 @@ export class ClassesService {
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
 
     await this.rubrikAssessmentRepository.remove(rubrik);
+    return { success: true };
+  }
+
+  async deleteMaterial(mentorId: string, id: string) {
+    const mat = await this.materialRepository.findOne({ where: { id } });
+    if (!mat) throw new NotFoundException('Materi pembelajaran tidak ditemukan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    await this.materialRepository.remove(mat);
+    return { success: true };
+  }
+
+  async deleteAssignment(mentorId: string, id: string) {
+    const ass = await this.assignmentRepository.findOne({ where: { id } });
+    if (!ass) throw new NotFoundException('Tugas praktik tidak ditemukan.');
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+
+    await this.submissionRepository.delete({ assignmentId: id });
+    await this.assignmentRepository.remove(ass);
     return { success: true };
   }
 

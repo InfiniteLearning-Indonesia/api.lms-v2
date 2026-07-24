@@ -14,6 +14,16 @@ export class ClassesController {
     return this.classesService.findMyClasses(req.user.id);
   }
 
+  @Get('my-grades')
+  async getMyGrades(@Req() req: any) {
+    return this.classesService.findMyGrades(req.user.id);
+  }
+
+  @Post('programs/:programId/release-certificate')
+  async releaseCertificate(@Param('programId') programId: string, @Req() req: any) {
+    return this.classesService.releaseCertificate(req.user.id, programId);
+  }
+
   @Get('mentor-classes')
   async getMentorClasses(@Req() req: any) {
     return this.classesService.findMentorClasses(req.user.id);
@@ -170,6 +180,18 @@ export class ClassesController {
   @Delete('rubrik-assessments/:id')
   async deleteRubrikAssessment(@Req() req: any, @Param('id') id: string) {
     return this.classesService.deleteRubrikAssessment(req.user.id, id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('materials/:id')
+  async deleteMaterial(@Req() req: any, @Param('id') id: string) {
+    return this.classesService.deleteMaterial(req.user.id, id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('assignments/:id')
+  async deleteAssignment(@Req() req: any, @Param('id') id: string) {
+    return this.classesService.deleteAssignment(req.user.id, id);
   }
 
   @UseGuards(SessionAuthGuard)
