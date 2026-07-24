@@ -19,6 +19,9 @@ export class Class {
   @Column({ type: 'varchar', nullable: true })
   mentorId?: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  isCertificateReleased: boolean;
+
   @ManyToOne(() => Program)
   @JoinColumn({ name: 'programId' })
   program: Program;
