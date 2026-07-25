@@ -92,6 +92,55 @@ export class StorageService {
     return Promise.all(base64Array.map((str) => this.uploadBase64(str, folder)));
   }
 
+  /**
+   * Fetches an external image URL (e.g. Google profile avatar) and uploads it to Cloudflare R2 Storage.
+   */
+  async uploadUrlToR2(imageUrl: string, folder = 'avatars'): Promise<string> {
+    if (!imageUrl) return imageUrl;
+    
+    // If it's already on our R2 public domain, return as is
+    const { publicDomain, client, bucketName } = this.getS3Client();
+    if (imageUrl.startsWith(publicDomain)) {
+      return imageUrl;
+    }
+
+    if (!client) {
+      this.logger.warn('R2 S3 Client not configured. Returning original avatar URL.');
+      return imageUrl;
+    }
+
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        this.logger.warn(`Failed to fetch remote image from ${imageUrl}: ${response.statusText}`);
+        return imageUrl;
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const ext = this.getExtensionFromMimeType(contentType);
+      const filename = `${folder}/avatar-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+
+      const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: filename,
+        Body: buffer,
+        ContentType: contentType,
+      });
+
+      await client.send(command);
+
+      const publicUrl = `${publicDomain}/${filename}`;
+      this.logger.log(`Successfully synced remote avatar to Cloudflare R2: ${publicUrl}`);
+      return publicUrl;
+    } catch (error) {
+      this.logger.error(`Failed to upload remote avatar URL to R2: ${error.message}`);
+      return imageUrl;
+    }
+  }
+
   private getExtensionFromMimeType(mimeType: string): string {
     const map: Record<string, string> = {
       'image/jpeg': 'jpg',
@@ -101,6 +150,6 @@ export class StorageService {
       'application/pdf': 'pdf',
       'text/plain': 'txt',
     };
-    return map[mimeType] || 'bin';
+    return map[mimeType] || 'jpg';
   }
 }

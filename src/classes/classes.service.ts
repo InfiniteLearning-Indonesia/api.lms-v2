@@ -51,11 +51,46 @@ export class ClassesService {
 
       const allUsers = await this.userRepository.find();
       const studentUsers = allUsers.filter(u =>
-        (u.roles?.includes(UserRole.STUDENT) || u.role === UserRole.STUDENT) && u.selectedProgram
+        (u.roles?.includes(UserRole.STUDENT) || u.role === UserRole.STUDENT) &&
+        u.selectedProgram &&
+        u.status === UserStatus.ACTIVE
       );
       const mentorUsers = allUsers.filter(u =>
-        u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR
+        (u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR) &&
+        u.selectedProgram &&
+        u.status === UserStatus.ACTIVE
       );
+
+      // Step 0: Ensure all mentors registered with a selectedProgram have a class in the active batch
+      for (const mentor of mentorUsers) {
+        if (!mentor.selectedProgram) continue;
+        const program = await this.programRepository.findOne({ where: { name: mentor.selectedProgram } });
+        if (!program) continue;
+
+        let mentorClass = await this.classRepository.findOne({
+          where: { programId: program.id, batchId: activeBatch.id, mentorId: mentor.id }
+        });
+
+        if (!mentorClass) {
+          // Check if there is an unassigned class for this program in the active batch
+          let unassignedClass = await this.classRepository.findOne({
+            where: { programId: program.id, batchId: activeBatch.id, mentorId: IsNull() }
+          });
+
+          if (unassignedClass) {
+            unassignedClass.mentorId = mentor.id;
+            await this.classRepository.save(unassignedClass);
+            console.log(`[Heal] Assigned unassigned class ${unassignedClass.id} to mentor ${mentor.email} (${mentor.name})`);
+          } else {
+            mentorClass = await this.classRepository.save(this.classRepository.create({
+              programId: program.id,
+              batchId: activeBatch.id,
+              mentorId: mentor.id,
+            }));
+            console.log(`[Heal] Created new class ${mentorClass.id} for mentor ${mentor.email} (${mentor.name}) in program ${program.name}`);
+          }
+        }
+      }
 
       // Step 1: Auto-enroll any student with selectedProgram who has NO enrollment in active batch
       for (const student of studentUsers) {
@@ -110,14 +145,12 @@ export class ClassesService {
         relations: { class: true }
       });
 
-
       for (const enroll of enrollments) {
         const cls = enroll.class;
         if (!cls || cls.batchId !== activeBatch.id) continue;
 
         // If the class has no mentor
         if (!cls.mentorId) {
-          // 1. Check if there's already a class with a mentor for this program and batch
           const classWithMentor = await this.classRepository.findOne({
             where: {
               programId: cls.programId,
@@ -130,12 +163,10 @@ export class ClassesService {
             await this.enrollmentRepository.update(enroll.id, { classId: classWithMentor.id });
             console.log(`[Heal] Moved student enrollment ${enroll.id} to class with mentor ${classWithMentor.mentorId}`);
           } else {
-            // 2. Try to find a mentor user assigned to this program (active or invited)
             const program = await this.programRepository.findOne({ where: { id: cls.programId } });
             if (program) {
               const programMentor = mentorUsers.find(m => m.selectedProgram === program.name);
               if (programMentor) {
-                // Create a class for this mentor
                 let mentorClass = await this.classRepository.findOne({
                   where: {
                     programId: program.id,
@@ -230,12 +261,30 @@ export class ClassesService {
           relations: { submissions: true },
         });
 
+        // Fetch facilitators assigned to this program
+        const allUsersForFac = await this.userRepository.find();
+        const facilitators = allUsersForFac.filter(f =>
+          (f.roles?.includes(UserRole.FACILITATOR) || (f as any).role === UserRole.FACILITATOR) &&
+          (f.programId === cls.programId || (f.selectedProgram && cls.program?.name && f.selectedProgram.toLowerCase() === cls.program.name.toLowerCase()))
+        ).map(f => ({
+          id: f.id,
+          name: f.name,
+          email: f.email,
+          avatarUrl: f.avatarUrl,
+          whatsapp: f.whatsapp,
+          institution: f.institution,
+          studyProgram: f.studyProgram,
+          selectedProgram: f.selectedProgram,
+          status: f.status,
+        }));
+
         return {
           ...cls,
           materials,
           assignments,
           enrolledStudentsCount: enrolledStudents.length,
           enrolledStudents,
+          facilitators,
         };
       }),
     );
@@ -1822,7 +1871,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       relations: { student: true }
     });
 
-    if (!enrollments.length) return [];
+    if (!enrollments.length) return { totalMonths: 1, students: [] };
 
     // Ensure uniqueness if a student is in multiple classes mentored by same mentor (unlikely but safe)
     const uniqueStudentIds = Array.from(new Set(enrollments.map(e => e.studentId)));
