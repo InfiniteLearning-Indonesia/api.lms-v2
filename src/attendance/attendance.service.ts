@@ -177,13 +177,13 @@ export class AttendanceService {
 
     let newSpLevel = 0;
     
-    if (alphas > threshold) {
+    if (alphas >= threshold) {
       const excess = alphas - threshold;
-      if (excess === 1) newSpLevel = 1;
-      else if (excess === 2) newSpLevel = 2;
-      else if (excess === 3) newSpLevel = 3;
-      else if (excess >= 4) {
-        newSpLevel = 4; // Suspended
+      if (excess === 0) newSpLevel = 1;      // SP1 when hitting 10% active days
+      else if (excess === 1) newSpLevel = 2; // SP2 when 1 more alpha after SP1
+      else if (excess === 2) newSpLevel = 3; // SP3 when 1 more alpha after SP2
+      else if (excess >= 3) {
+        newSpLevel = 4; // Suspended when 1 more alpha after SP3
         if (student.status !== UserStatus.SUSPENDED) {
           student.status = UserStatus.SUSPENDED;
           await this.userRepository.save(student);
@@ -192,10 +192,7 @@ export class AttendanceService {
       }
     }
 
-    // Update SP Level on the latest attendance record to keep track
-    // Or we could update it globally on the student record if there was a field, 
-    // but the entity has it on Attendance to track when the SP occurred.
-    // For now we just update all attendances this month with the highest SP level they reached to reflect it.
+    // Update SP Level on all attendances of this student in this month
     for (const a of attendances) {
       if (a.spLevel !== newSpLevel) {
         a.spLevel = newSpLevel;
@@ -208,6 +205,23 @@ export class AttendanceService {
     const targetDate = new Date(dto.date);
     targetDate.setHours(12, 0, 0, 0); // Normalize to midday to avoid timezone shifts
 
+    // Check if student is suspended (suspended accounts automatically remain Alpha)
+    const student = await this.userRepository.findOne({ where: { id: dto.studentId } });
+    let finalStatus = dto.status;
+    if (student && student.status === UserStatus.SUSPENDED) {
+      finalStatus = AttendanceStatus.ALPHA;
+    } else {
+      // Check if student has submitted a Form Izin (PermissionRequest) for this date
+      const dateStr = dto.date.split('T')[0];
+      const permReqs = await this.permissionRequestRepository.find({
+        where: { studentId: dto.studentId, batchId: dto.batchId }
+      });
+      const hasPermReq = permReqs.some(p => p.date && p.date.split('T')[0] === dateStr);
+      if (hasPermReq) {
+        finalStatus = AttendanceStatus.IZIN_SAKIT;
+      }
+    }
+
     let attendance = await this.attendanceRepository.findOne({
       where: {
         studentId: dto.studentId,
@@ -217,13 +231,13 @@ export class AttendanceService {
     });
 
     if (attendance) {
-      attendance.status = dto.status;
+      attendance.status = finalStatus;
     } else {
       attendance = this.attendanceRepository.create({
         studentId: dto.studentId,
         batchId: dto.batchId,
         date: targetDate,
-        status: dto.status,
+        status: finalStatus,
         spLevel: 0
       });
     }

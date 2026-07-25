@@ -12,6 +12,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { BulkInviteDto } from './dto/bulk-invite.dto.js';
 import { MailService } from './mail.service.js';
+import { StorageService } from '../storage/storage.service.js';
 
 @Injectable()
 export class UsersService {
@@ -20,6 +21,7 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
     private readonly mailService: MailService,
     private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
@@ -81,6 +83,11 @@ export class UsersService {
     }
 
     const targetRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
+    if (targetRoles.includes(UserRole.FACILITATOR)) {
+      if (!dto.selectedProgram && !dto.programId) {
+        throw new BadRequestException('Facilitator wajib dipautkan dengan Program tertentu.');
+      }
+    }
     if (targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) {
       if (!dto.selectedProgram) {
         throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
@@ -88,6 +95,21 @@ export class UsersService {
       const activeBatches = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active'`);
       if (activeBatches.length === 0) {
         throw new BadRequestException('Pendaftaran dibatalkan: Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
+      }
+    }
+
+    let programId = dto.programId || null;
+    let selectedProgram = dto.selectedProgram || null;
+
+    if (selectedProgram && !programId) {
+      const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [selectedProgram]);
+      if (progRes.length > 0) {
+        programId = progRes[0].id;
+      }
+    } else if (programId && !selectedProgram) {
+      const progRes = await this.dataSource.query(`SELECT name FROM programs WHERE id = $1 LIMIT 1`, [programId]);
+      if (progRes.length > 0) {
+        selectedProgram = progRes[0].name;
       }
     }
 
@@ -99,7 +121,8 @@ export class UsersService {
       whatsapp: dto.whatsapp || null,
       institution: dto.institution || null,
       studyProgram: dto.studyProgram || null,
-      selectedProgram: dto.selectedProgram || null,
+      selectedProgram: selectedProgram,
+      programId: programId,
       specialization: dto.specialization || null,
     });
 
@@ -374,9 +397,14 @@ export class UsersService {
     googleId: string,
     avatarUrl: string | null,
   ): Promise<User> {
+    let r2AvatarUrl = user.avatarUrl;
+    if (avatarUrl) {
+      r2AvatarUrl = await this.storageService.uploadUrlToR2(avatarUrl, 'avatars');
+    }
+
     await this.usersRepository.update(user.id, {
       googleId,
-      avatarUrl: avatarUrl ?? undefined,
+      avatarUrl: r2AvatarUrl ?? undefined,
       status: UserStatus.ACTIVE,
       lastLoginAt: new Date(),
     });
@@ -385,6 +413,20 @@ export class UsersService {
   }
 
   async updateLastLogin(user: User): Promise<void> {
+    // If user avatar URL is external (e.g. Google's domain) and not on R2 yet, upload to R2
+    if (user.avatarUrl && !user.avatarUrl.includes('lms-v2')) {
+      try {
+        const r2Url = await this.storageService.uploadUrlToR2(user.avatarUrl, 'avatars');
+        if (r2Url && r2Url !== user.avatarUrl) {
+          await this.usersRepository.update(user.id, {
+            avatarUrl: r2Url,
+            lastLoginAt: new Date(),
+          });
+          return;
+        }
+      } catch (e) {}
+    }
+
     await this.usersRepository.update(user.id, {
       lastLoginAt: new Date(),
     });
@@ -444,6 +486,14 @@ export class UsersService {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
+    if (dto.avatarUrl) {
+      if (dto.avatarUrl.startsWith('data:image')) {
+        dto.avatarUrl = await this.storageService.uploadBase64(dto.avatarUrl, 'avatars');
+      } else if (dto.avatarUrl.startsWith('http://') || dto.avatarUrl.startsWith('https://')) {
+        dto.avatarUrl = await this.storageService.uploadUrlToR2(dto.avatarUrl, 'avatars');
+      }
+    }
+
     Object.assign(user, dto);
     return this.usersRepository.save(user);
   }
@@ -480,7 +530,13 @@ export class UsersService {
     // Clean up relational foreign keys before deleting user to prevent FK constraint error 23503
     await this.dataSource.query('UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = $1', [id]);
     await this.dataSource.query('UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1', [id]);
+    await this.dataSource.query('UPDATE rubrik_assessments SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1', [id]);
     await this.dataSource.query('DELETE FROM enrollments WHERE "studentId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM attendances WHERE "studentId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM permission_requests WHERE "studentId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM logbooks WHERE "studentId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM submissions WHERE "studentId" = $1', [id]);
+    await this.dataSource.query('DELETE FROM rubrik_assessment_scores WHERE "studentId" = $1', [id]);
 
     await this.usersRepository.remove(user);
   }
@@ -529,10 +585,18 @@ export class UsersService {
       }
     }
 
-    // Clean up relational foreign keys before bulk deleting users to prevent FK constraint error 23503
-    await this.dataSource.query('UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = ANY($1)', [nonAdminIds]);
-    await this.dataSource.query('UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = ANY($1)', [nonAdminIds]);
-    await this.dataSource.query('DELETE FROM enrollments WHERE "studentId" = ANY($1)', [nonAdminIds]);
+    const idList = nonAdminIds.map((id) => `'${id}'`).join(',');
+    if (idList) {
+      await this.dataSource.query(`UPDATE classes SET "mentorId" = NULL WHERE "mentorId" IN (${idList})`);
+      await this.dataSource.query(`UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" IN (${idList})`);
+      await this.dataSource.query(`UPDATE rubrik_assessments SET "creatorMentorId" = NULL WHERE "creatorMentorId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM enrollments WHERE "studentId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM attendances WHERE "studentId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM permission_requests WHERE "studentId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM logbooks WHERE "studentId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM submissions WHERE "studentId" IN (${idList})`);
+      await this.dataSource.query(`DELETE FROM rubrik_assessment_scores WHERE "studentId" IN (${idList})`);
+    }
 
     const result = await this.usersRepository.delete({
       id: In(nonAdminIds),

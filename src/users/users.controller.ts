@@ -43,8 +43,15 @@ export class UsersController {
     return this.usersService.bulkInvite(dto);
   }
 
+  @Delete('bulk-delete')
+  bulkDeleteDelete(@Body() body: { ids?: string[]; userIds?: string[] }) {
+    const ids = body?.ids || body?.userIds || [];
+    return this.usersService.bulkDelete(ids);
+  }
+
   @Post('bulk-delete')
-  bulkDelete(@Body('ids') ids: string[]) {
+  bulkDeletePost(@Body() body: { ids?: string[]; userIds?: string[] }) {
+    const ids = body?.ids || body?.userIds || [];
     return this.usersService.bulkDelete(ids);
   }
 

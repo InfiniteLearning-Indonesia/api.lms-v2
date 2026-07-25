@@ -22,11 +22,6 @@ export class SessionAuthGuard implements CanActivate {
       throw new UnauthorizedException('User session is invalid or user not found.');
     }
 
-    if (user.status === UserStatus.SUSPENDED) {
-      request.session?.destroy?.(() => {});
-      throw new UnauthorizedException('Akun kamu telah di-suspend oleh Admin. Akses ditolak.');
-    }
-
     request.user = user;
     return true;
   }

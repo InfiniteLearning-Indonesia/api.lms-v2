@@ -28,9 +28,6 @@ export class SessionSerializer extends PassportSerializer {
       } else {
         user = await this.usersService.findById(key);
       }
-      if (user && user.status === UserStatus.SUSPENDED) {
-        return done(new Error('Akun kamu telah di-suspend oleh Admin. Akses ditolak.'), null);
-      }
       done(null, user);
     } catch (err: any) {
       done(err, null);

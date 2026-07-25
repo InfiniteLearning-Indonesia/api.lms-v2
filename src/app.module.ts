@@ -19,12 +19,17 @@ import { AttendanceModule } from './attendance/attendance.module';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         host: configService.get<string>('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 5432),
+        port: Number(configService.get<string>('DB_PORT', '5432')),
         username: configService.get<string>('DB_USERNAME', 'postgres'),
         password: configService.get<string>('DB_PASSWORD', 'postgres'),
-        database: configService.get<string>('DB_NAME', 'lms_v2'),
+        database: configService.get<string>('DB_NAME') || configService.get<string>('DB_DATABASE') || 'postgres',
         autoLoadEntities: true,
         synchronize: true, // true only for development
+        ssl:
+          configService.get<string>('DB_SSL') === 'true' ||
+          (configService.get<string>('DB_HOST', '').includes('supabase'))
+            ? { rejectUnauthorized: false }
+            : false,
       }),
     }),
     AuthModule,
