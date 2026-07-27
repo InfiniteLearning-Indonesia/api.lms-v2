@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull } from 'typeorm';
+import { Repository, In, Not, IsNull, Between } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
 import { Class } from './entities/class.entity.js';
 import { Material } from './entities/material.entity.js';
@@ -14,6 +14,8 @@ import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity.js';
 import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
+import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
+import { AiEvaluatorService } from './services/ai-evaluator.service.js';
 
 @Injectable()
 export class ClassesService {
@@ -42,6 +44,9 @@ export class ClassesService {
     private submissionRepository: Repository<Submission>,
     @InjectRepository(Logbook)
     private logbookRepository: Repository<Logbook>,
+    @InjectRepository(MentorAsyncDay)
+    private mentorAsyncDayRepository: Repository<MentorAsyncDay>,
+    private aiEvaluatorService: AiEvaluatorService,
   ) { }
 
   async healEnrollments() {
@@ -1577,7 +1582,7 @@ export class ClassesService {
     return await this.materialRepository.save(material);
   }
 
-  async createAssignment(mentorId: string, classId: string, payload: { title: string; description: string; competency: string; dueDate: string }) {
+  async createAssignment(mentorId: string, classId: string, payload: { title: string; description: string; competency: string; selectedRubrics?: any; dueDate: string }) {
     const cls = await this.classRepository.findOne({ where: { id: classId }, relations: { batch: true, program: true } });
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
 
@@ -1594,6 +1599,7 @@ export class ClassesService {
       title: payload.title,
       description: payload.description,
       competency: payload.competency,
+      selectedRubrics: payload.selectedRubrics || null,
       dueDate: new Date(payload.dueDate),
     });
     return await this.assignmentRepository.save(assignment);
@@ -1981,6 +1987,221 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
   }
 
+  async getMentorAiConfig(userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan.');
+    return {
+      githubToken: user.githubToken || '',
+      figmaToken: user.figmaToken || '',
+      googleAiStudioKey: user.googleAiStudioKey || '',
+      groqApiKey: user.groqApiKey || '',
+      aiProvider: user.aiProvider || 'ollama',
+      ollamaHost: user.ollamaHost || 'http://localhost:11434',
+      selectedModel: user.selectedModel || '',
+      selectedOllamaModel: user.selectedOllamaModel || 'gemma3:1b',
+      selectedGroqModel: user.selectedGroqModel || 'llama-3.3-70b-versatile',
+      selectedGeminiModel: user.selectedGeminiModel || 'gemini-2.5-flash',
+    };
+  }
+
+  async saveMentorAiConfig(userId: string, dto: {
+    githubToken?: string;
+    figmaToken?: string;
+    googleAiStudioKey?: string;
+    groqApiKey?: string;
+    aiProvider?: string;
+    ollamaHost?: string;
+    selectedModel?: string;
+    selectedOllamaModel?: string;
+    selectedGroqModel?: string;
+    selectedGeminiModel?: string;
+  }) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User tidak ditemukan.');
+
+    if (dto.githubToken !== undefined) user.githubToken = dto.githubToken || null;
+    if (dto.figmaToken !== undefined) user.figmaToken = dto.figmaToken || null;
+    if (dto.googleAiStudioKey !== undefined) user.googleAiStudioKey = dto.googleAiStudioKey || null;
+    if (dto.groqApiKey !== undefined) user.groqApiKey = dto.groqApiKey || null;
+    if (dto.aiProvider) user.aiProvider = dto.aiProvider;
+    if (dto.ollamaHost) user.ollamaHost = dto.ollamaHost;
+    if (dto.selectedModel !== undefined) user.selectedModel = dto.selectedModel || null;
+    if (dto.selectedOllamaModel !== undefined) user.selectedOllamaModel = dto.selectedOllamaModel || null;
+    if (dto.selectedGroqModel !== undefined) user.selectedGroqModel = dto.selectedGroqModel || null;
+    if (dto.selectedGeminiModel !== undefined) user.selectedGeminiModel = dto.selectedGeminiModel || null;
+
+    // Automatically set default selectedModel matching active aiProvider
+    if (user.aiProvider === 'groq') {
+      user.selectedModel = user.selectedGroqModel || user.selectedModel || 'llama-3.3-70b-versatile';
+    } else if (user.aiProvider === 'gemini') {
+      user.selectedModel = user.selectedGeminiModel || user.selectedModel || 'gemini-2.5-flash';
+    } else {
+      user.selectedModel = user.selectedOllamaModel || user.selectedModel || 'gemma3:1b';
+    }
+
+    await this.userRepository.save(user);
+    return { success: true, message: 'Pengaturan AI & API berhasil disimpan.' };
+  }
+
+  async fetchAiModels(provider: string, hostOrApiKey?: string) {
+    return await this.aiEvaluatorService.fetchModels(provider, hostOrApiKey);
+  }
+
+  async bulkAiEvaluateSubmissions(
+    mentorId: string,
+    assignmentId: string,
+    dto: {
+      submissionIds?: string[];
+      batchSize?: number;
+      provider?: string;
+      model?: string;
+      ollamaHost?: string;
+      groqApiKey?: string;
+      googleAiStudioKey?: string;
+    },
+  ) {
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor) throw new NotFoundException('Mentor tidak ditemukan.');
+
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId },
+      relations: { class: { program: true } },
+    });
+    if (!assignment) throw new NotFoundException('Tugas tidak ditemukan.');
+
+    let rubric: any = null;
+    if (assignment.competency) {
+      const competencyObj = await this.competencyRepository.findOne({
+        where: { name: assignment.competency, program: { id: assignment.class?.program?.id } },
+      });
+      if (competencyObj?.rubric) {
+        const fullRubric = competencyObj.rubric;
+        const selRubrics = assignment.selectedRubrics;
+        if (selRubrics && Array.isArray(selRubrics) && selRubrics.length > 0) {
+          const filteredCriteria = (fullRubric.criteria || []).filter(
+            (c: any) => selRubrics.includes(c.id) || selRubrics.includes(c.title)
+          );
+          const validCritIds = filteredCriteria.map((c: any) => c.id);
+
+          // Clean cells to only contain keys matching valid criteria IDs
+          const filteredCells: Record<string, string> = {};
+          if (fullRubric.cells) {
+            Object.entries(fullRubric.cells).forEach(([key, val]) => {
+              if (validCritIds.some((critId: string) => key.startsWith(`${critId}-`))) {
+                filteredCells[key] = val as string;
+              }
+            });
+          }
+
+          rubric = {
+            levels: fullRubric.levels || [],
+            criteria: filteredCriteria,
+            cells: filteredCells,
+          };
+        } else {
+          rubric = fullRubric;
+        }
+      }
+    }
+
+    let submissions = await this.submissionRepository.find({
+      where: { assignmentId },
+      relations: { student: true },
+    });
+
+    if (dto.submissionIds && dto.submissionIds.length > 0) {
+      const subIds = dto.submissionIds;
+      submissions = submissions.filter((s) => subIds.includes(s.id));
+    }
+
+    const provider = dto.provider || mentor.aiProvider || 'ollama';
+    const model = dto.model || mentor.selectedModel || undefined;
+    const githubToken = mentor.githubToken || undefined;
+    const figmaToken = mentor.figmaToken || undefined;
+
+    let hostOrApiKey = '';
+    if (provider === 'ollama') hostOrApiKey = dto.ollamaHost || mentor.ollamaHost || 'http://localhost:11434';
+    else if (provider === 'groq') hostOrApiKey = dto.groqApiKey || mentor.groqApiKey || '';
+    else if (provider === 'gemini') hostOrApiKey = dto.googleAiStudioKey || mentor.googleAiStudioKey || '';
+
+    const results: Array<{
+      submissionId: string;
+      studentName: string;
+      score: number;
+      feedback: string;
+      isVideo?: boolean;
+      status: string;
+    }> = [];
+
+    const batchSize = Math.max(1, dto.batchSize || (provider === 'ollama' ? submissions.length : 5));
+
+    let rateLimitErrorMessage: string | null = null;
+
+    for (let i = 0; i < submissions.length; i += batchSize) {
+      if (rateLimitErrorMessage) break;
+
+      const chunk = submissions.slice(i, i + batchSize);
+      let stopLoop = false;
+
+      const chunkPromises = chunk.map(async (sub) => {
+        try {
+          const evalResult = await this.aiEvaluatorService.evaluateSubmissionWithAi({
+            link: sub.link,
+            competencyName: assignment.competency,
+            rubric,
+            assignmentTitle: assignment.title,
+            assignmentInstruction: assignment.description,
+            provider,
+            hostOrApiKey,
+            model,
+            githubToken,
+            figmaToken,
+          });
+
+          if (!evalResult.isVideo) {
+            sub.score = evalResult.score;
+            sub.aiFeedback = evalResult.feedback;
+            sub.manualFeedback = evalResult.feedback;
+            if (evalResult.analysis) sub.aiAnalysis = evalResult.analysis;
+            sub.status = 'graded';
+            await this.submissionRepository.save(sub);
+          }
+
+          return {
+            submissionId: sub.id,
+            studentName: sub.student?.name || 'Student',
+            score: sub.score,
+            feedback: evalResult.feedback,
+            analysis: evalResult.analysis || sub.aiAnalysis,
+            prompt: evalResult.prompt,
+            isVideo: evalResult.isVideo,
+            status: sub.status,
+          };
+        } catch (err: any) {
+          if (err.isRateLimit || err.isOffline || err instanceof BadRequestException) {
+            stopLoop = true;
+            rateLimitErrorMessage = err.message || 'Terjadi kesalahan pada Provider AI.';
+          }
+          return null;
+        }
+      });
+
+      const chunkResults = await Promise.all(chunkPromises);
+      const validResults = chunkResults.filter((r) => r !== null) as any[];
+      results.push(...validResults);
+
+      if (stopLoop) break;
+    }
+
+    return {
+      success: true,
+      evaluatedCount: results.filter((r) => !r.isVideo).length,
+      skippedVideoCount: results.filter((r) => r.isVideo).length,
+      rateLimitError: rateLimitErrorMessage,
+      results,
+    };
+  }
+
   async updateAssignmentWeights(updates: Array<{ id: string; weight: number }>) {
     for (const update of updates) {
       await this.assignmentRepository.update({ id: update.id }, { weight: update.weight });
@@ -2175,5 +2396,79 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       }
     }
     return { success: true };
+  }
+
+  async getMentorAsyncDays(mentorId: string) {
+    return await this.mentorAsyncDayRepository.find({
+      where: { mentorId },
+      order: { date: 'ASC' },
+    });
+  }
+
+  async toggleMentorAsyncDay(mentorId: string, date: string, note?: string) {
+    const targetDate = new Date(date);
+    const dayOfWeek = targetDate.getDay();
+
+    // 1. Hari Jumat secara otomatis adalah Hari Asynchronous Wajib Global
+    if (dayOfWeek === 5) {
+      throw new BadRequestException('Hari Jumat secara otomatis merupakan Hari Asynchronous Wajib.');
+    }
+
+    const existing = await this.mentorAsyncDayRepository.findOne({
+      where: { mentorId, date },
+    });
+
+    if (existing) {
+      await this.mentorAsyncDayRepository.remove(existing);
+      return { success: true, isAsync: false, message: 'Hari Asynchronous tambahan dibatalkan.' };
+    } else {
+      // 2. Aturan Kuota: Maksimal +1 Hari Asynchronous Tambahan per minggu kalender (Senin - Kamis)
+      const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+      const monday = new Date(targetDate);
+      monday.setDate(targetDate.getDate() - distanceToMonday);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+
+      const mondayStr = monday.toISOString().split('T')[0];
+      const sundayStr = sunday.toISOString().split('T')[0];
+
+      const existingInWeek = await this.mentorAsyncDayRepository.find({
+        where: {
+          mentorId,
+          date: Between(mondayStr, sundayStr),
+        },
+      });
+
+      if (existingInWeek.length >= 1) {
+        throw new BadRequestException(
+          `Batas Kuota Terlampaui: Selain hari Jumat (Asynchronous Wajib), Anda hanya diperbolehkan menambah maksimal +1 Hari Asynchronous Tambahan per minggu.`
+        );
+      }
+
+      const asyncDay = this.mentorAsyncDayRepository.create({
+        mentorId,
+        date,
+        note: note || 'Hari Asynchronous Pembelajaran Mandiri (Tambahan Mentor)',
+      });
+      await this.mentorAsyncDayRepository.save(asyncDay);
+      return { success: true, isAsync: true, message: 'Hari Asynchronous tambahan berhasil ditetapkan.' };
+    }
+  }
+
+  async getStudentMentorAsyncDays(studentId: string) {
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: { studentId },
+      relations: { class: true },
+    });
+
+    const mentorId = enrollment?.class?.mentorId;
+    if (!mentorId) return [];
+
+    return await this.mentorAsyncDayRepository.find({
+      where: { mentorId },
+      order: { date: 'ASC' },
+    });
   }
 }

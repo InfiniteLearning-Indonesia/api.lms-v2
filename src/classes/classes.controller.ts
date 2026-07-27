@@ -311,6 +311,46 @@ export class ClassesController {
 
   @UseGuards(SessionAuthGuard)
   @Roles('mentor', 'admin')
+  @Get('mentor/ai-config')
+  async getMentorAiConfig(@Req() req: any) {
+    return this.classesService.getMentorAiConfig(req.user.id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post('mentor/ai-config')
+  async saveMentorAiConfig(@Req() req: any, @Body() body: any) {
+    return this.classesService.saveMentorAiConfig(req.user.id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post('mentor/ai-models')
+  async fetchAiModels(@Body() body: { provider: string; hostOrApiKey?: string }) {
+    return this.classesService.fetchAiModels(body.provider, body.hostOrApiKey);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post(':classId/assignment/:assignmentId/bulk-ai-evaluate')
+  async bulkAiEvaluateSubmissions(
+    @Req() req: any,
+    @Param('assignmentId') assignmentId: string,
+    @Body() body: {
+      submissionIds?: string[];
+      batchSize?: number;
+      provider?: string;
+      model?: string;
+      ollamaHost?: string;
+      groqApiKey?: string;
+      googleAiStudioKey?: string;
+    },
+  ) {
+    return this.classesService.bulkAiEvaluateSubmissions(req.user.id, assignmentId, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
   @Put('assignments/weights')
   async updateAssignmentWeights(@Body() body: { updates: Array<{ id: string; weight: number }> }) {
     return this.classesService.updateAssignmentWeights(body.updates);
@@ -340,5 +380,25 @@ export class ClassesController {
   @Roles('mentor')
   async reviewLogbook(@Req() req: any, @Param('logbookId') logbookId: string, @Body() body: { status: any, feedback?: string }) {
     return this.classesService.reviewLogbook(req.user.id, logbookId, body.status, body.feedback);
+  }
+
+  // ================= HARI ASYNCHRONOUS MENTOR =================
+
+  @Get('attendance/async-days/mentor')
+  @Roles('mentor')
+  async getMentorAsyncDays(@Req() req: any) {
+    return this.classesService.getMentorAsyncDays(req.user.id);
+  }
+
+  @Post('attendance/async-days/toggle')
+  @Roles('mentor')
+  async toggleMentorAsyncDay(@Req() req: any, @Body() body: { date: string; note?: string }) {
+    return this.classesService.toggleMentorAsyncDay(req.user.id, body.date, body.note);
+  }
+
+  @Get('attendance/async-days/student')
+  @Roles('student')
+  async getStudentMentorAsyncDays(@Req() req: any) {
+    return this.classesService.getStudentMentorAsyncDays(req.user.id);
   }
 }

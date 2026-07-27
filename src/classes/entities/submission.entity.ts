@@ -26,6 +26,9 @@ export class Submission {
   aiFeedback: string;
 
   @Column({ type: 'text', nullable: true })
+  aiAnalysis: string;
+
+  @Column({ type: 'text', nullable: true })
   manualFeedback: string;
 
   @Column({ nullable: true })

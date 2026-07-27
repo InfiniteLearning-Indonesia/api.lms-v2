@@ -77,6 +77,37 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   specialization: string | null;
 
+  // AI & External API Credentials Configuration
+  @Column({ type: 'varchar', nullable: true })
+  githubToken: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  figmaToken: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAiStudioKey: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  groqApiKey: string | null;
+
+  @Column({ type: 'varchar', default: 'ollama' })
+  aiProvider: string;
+
+  @Column({ type: 'varchar', default: 'http://localhost:11434' })
+  ollamaHost: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  selectedModel: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  selectedOllamaModel: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  selectedGroqModel: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  selectedGeminiModel: string | null;
+
   @UpdateDateColumn()
   updatedAt: Date;
 
@@ -127,6 +158,13 @@ export class User {
       selectedProgram: this.selectedProgram,
       programId: this.programId,
       specialization: this.specialization,
+      githubToken: this.githubToken,
+      figmaToken: this.figmaToken,
+      googleAiStudioKey: this.googleAiStudioKey,
+      groqApiKey: this.groqApiKey,
+      aiProvider: this.aiProvider,
+      ollamaHost: this.ollamaHost,
+      selectedModel: this.selectedModel,
       updatedAt: this.updatedAt,
     };
   }

@@ -16,6 +16,9 @@ export class Assignment {
     @Column({ nullable: true })
     competency: string;
 
+    @Column({ type: 'jsonb', nullable: true })
+    selectedRubrics: any;
+
     @Column({ type: 'text', nullable: true })
     description: string;
 

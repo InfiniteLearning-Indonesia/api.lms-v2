@@ -13,16 +13,20 @@ import { RubrikAssessment } from './entities/rubrik-assessment.entity';
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity';
 import { Submission } from './entities/submission.entity';
 import { Logbook } from './entities/logbook.entity';
+import { MentorAsyncDay } from './entities/mentor-async-day.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 
+import { AiEvaluatorService } from './services/ai-evaluator.service';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, RubrikAssessment, RubrikAssessmentScore, Submission, Logbook, User]),
+    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, RubrikAssessment, RubrikAssessmentScore, Submission, Logbook, MentorAsyncDay, User]),
     UsersModule,
   ],
   controllers: [ClassesController],
-  providers: [ClassesService],
+  providers: [ClassesService, AiEvaluatorService],
+  exports: [ClassesService, AiEvaluatorService],
 })
 export class ClassesModule { }
 
