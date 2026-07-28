@@ -39,6 +39,10 @@ export class SessionAuthGuard implements CanActivate {
       if (storeSession && storeSession.userId) {
         userId = storeSession.userId;
         request.session.userId = userId;
+        request.session.userEmail = storeSession.userEmail;
+        if (typeof request.session.save === 'function') {
+          request.session.save();
+        }
         console.log(`[AUTH DIAGNOSTIC FALLBACK SUCCESS] Found userId "${userId}" from Session Store using token!`);
       } else {
         console.warn(`[AUTH DIAGNOSTIC FALLBACK FAIL] Token "${token}" not found in sessionStore.`);
