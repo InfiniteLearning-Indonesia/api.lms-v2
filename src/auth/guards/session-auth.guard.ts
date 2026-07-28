@@ -15,24 +15,49 @@ export class SessionAuthGuard implements CanActivate {
     
     console.log('================ [AUTH DIAGNOSTIC START] ================');
     console.log('[AUTH DIAGNOSTIC] Path:', request.method, request.url);
-    console.log('[AUTH DIAGNOSTIC] Origin Header:', request.headers.origin || request.headers.referer || 'none');
     console.log('[AUTH DIAGNOSTIC] Cookie Header:', request.headers.cookie || 'NO COOKIE RECEIVED');
-    console.log('[AUTH DIAGNOSTIC] Session ID:', request.sessionID);
-    console.log('[AUTH DIAGNOSTIC] Session Data:', JSON.stringify(request.session || {}));
+    console.log('[AUTH DIAGNOSTIC] Current Session ID:', request.sessionID);
 
-    if (!request.session?.userId) {
+    let userId = request.session?.userId;
+
+    // Fallback: Check if Token is passed in Authorization header or Query param
+    let token = request.query?.token || request.query?.sid;
+    const authHeader = request.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+
+    if (!userId && token && request.sessionStore) {
+      console.log(`[AUTH DIAGNOSTIC FALLBACK] Looking up token/sessionID "${token}" in sessionStore...`);
+      const storeSession: any = await new Promise((resolve) => {
+        request.sessionStore.get(token, (err: any, sess: any) => {
+          if (err || !sess) resolve(null);
+          else resolve(sess);
+        });
+      });
+
+      if (storeSession && storeSession.userId) {
+        userId = storeSession.userId;
+        request.session.userId = userId;
+        console.log(`[AUTH DIAGNOSTIC FALLBACK SUCCESS] Found userId "${userId}" from Session Store using token!`);
+      } else {
+        console.warn(`[AUTH DIAGNOSTIC FALLBACK FAIL] Token "${token}" not found in sessionStore.`);
+      }
+    }
+
+    if (!userId) {
       console.error(
-        `[AUTH DIAGNOSTIC REJECT 401] No userId in session! URL: ${request.url}. Cookies received: "${request.headers.cookie || 'none'}"`
+        `[AUTH DIAGNOSTIC REJECT 401] No userId in session or token! URL: ${request.url}. Cookies received: "${request.headers.cookie || 'none'}"`
       );
       console.log('================ [AUTH DIAGNOSTIC END] ================');
       throw new UnauthorizedException('Sesi login berakhir atau belum terautentikasi.');
     }
 
     try {
-      const user = await this.usersService.findById(request.session.userId);
+      const user = await this.usersService.findById(userId);
       if (!user) {
         console.error(
-          `[AUTH DIAGNOSTIC REJECT 401] User ID ${request.session.userId} from session not found in DB!`
+          `[AUTH DIAGNOSTIC REJECT 401] User ID ${userId} not found in DB!`
         );
         console.log('================ [AUTH DIAGNOSTIC END] ================');
         throw new UnauthorizedException('User session is invalid or user not found in DB.');

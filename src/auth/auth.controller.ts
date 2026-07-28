@@ -51,8 +51,9 @@ export class AuthController {
         frontendUrl = 'https://lms-v2.infinitelearningstudent.id';
       }
 
-      const dashboardUrl = `${frontendUrl}/dashboard`;
-      console.log('[OAUTH DIAGNOSTIC] Session ID before save:', req.sessionID);
+      const token = req.sessionID;
+      const dashboardUrl = `${frontendUrl}/dashboard?token=${token}`;
+      console.log('[OAUTH DIAGNOSTIC] Session ID before save:', token);
       console.log('[OAUTH DIAGNOSTIC] Saving session & redirecting to:', dashboardUrl);
 
       return req.session.save((err: any) => {
