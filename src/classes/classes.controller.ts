@@ -162,13 +162,13 @@ export class ClassesController {
 
   @UseGuards(SessionAuthGuard)
   @Get('program-competencies')
-  async getProgramCompetencies() {
-    return this.classesService.getProgramCompetencies();
+  async getProgramCompetencies(@Req() req: any) {
+    return this.classesService.getProgramCompetencies(req.query?.programId);
   }
 
   @UseGuards(SessionAuthGuard)
   @Post('program-competencies')
-  async createProgramCompetency(@Body() body: { name: string; category: string; programId?: string; syllabuses?: { name: string }[] }) {
+  async createProgramCompetency(@Body() body: { name: string; category: string; programId?: string; isGlobal?: boolean; syllabuses?: { name: string }[] }) {
     return this.classesService.createProgramCompetency(body);
   }
 
@@ -178,6 +178,12 @@ export class ClassesController {
     return this.classesService.deleteProgramCompetency(req.params.id);
   }
 
+
+  @UseGuards(SessionAuthGuard)
+  @Get('rubrik-assessments')
+  async getAllRubrikAssessments(@Req() req: any) {
+    return this.classesService.getRubrikAssessmentsByProgram(req.query?.programId);
+  }
 
   @UseGuards(SessionAuthGuard)
   @Get('programs/:programId/rubrik-assessments')

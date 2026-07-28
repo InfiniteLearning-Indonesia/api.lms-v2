@@ -10,6 +10,9 @@ export class ProgramCompetency {
   @Column({ nullable: true })
   programId: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  isGlobal: boolean;
+
   @Column()
   name: string;
 

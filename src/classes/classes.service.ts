@@ -1421,15 +1421,22 @@ export class ClassesService {
 
   // --- Program Competency Methods ---
 
-  async getProgramCompetencies() {
-    return await this.programCompetencyRepository.find({ relations: { syllabuses: true } });
+  async getProgramCompetencies(programId?: string) {
+    const whereClause = programId ? [{ programId }, { isGlobal: true }] : {};
+    return await this.programCompetencyRepository.find({ 
+      where: whereClause,
+      relations: { syllabuses: true } 
+    });
   }
 
-  async createProgramCompetency(payload: { name: string; category: string; programId?: string; syllabuses?: { name: string }[] }) {
+  async createProgramCompetency(payload: { name: string; category: string; programId?: string; isGlobal?: boolean; syllabuses?: { name: string }[] }) {
+    const isGlobal = payload.isGlobal ?? !payload.programId;
+    
     const pc = this.programCompetencyRepository.create({
       name: payload.name,
       category: payload.category,
-      programId: payload.programId || null,
+      programId: isGlobal ? null : (payload.programId || null),
+      isGlobal,
     });
     const savedPc = await this.programCompetencyRepository.save(pc);
 
@@ -1437,18 +1444,18 @@ export class ClassesService {
     const initialRA = this.rubrikAssessmentRepository.create({
       name: savedPc.name,
       phase: 'Micro', // Micro is used for Initial internally
-      programId: payload.programId || null,
+      programId: isGlobal ? null : (payload.programId || null),
       programCompetency: savedPc,
-      isGlobal: !payload.programId,
+      isGlobal: isGlobal,
       competencies: [],
       subAssessments: []
     });
     const finalRA = this.rubrikAssessmentRepository.create({
       name: savedPc.name,
       phase: 'Massive', // Massive is used for Final internally
-      programId: payload.programId || null,
+      programId: isGlobal ? null : (payload.programId || null),
       programCompetency: savedPc,
-      isGlobal: !payload.programId,
+      isGlobal: isGlobal,
       competencies: [],
       subAssessments: []
     });
@@ -1461,7 +1468,7 @@ export class ClassesService {
           name: s.name,
           category: savedPc.category,
           programId: savedPc.programId,
-          isGlobal: !savedPc.programId,
+          isGlobal: savedPc.isGlobal,
           programCompetency: savedPc,
           programCompetencyId: savedPc.id
         })
@@ -1504,9 +1511,10 @@ export class ClassesService {
     return await this.rubrikAssessmentRepository.save(rubrik);
   }
 
-  async getRubrikAssessmentsByProgram(programId: string) {
+  async getRubrikAssessmentsByProgram(programId?: string) {
+    const whereClause = programId ? [{ programId }, { isGlobal: true }] : [{ isGlobal: true }];
     return await this.rubrikAssessmentRepository.find({
-      where: [{ programId }, { isGlobal: true }],
+      where: whereClause,
       relations: { programCompetency: true },
       order: { createdAt: 'ASC' }
     });
