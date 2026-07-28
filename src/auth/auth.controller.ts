@@ -35,24 +35,34 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.userEmail = user.email;
 
-      const frontendUrl = (this.configService.get<string>(
-        'FRONTEND_URL',
-        'http://localhost:3000',
-      ) || 'http://localhost:3000').replace(/\/$/, '');
+      const envFrontendUrl = (
+        this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') ||
+        'http://localhost:3000'
+      ).replace(/\/$/, '');
 
-      const dashboardUrl = this.configService.get<string>(
-        'FRONTEND_DASHBOARD_URL',
-        `${frontendUrl}/dashboard`,
-      );
-      return res.redirect(dashboardUrl);
+      let frontendUrl = envFrontendUrl;
+      const referer = req.headers.referer || req.headers.origin || '';
+      if (referer.includes('dev-lms-v2.infinitelearningstudent.id')) {
+        frontendUrl = 'https://dev-lms-v2.infinitelearningstudent.id';
+      } else if (referer.includes('lms-v2.infinitelearningstudent.id')) {
+        frontendUrl = 'https://lms-v2.infinitelearningstudent.id';
+      }
+
+      const dashboardUrl = `${frontendUrl}/dashboard`;
+
+      return req.session.save((err: any) => {
+        if (err) {
+          console.error('Session save error:', err);
+        }
+        return res.redirect(dashboardUrl);
+      });
     } catch (error: any) {
-      // Redirect to frontend login with error query param
-      const frontendUrl = (this.configService.get<string>(
-        'FRONTEND_URL',
-        'http://localhost:3000',
-      ) || 'http://localhost:3000').replace(/\/$/, '');
+      const envFrontendUrl = (
+        this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') ||
+        'http://localhost:3000'
+      ).replace(/\/$/, '');
       const errorMessage = encodeURIComponent(error.message || 'Login failed');
-      return res.redirect(`${frontendUrl}/login?error=${errorMessage}`);
+      return res.redirect(`${envFrontendUrl}/login?error=${errorMessage}`);
     }
   }
 

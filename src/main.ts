@@ -62,6 +62,8 @@ async function bootstrap() {
   });
 
   // Session middleware
+  const isHttps = isProduction || frontendUrl.startsWith('https://');
+
   app.use(
     session({
       secret: sessionSecret,
@@ -69,8 +71,8 @@ async function bootstrap() {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'none' : 'lax',
+        secure: isHttps,
+        sameSite: isHttps ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       },
     }),
