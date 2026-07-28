@@ -90,7 +90,7 @@ async function bootstrap() {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  await app.listen(port);
-  console.log(`Backend server is running on http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Backend server is running on http://0.0.0.0:${port}`);
 }
 bootstrap();
