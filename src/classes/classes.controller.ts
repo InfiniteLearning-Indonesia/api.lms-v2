@@ -142,13 +142,13 @@ export class ClassesController {
 
   @UseGuards(SessionAuthGuard)
   @Post('competencies')
-  async createCompetency(@Req() req: any, @Body() body: { name: string; category: string; programId: string; phase?: string }) {
+  async createCompetency(@Req() req: any, @Body() body: { name: string; category: string; programId: string; programCompetencyId?: string }) {
     return this.classesService.createCompetency(req.user.id, body);
   }
 
   @UseGuards(SessionAuthGuard)
   @Put('competencies/:id')
-  async updateCompetency(@Req() req: any, @Body() body: { name?: string; category?: string; phase?: string }) {
+  async updateCompetency(@Req() req: any, @Body() body: { name?: string; category?: string; programCompetencyId?: string }) {
     return this.classesService.updateCompetency(req.user.id, req.params.id, body);
   }
 
@@ -157,6 +157,27 @@ export class ClassesController {
   async deleteCompetency(@Req() req: any) {
     return this.classesService.deleteCompetency(req.user.id, req.params.id);
   }
+
+  // --- Program Competency Endpoints ---
+
+  @UseGuards(SessionAuthGuard)
+  @Get('program-competencies')
+  async getProgramCompetencies() {
+    return this.classesService.getProgramCompetencies();
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('program-competencies')
+  async createProgramCompetency(@Body() body: { name: string; category: string; programId?: string; syllabuses?: { name: string }[] }) {
+    return this.classesService.createProgramCompetency(body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Delete('program-competencies/:id')
+  async deleteProgramCompetency(@Req() req: any) {
+    return this.classesService.deleteProgramCompetency(req.params.id);
+  }
+
 
   @UseGuards(SessionAuthGuard)
   @Get('programs/:programId/rubrik-assessments')

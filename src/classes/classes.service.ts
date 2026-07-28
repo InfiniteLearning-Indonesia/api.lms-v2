@@ -11,6 +11,7 @@ import { Batch, BatchStatus } from './entities/batch.entity.js';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
 import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
+import { ProgramCompetency } from './entities/program-competency.entity.js';
 
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity.js';
 import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
@@ -46,6 +47,8 @@ export class ClassesService {
     private logbookRepository: Repository<Logbook>,
     @InjectRepository(MentorAsyncDay)
     private mentorAsyncDayRepository: Repository<MentorAsyncDay>,
+    @InjectRepository(ProgramCompetency)
+    private programCompetencyRepository: Repository<ProgramCompetency>,
     private aiEvaluatorService: AiEvaluatorService,
   ) { }
 
@@ -290,8 +293,6 @@ export class ClassesService {
 
       // 4. Calculate Micro Phase Items (for Transcript)
       const microRAs = rubrikAssessments.filter(r => !r.phase || r.phase === 'Micro');
-      const microComps = competencies.filter(c => !c.phase || c.phase === 'Micro');
-
       const microItems = microRAs.map(ra => {
         const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
         const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
@@ -304,26 +305,12 @@ export class ClassesService {
         };
       });
 
-      if (microItems.length === 0) {
-        for (const comp of microComps) {
-          microItems.push({
-            id: comp.id,
-            name: comp.name,
-            category: comp.category || 'Kompetensi',
-            phase: 'Micro',
-            score: 65.0
-          });
-        }
-      }
-
       const totalMicroScore = microItems.length > 0
         ? ensureMin(microItems.reduce((acc, curr) => acc + curr.score, 0) / microItems.length)
         : 65.0;
 
       // 5. Calculate Massive Phase Items (for Certificate)
       const massiveRAs = rubrikAssessments.filter(r => r.phase === 'Massive');
-      const massiveComps = competencies.filter(c => c.phase === 'Massive');
-
       const massiveItems = massiveRAs.map(ra => {
         const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
         const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
@@ -335,18 +322,6 @@ export class ClassesService {
           score: ensureMin(rawScore)
         };
       });
-
-      if (massiveItems.length === 0) {
-        for (const comp of massiveComps) {
-          massiveItems.push({
-            id: comp.id,
-            name: comp.name,
-            category: comp.category || 'Kompetensi',
-            phase: 'Massive',
-            score: 65.0
-          });
-        }
-      }
 
       const totalMassiveScore = massiveItems.length > 0
         ? ensureMin(massiveItems.reduce((acc, curr) => acc + curr.score, 0) / massiveItems.length)
@@ -1344,7 +1319,7 @@ export class ClassesService {
     const whereClause = programId ? [{ programId }, { isGlobal: true }] : {};
     const competencies = await this.competencyRepository.find({
       where: whereClause,
-      relations: { program: true, creatorMentor: true },
+      relations: { program: true, creatorMentor: true, programCompetency: true },
     });
 
     return competencies;
@@ -1378,7 +1353,7 @@ export class ClassesService {
     return false;
   }
 
-  async createCompetency(mentorId: string, payload: { name: string; category: string; programId?: string; phase?: string; isGlobal?: boolean }) {
+  async createCompetency(mentorId: string, payload: { name: string; category: string; programId?: string; isGlobal?: boolean; programCompetencyId?: string }) {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Hanya mentor yang dapat membuat kompetensi.');
 
@@ -1393,15 +1368,16 @@ export class ClassesService {
     const competency = this.competencyRepository.create({
       name: payload.name,
       category: payload.category,
-      phase: payload.phase || 'Micro',
       programId: payload.isGlobal ? null : payload.programId,
       isGlobal: payload.isGlobal || false,
       creatorMentorId: mentor.id,
+      programCompetency: payload.programCompetencyId ? { id: payload.programCompetencyId } as any : null,
+      programCompetencyId: payload.programCompetencyId || null,
     });
     return await this.competencyRepository.save(competency);
   }
 
-  async updateCompetency(mentorId: string, id: string, payload: { name?: string; category?: string; phase?: string }) {
+  async updateCompetency(mentorId: string, id: string, payload: { name?: string; category?: string; programCompetencyId?: string }) {
     const competency = await this.competencyRepository.findOne({ where: { id } });
     if (!competency) throw new NotFoundException('Kompetensi tidak ditemukan.');
 
@@ -1409,11 +1385,21 @@ export class ClassesService {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
 
-    if (payload.name) competency.name = payload.name;
-    if (payload.category) competency.category = payload.category;
-    if (payload.phase) competency.phase = payload.phase;
+    const updateData: any = {};
+    if (payload.name) updateData.name = payload.name;
+    if (payload.category) updateData.category = payload.category;
+    if (payload.programCompetencyId !== undefined) {
+      updateData.programCompetencyId = payload.programCompetencyId || null;
+    }
 
-    return await this.competencyRepository.save(competency);
+    if (Object.keys(updateData).length > 0) {
+      await this.competencyRepository.update(id, updateData);
+    }
+
+    return await this.competencyRepository.findOne({ 
+      where: { id },
+      relations: { programCompetency: true } 
+    });
   }
 
   async deleteCompetency(mentorId: string, id: string) {
@@ -1432,6 +1418,75 @@ export class ClassesService {
     await this.competencyRepository.remove(competency);
     return { success: true };
   }
+
+  // --- Program Competency Methods ---
+
+  async getProgramCompetencies() {
+    return await this.programCompetencyRepository.find({ relations: { syllabuses: true } });
+  }
+
+  async createProgramCompetency(payload: { name: string; category: string; programId?: string; syllabuses?: { name: string }[] }) {
+    const pc = this.programCompetencyRepository.create({
+      name: payload.name,
+      category: payload.category,
+      programId: payload.programId || null,
+    });
+    const savedPc = await this.programCompetencyRepository.save(pc);
+
+    // Otomatis buat Kolom Penilaian untuk Phase Initial dan Final
+    const initialRA = this.rubrikAssessmentRepository.create({
+      name: savedPc.name,
+      phase: 'Micro', // Micro is used for Initial internally
+      programId: payload.programId || null,
+      programCompetency: savedPc,
+      isGlobal: !payload.programId,
+      competencies: [],
+      subAssessments: []
+    });
+    const finalRA = this.rubrikAssessmentRepository.create({
+      name: savedPc.name,
+      phase: 'Massive', // Massive is used for Final internally
+      programId: payload.programId || null,
+      programCompetency: savedPc,
+      isGlobal: !payload.programId,
+      competencies: [],
+      subAssessments: []
+    });
+
+    await this.rubrikAssessmentRepository.save([initialRA, finalRA]);
+
+    if (payload.syllabuses && payload.syllabuses.length > 0) {
+      const syllabusEntities = payload.syllabuses.map((s) =>
+        this.competencyRepository.create({
+          name: s.name,
+          category: savedPc.category,
+          programId: savedPc.programId,
+          isGlobal: !savedPc.programId,
+          programCompetency: savedPc,
+          programCompetencyId: savedPc.id
+        })
+      );
+      await this.competencyRepository.save(syllabusEntities);
+    }
+
+    return savedPc;
+  }
+
+  async deleteProgramCompetency(id: string) {
+    const pc = await this.programCompetencyRepository.findOne({ where: { id } });
+    if (!pc) throw new NotFoundException('Program Competency tidak ditemukan.');
+    
+    // Hapus Kolom Penilaian otomatis yang terhubung
+    const associatedRAs = await this.rubrikAssessmentRepository.find({ where: { programCompetencyId: id } });
+    if (associatedRAs.length > 0) {
+      await this.rubrikAssessmentRepository.remove(associatedRAs);
+    }
+
+    await this.programCompetencyRepository.remove(pc);
+    return { success: true };
+  }
+  
+  // --- Rubrik Assessment Methods ---
 
   async createRubrikAssessment(mentorId: string, payload: { name: string; programId?: string; phase?: string; competencies?: any[]; subAssessments?: any[]; isGlobal?: boolean }) {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
@@ -1452,6 +1507,7 @@ export class ClassesService {
   async getRubrikAssessmentsByProgram(programId: string) {
     return await this.rubrikAssessmentRepository.find({
       where: [{ programId }, { isGlobal: true }],
+      relations: { programCompetency: true },
       order: { createdAt: 'ASC' }
     });
   }

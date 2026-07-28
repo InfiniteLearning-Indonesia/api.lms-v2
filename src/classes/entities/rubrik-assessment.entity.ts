@@ -35,6 +35,13 @@ export class RubrikAssessment {
   @JoinColumn({ name: 'programId' })
   program: Program;
 
+  @Column({ nullable: true })
+  programCompetencyId: string | null;
+
+  @ManyToOne('ProgramCompetency', { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'programCompetencyId' })
+  programCompetency: any;
+
   @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'creatorMentorId' })
   creatorMentor: User;

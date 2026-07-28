@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Program } from './program.entity.js';
 import { User } from '../../users/entities/user.entity.js';
+import { ProgramCompetency } from './program-competency.entity.js';
 
 @Entity('competencies')
 export class Competency {
@@ -22,9 +23,6 @@ export class Competency {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'varchar', default: 'Micro' }) // Micro, Massive
-  phase: string;
-
   @Column({ type: 'varchar', default: 'Technical' }) // Technical, Soft Skills (CCA), Capstone Project
   category: string;
 
@@ -38,6 +36,13 @@ export class Competency {
   @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'creatorMentorId' })
   creatorMentor: User;
+
+  @Column({ nullable: true })
+  programCompetencyId: string | null;
+
+  @ManyToOne(() => ProgramCompetency, (pc) => pc.syllabuses, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'programCompetencyId' })
+  programCompetency: ProgramCompetency;
 
   @CreateDateColumn()
   createdAt: Date;
