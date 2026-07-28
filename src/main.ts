@@ -64,6 +64,8 @@ async function bootstrap() {
 
   // Session middleware
   const isHttps = isProduction || frontendUrl.startsWith('https://');
+  const isInfiniteDomain = frontendUrl.includes('infinitelearningstudent.id') || isProduction;
+  const cookieDomain = isInfiniteDomain ? '.infinitelearningstudent.id' : undefined;
 
   app.use(
     session({
@@ -73,6 +75,7 @@ async function bootstrap() {
       proxy: true,
       cookie: {
         path: '/',
+        domain: cookieDomain,
         httpOnly: true,
         secure: isHttps,
         sameSite: isHttps ? 'none' : 'lax',
