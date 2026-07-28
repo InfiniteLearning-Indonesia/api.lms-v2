@@ -356,7 +356,7 @@ export class AttendanceService {
     return saved;
   }
 
-  async getPermissionRequests(batchId?: string, studentId?: string, date?: string) {
+  async getPermissionRequests(batchId?: string, studentId?: string, date?: string, mentorId?: string) {
     const query = this.permissionRequestRepository.createQueryBuilder('perm')
       .leftJoinAndSelect('perm.student', 'student')
       .leftJoinAndSelect('perm.batch', 'batch');
@@ -371,6 +371,13 @@ export class AttendanceService {
 
     if (date) {
       query.andWhere('perm.date = :date', { date });
+    }
+
+    if (mentorId) {
+      query.leftJoin('enrollments', 'en', 'en."studentId" = perm."studentId"')
+           .leftJoin('classes', 'cls', 'cls.id = en."classId"')
+           .andWhere('cls."batchId" = perm."batchId"')
+           .andWhere('cls."mentorId" = :mentorId', { mentorId });
     }
 
     query.orderBy('perm.createdAt', 'DESC');

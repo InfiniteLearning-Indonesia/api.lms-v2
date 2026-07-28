@@ -38,9 +38,10 @@ export class AttendanceController {
   async getPermissionRequests(
     @Query('batchId') batchId?: string,
     @Query('studentId') studentId?: string,
-    @Query('date') date?: string
+    @Query('date') date?: string,
+    @Query('mentorId') mentorId?: string
   ) {
-    return this.attendanceService.getPermissionRequests(batchId, studentId, date);
+    return this.attendanceService.getPermissionRequests(batchId, studentId, date, mentorId);
   }
 
   @UseGuards(SessionAuthGuard)
