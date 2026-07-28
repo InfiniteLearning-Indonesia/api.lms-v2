@@ -35,17 +35,22 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.userEmail = user.email;
 
+      const frontendUrl = (this.configService.get<string>(
+        'FRONTEND_URL',
+        'http://localhost:3000',
+      ) || 'http://localhost:3000').replace(/\/$/, '');
+
       const dashboardUrl = this.configService.get<string>(
         'FRONTEND_DASHBOARD_URL',
-        'http://localhost:3000/dashboard',
+        `${frontendUrl}/dashboard`,
       );
       return res.redirect(dashboardUrl);
     } catch (error: any) {
       // Redirect to frontend login with error query param
-      const frontendUrl = this.configService.get<string>(
+      const frontendUrl = (this.configService.get<string>(
         'FRONTEND_URL',
         'http://localhost:3000',
-      );
+      ) || 'http://localhost:3000').replace(/\/$/, '');
       const errorMessage = encodeURIComponent(error.message || 'Login failed');
       return res.redirect(`${frontendUrl}/login?error=${errorMessage}`);
     }

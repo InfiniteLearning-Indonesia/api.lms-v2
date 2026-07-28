@@ -17,7 +17,8 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 7000);
   const sessionSecret = configService.get<string>('SESSION_SECRET', 'change-me');
-  const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  const frontendUrl = configService.get<string>('FRONTEND_URL', 'http://localhost:3000').replace(/\/$/, '');
+  const isProduction = configService.get<string>('NODE_ENV') === 'production';
 
   // Bootstrap: ensure bootstrap admin exists (idempotent upsert)
   const dataSource = app.get(DataSource);
@@ -45,9 +46,27 @@ async function bootstrap() {
     }),
   );
 
+  // Trust proxy for production reverse proxy setup
+  if (isProduction) {
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', 1);
+  }
+
   // CORS config
+  const allowedOrigins = [
+    frontendUrl,
+    'http://localhost:3000',
+    'https://lms-v2.infinitelearningstudent.id',
+  ].filter(Boolean);
+
   app.enableCors({
-    origin: [frontendUrl],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || !isProduction) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
 
@@ -59,7 +78,8 @@ async function bootstrap() {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: configService.get<string>('NODE_ENV') === 'production',
+        secure: isProduction,
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       },
     }),
