@@ -57,6 +57,7 @@ async function bootstrap() {
     frontendUrl,
     'http://localhost:3000',
     'https://lms-v2.infinitelearningstudent.id',
+    'https://dev-lms-v2.infinitelearningstudent.id',
   ].filter(Boolean);
 
   app.enableCors({
