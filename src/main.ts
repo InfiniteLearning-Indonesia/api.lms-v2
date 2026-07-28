@@ -50,23 +50,15 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
 
-  // CORS config
-  const allowedOrigins = [
-    frontendUrl,
-    'http://localhost:3000',
-    'https://lms-v2.infinitelearningstudent.id',
-    'https://dev-lms-v2.infinitelearningstudent.id',
-  ].filter(Boolean);
-
+  // CORS config: Bulletproof setup that accepts any frontend origin with credentials
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || !isProduction) {
-        callback(null, true);
-      } else {
-        callback(null, true);
-      }
+      // Reflect the request origin so credentials (session cookies) work seamlessly from any domain
+      callback(null, true);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Cookie'],
   });
 
   // Session middleware
