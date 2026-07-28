@@ -33,45 +33,55 @@ export class UsersService {
   }
 
   async findAll(): Promise<any[]> {
-    const users = await this.usersRepository.find({ order: { createdAt: 'DESC' } });
-    
-    // Fetch student enrollments
-    const studentEnrollments = await this.dataSource.query(`
-      SELECT e."studentId", b.id as "batchId", b.name as "batchName"
-      FROM enrollments e
-      JOIN classes c ON e."classId" = c.id
-      JOIN batches b ON c."batchId" = b.id
-    `);
+    try {
+      console.log('[DB DIAGNOSTIC] Fetching all users from Supabase PostgreSQL...');
+      const users = await this.usersRepository.find({ order: { createdAt: 'DESC' } });
+      console.log(`[DB DIAGNOSTIC] Found ${users.length} raw user entities in DB.`);
+      
+      // Fetch student enrollments
+      const studentEnrollments = await this.dataSource.query(`
+        SELECT e."studentId", b.id as "batchId", b.name as "batchName"
+        FROM enrollments e
+        JOIN classes c ON e."classId" = c.id
+        JOIN batches b ON c."batchId" = b.id
+      `);
 
-    // Fetch mentor class assignments
-    const mentorClasses = await this.dataSource.query(`
-      SELECT c."mentorId", b.id as "batchId", b.name as "batchName"
-      FROM classes c
-      JOIN batches b ON c."batchId" = b.id
-      WHERE c."mentorId" IS NOT NULL
-    `);
+      // Fetch mentor class assignments
+      const mentorClasses = await this.dataSource.query(`
+        SELECT c."mentorId", b.id as "batchId", b.name as "batchName"
+        FROM classes c
+        JOIN batches b ON c."batchId" = b.id
+        WHERE c."mentorId" IS NOT NULL
+      `);
 
-    return users.map((user) => {
-      let userBatches: any[] = [];
-      const roles = user.roles || [];
-      if (roles.includes(UserRole.STUDENT)) {
-        const enrolls = studentEnrollments.filter((e: any) => e.studentId === user.id);
-        userBatches = enrolls.map((e: any) => ({ id: e.batchId, name: e.batchName }));
-      } else if (roles.includes(UserRole.MENTOR)) {
-        const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
-        userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
-      }
+      const result = users.map((user) => {
+        let userBatches: any[] = [];
+        const roles = user.roles || [];
+        if (roles.includes(UserRole.STUDENT)) {
+          const enrolls = studentEnrollments.filter((e: any) => e.studentId === user.id);
+          userBatches = enrolls.map((e: any) => ({ id: e.batchId, name: e.batchName }));
+        } else if (roles.includes(UserRole.MENTOR)) {
+          const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
+          userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
+        }
 
-      // Deduplicate batches
-      const uniqueBatches = Array.from(
-        new Map(userBatches.map((b) => [b.id, b])).values()
-      );
+        // Deduplicate batches
+        const uniqueBatches = Array.from(
+          new Map(userBatches.map((b) => [b.id, b])).values()
+        );
 
-      return {
-        ...user.toJSON(),
-        batches: uniqueBatches,
-      };
-    });
+        return {
+          ...user.toJSON(),
+          batches: uniqueBatches,
+        };
+      });
+
+      console.log(`[DB DIAGNOSTIC SUCCESS] Formatted ${result.length} user records.`);
+      return result;
+    } catch (dbError: any) {
+      console.error('[DB DIAGNOSTIC ERROR] Failed to fetch users from database:', dbError);
+      throw dbError;
+    }
   }
 
   async invite(dto: CreateUserDto): Promise<User> {
