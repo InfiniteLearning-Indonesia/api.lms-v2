@@ -46,11 +46,9 @@ async function bootstrap() {
     }),
   );
 
-  // Trust proxy for production reverse proxy setup
-  if (isProduction) {
-    const expressApp = app.getHttpAdapter().getInstance();
-    expressApp.set('trust proxy', 1);
-  }
+  // Trust proxy for reverse proxy setup (Nginx/Cloudflare)
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
 
   // CORS config
   const allowedOrigins = [
@@ -80,7 +78,7 @@ async function bootstrap() {
       cookie: {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: isProduction ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       },
     }),
