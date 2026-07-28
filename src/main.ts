@@ -47,8 +47,9 @@ async function bootstrap() {
   );
 
   // Trust proxy for reverse proxy setup (Nginx/Cloudflare)
+  // Trust proxy for reverse proxy setup (Nginx/Cloudflare)
   const expressApp = app.getHttpAdapter().getInstance();
-  expressApp.set('trust proxy', 1);
+  expressApp.set('trust proxy', true);
 
   // CORS config: Bulletproof setup that accepts any frontend origin with credentials
   app.enableCors({
@@ -69,7 +70,9 @@ async function bootstrap() {
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
+      proxy: true,
       cookie: {
+        path: '/',
         httpOnly: true,
         secure: isHttps,
         sameSite: isHttps ? 'none' : 'lax',
