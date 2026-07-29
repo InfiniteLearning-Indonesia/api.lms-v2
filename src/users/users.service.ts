@@ -181,7 +181,7 @@ export class UsersService {
             }
 
             await this.dataSource.query(
-              `INSERT INTO enrollments (id, "studentId", "classId", "enrolledAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
+              `INSERT INTO enrollments (id, "studentId", "classId", "createdAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
               [savedUser.id, classId]
             );
           }
@@ -504,8 +504,92 @@ export class UsersService {
       }
     }
 
-    Object.assign(user, dto);
-    return this.usersRepository.save(user);
+    const { batchIds, ...userFields } = dto;
+    Object.assign(user, userFields);
+    const savedUser = await this.usersRepository.save(user);
+
+    if (batchIds && Array.isArray(batchIds)) {
+      const roles = user.roles || [];
+      const isStudent = roles.includes(UserRole.STUDENT) || (user as any).role === UserRole.STUDENT;
+      const isMentor = roles.includes(UserRole.MENTOR) || (user as any).role === UserRole.MENTOR;
+
+      if (isStudent) {
+        // Fetch current enrollments for this student with class & batch
+        const currentEnrolls = await this.dataSource.query(
+          `SELECT e.id as "enrollmentId", c."batchId", c.id as "classId"
+           FROM enrollments e
+           JOIN classes c ON e."classId" = c.id
+           WHERE e."studentId" = $1`,
+          [id]
+        );
+
+        const currentBatchIds = currentEnrolls.map((e: any) => e.batchId);
+
+        // 1. Remove enrollments for batches NOT in batchIds
+        for (const curr of currentEnrolls) {
+          if (!batchIds.includes(curr.batchId)) {
+            await this.dataSource.query(`DELETE FROM enrollments WHERE id = $1`, [curr.enrollmentId]);
+          }
+        }
+
+        // 2. Add enrollments for newly checked batchIds
+        for (const targetBatchId of batchIds) {
+          if (!currentBatchIds.includes(targetBatchId)) {
+            let progId = user.programId;
+            if (!progId && user.selectedProgram) {
+              const pRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [user.selectedProgram]);
+              if (pRes.length > 0) progId = pRes[0].id;
+            }
+
+            if (progId) {
+              let classRes = await this.dataSource.query(
+                `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+                [progId, targetBatchId]
+              );
+              let targetClassId: string;
+              if (classRes.length > 0) {
+                targetClassId = classRes[0].id;
+              } else {
+                const newClass = await this.dataSource.query(
+                  `INSERT INTO classes (id, "programId", "batchId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) RETURNING id`,
+                  [progId, targetBatchId]
+                );
+                targetClassId = newClass[0].id;
+              }
+
+              await this.dataSource.query(
+                `INSERT INTO enrollments (id, "studentId", "classId", "createdAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
+                [id, targetClassId]
+              );
+            }
+          }
+        }
+      } else if (isMentor) {
+        for (const targetBatchId of batchIds) {
+          let progId = user.programId;
+          if (!progId && user.selectedProgram) {
+            const pRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [user.selectedProgram]);
+            if (pRes.length > 0) progId = pRes[0].id;
+          }
+          if (progId) {
+            let classRes = await this.dataSource.query(
+              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+              [progId, targetBatchId]
+            );
+            if (classRes.length > 0) {
+              await this.dataSource.query(`UPDATE classes SET "mentorId" = $1 WHERE id = $2`, [id, classRes[0].id]);
+            } else {
+              await this.dataSource.query(
+                `INSERT INTO classes (id, "programId", "batchId", "mentorId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,
+                [progId, targetBatchId, id]
+              );
+            }
+          }
+        }
+      }
+    }
+
+    return savedUser;
   }
 
   async remove(id: string): Promise<void> {
