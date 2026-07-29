@@ -53,152 +53,8 @@ export class ClassesService {
   ) { }
 
   async healEnrollments() {
-    try {
-      const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
-      if (!activeBatch) return;
-
-      const allUsers = await this.userRepository.find();
-      const studentUsers = allUsers.filter(u =>
-        (u.roles?.includes(UserRole.STUDENT) || u.role === UserRole.STUDENT) &&
-        u.selectedProgram &&
-        u.status === UserStatus.ACTIVE
-      );
-      const mentorUsers = allUsers.filter(u =>
-        (u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR) &&
-        u.selectedProgram &&
-        u.status === UserStatus.ACTIVE
-      );
-
-      // Step 0: Ensure all mentors registered with a selectedProgram have a class in the active batch
-      for (const mentor of mentorUsers) {
-        if (!mentor.selectedProgram) continue;
-        const program = await this.programRepository.findOne({ where: { name: mentor.selectedProgram } });
-        if (!program) continue;
-
-        let mentorClass = await this.classRepository.findOne({
-          where: { programId: program.id, batchId: activeBatch.id, mentorId: mentor.id }
-        });
-
-        if (!mentorClass) {
-          // Check if there is an unassigned class for this program in the active batch
-          let unassignedClass = await this.classRepository.findOne({
-            where: { programId: program.id, batchId: activeBatch.id, mentorId: IsNull() }
-          });
-
-          if (unassignedClass) {
-            unassignedClass.mentorId = mentor.id;
-            await this.classRepository.save(unassignedClass);
-            console.log(`[Heal] Assigned unassigned class ${unassignedClass.id} to mentor ${mentor.email} (${mentor.name})`);
-          } else {
-            mentorClass = await this.classRepository.save(this.classRepository.create({
-              programId: program.id,
-              batchId: activeBatch.id,
-              mentorId: mentor.id,
-            }));
-            console.log(`[Heal] Created new class ${mentorClass.id} for mentor ${mentor.email} (${mentor.name}) in program ${program.name}`);
-          }
-        }
-      }
-
-      // Step 1: Auto-enroll any student with selectedProgram who has NO enrollment in active batch
-      for (const student of studentUsers) {
-        if (!student.selectedProgram) continue;
-        const program = await this.programRepository.findOne({ where: { name: student.selectedProgram } });
-        if (!program) continue;
-
-        const activeBatchClasses = await this.classRepository.find({ where: { batchId: activeBatch.id } });
-        const activeClassIds = activeBatchClasses.map(c => c.id);
-
-        let existingEnrollment: Enrollment | null = null;
-        if (activeClassIds.length > 0) {
-          existingEnrollment = await this.enrollmentRepository.findOne({
-            where: { studentId: student.id, classId: In(activeClassIds) }
-          });
-        }
-
-        if (!existingEnrollment) {
-          let programMentor = mentorUsers.find(m => m.selectedProgram === program.name);
-          let mentorClass = await this.classRepository.findOne({
-            where: {
-              programId: program.id,
-              batchId: activeBatch.id,
-              mentorId: programMentor ? programMentor.id : IsNull()
-            }
-          });
-
-          if (!mentorClass) {
-            mentorClass = await this.classRepository.findOne({
-              where: { programId: program.id, batchId: activeBatch.id }
-            });
-          }
-
-          if (!mentorClass) {
-            mentorClass = await this.classRepository.save(this.classRepository.create({
-              programId: program.id,
-              batchId: activeBatch.id,
-              mentorId: programMentor ? programMentor.id : null
-            }));
-          }
-
-          await this.enrollmentRepository.save(this.enrollmentRepository.create({
-            studentId: student.id,
-            classId: mentorClass.id
-          }));
-          console.log(`[Heal] Auto-enrolled student ${student.email} (${student.name}) into program ${program.name} class ${mentorClass.id}`);
-        }
-      }
-
-      // Step 2: Heal existing enrollments where class has no mentor
-      const enrollments = await this.enrollmentRepository.find({
-        relations: { class: true }
-      });
-
-      for (const enroll of enrollments) {
-        const cls = enroll.class;
-        if (!cls || cls.batchId !== activeBatch.id) continue;
-
-        // If the class has no mentor
-        if (!cls.mentorId) {
-          const classWithMentor = await this.classRepository.findOne({
-            where: {
-              programId: cls.programId,
-              batchId: cls.batchId,
-              mentorId: Not(IsNull())
-            }
-          });
-
-          if (classWithMentor) {
-            await this.enrollmentRepository.update(enroll.id, { classId: classWithMentor.id });
-            console.log(`[Heal] Moved student enrollment ${enroll.id} to class with mentor ${classWithMentor.mentorId}`);
-          } else {
-            const program = await this.programRepository.findOne({ where: { id: cls.programId } });
-            if (program) {
-              const programMentor = mentorUsers.find(m => m.selectedProgram === program.name);
-              if (programMentor) {
-                let mentorClass = await this.classRepository.findOne({
-                  where: {
-                    programId: program.id,
-                    batchId: activeBatch.id,
-                    mentorId: programMentor.id
-                  }
-                });
-                if (!mentorClass) {
-                  mentorClass = await this.classRepository.save(this.classRepository.create({
-                    programId: program.id,
-                    batchId: activeBatch.id,
-                    mentorId: programMentor.id
-                  }));
-                }
-                await this.enrollmentRepository.update(enroll.id, { classId: mentorClass.id });
-                console.log(`[Heal] Created class and moved student enrollment ${enroll.id} to mentor ${programMentor.name}`);
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[Heal Error]', err);
-    }
+    // Disabled automatic heal scan to prevent unwanted auto-enrollment of alumni students and mentors across batches
+    return;
   }
 
   async findMyClasses(studentId: string) {
@@ -542,6 +398,16 @@ export class ClassesService {
     const status = (rawStatus === 'active' ? BatchStatus.ACTIVE : BatchStatus.COMPLETED);
     const batchId = typeof payload === 'object' ? payload.batchId : undefined;
     const programId = typeof payload === 'object' ? payload.programId : undefined;
+
+    if (status === BatchStatus.ACTIVE) {
+      const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      for (const ab of activeBatches) {
+        if (!batchId || ab.id !== batchId) {
+          ab.status = BatchStatus.COMPLETED;
+          await this.batchRepository.save(ab);
+        }
+      }
+    }
 
     if (batchId) {
       const b = await this.batchRepository.findOne({ where: { id: batchId } });
