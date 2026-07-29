@@ -126,10 +126,11 @@ export class UsersService {
 
         if (isStudent) {
           const enrolls = studentEnrollments.filter((e: any) => e.studentId === user.id);
-          userBatches = enrolls.map((e: any) => ({ id: e.batchId, name: e.batchName }));
-        } else if (isMentor) {
+          enrolls.forEach((e: any) => userBatches.push({ id: e.batchId, name: e.batchName }));
+        }
+        if (isMentor) {
           const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
-          userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
+          classes.forEach((c: any) => userBatches.push({ id: c.batchId, name: c.batchName }));
         }
 
         // Merge explicit assignedBatchIds stored directly on user entity
@@ -218,55 +219,51 @@ export class UsersService {
     const savedUser = await this.usersRepository.save(user);
 
     // Auto-enroll student into active batch class for their selected program
-    if (targetRoles.includes(UserRole.STUDENT) && dto.selectedProgram) {
+    if (targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) {
       try {
-        const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active' LIMIT 1`);
+        const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(TRIM(status)) = 'active' LIMIT 1`);
         if (activeBatchRes.length > 0) {
           const activeBatchId = activeBatchRes[0].id;
-          const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`, [dto.selectedProgram]);
-          if (progRes.length > 0) {
-            const programId = progRes[0].id;
+          savedUser.assignedBatchIds = [activeBatchId];
+          await this.usersRepository.save(savedUser);
+          console.log(`[INVITE DIAGNOSTIC] Saved assignedBatchIds for invited user ${savedUser.email}:`, savedUser.assignedBatchIds);
 
-            const mentorRes = await this.dataSource.query(
-              `SELECT id FROM users WHERE ("roles"::text LIKE '%mentor%' OR role = 'mentor') AND "selectedProgram" = $1 LIMIT 1`,
-              [dto.selectedProgram]
-            );
-            const mentorId = mentorRes.length > 0 ? mentorRes[0].id : null;
+          const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`, [dto.selectedProgram || '']);
+          const resolvedProgId = progRes.length > 0 ? progRes[0].id : programId;
 
+          if (resolvedProgId) {
             let classRes = await this.dataSource.query(
-              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 ${mentorId ? 'AND "mentorId" = $3' : ''} LIMIT 1`,
-              mentorId ? [programId, activeBatchId, mentorId] : [programId, activeBatchId]
+              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+              [resolvedProgId, activeBatchId]
             );
-
-            if (classRes.length === 0) {
-              classRes = await this.dataSource.query(
-                `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
-                [programId, activeBatchId]
-              );
-            }
-
             let classId: string;
             if (classRes.length > 0) {
               classId = classRes[0].id;
-              if (mentorId) {
-                await this.dataSource.query(`UPDATE classes SET "mentorId" = $1 WHERE id = $2`, [mentorId, classId]);
-              }
             } else {
               const newClass = await this.dataSource.query(
-                `INSERT INTO classes (id, "programId", "batchId", "mentorId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW()) RETURNING id`,
-                [programId, activeBatchId, mentorId]
+                `INSERT INTO classes (id, "programId", "batchId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) RETURNING id`,
+                [resolvedProgId, activeBatchId]
               );
               classId = newClass[0].id;
             }
 
-            await this.dataSource.query(
-              `INSERT INTO enrollments (id, "studentId", "classId", "createdAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
-              [savedUser.id, classId]
-            );
+            if (targetRoles.includes(UserRole.STUDENT)) {
+              await this.dataSource.query(
+                `INSERT INTO enrollments (id, "studentId", "classId", "createdAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
+                [savedUser.id, classId]
+              );
+              console.log(`[INVITE DIAGNOSTIC] Auto-enrolled student ${savedUser.email} into class ${classId}`);
+            } else if (targetRoles.includes(UserRole.MENTOR)) {
+              await this.dataSource.query(
+                `UPDATE classes SET "mentorId" = $1 WHERE id = $2`,
+                [savedUser.id, classId]
+              );
+              console.log(`[INVITE DIAGNOSTIC] Assigned mentor ${savedUser.email} to class ${classId}`);
+            }
           }
         }
       } catch (autoEnrollErr) {
-        console.error(`Auto-enrollment error on invite for ${savedUser.email}:`, autoEnrollErr);
+        console.error(`[INVITE DIAGNOSTIC ERROR] Auto-enrollment error for ${savedUser.email}:`, autoEnrollErr);
       }
     }
 
@@ -666,7 +663,21 @@ export class UsersService {
             }
           }
         }
-      } else if (isMentor) {
+      }
+      
+      if (isMentor) {
+        // 1. Unassign mentor from classes in batches NOT in batchIds
+        const currentMentorClasses = await this.dataSource.query(
+          `SELECT id, "batchId" FROM classes WHERE "mentorId" = $1`,
+          [id]
+        );
+        for (const cls of currentMentorClasses) {
+          if (!batchIds.includes(cls.batchId)) {
+            await this.dataSource.query(`UPDATE classes SET "mentorId" = NULL WHERE id = $1`, [cls.id]);
+          }
+        }
+
+        // 2. Assign mentor to classes in target batchIds
         for (const targetBatchId of batchIds) {
           let progId = user.programId;
           if (!progId && user.selectedProgram) {

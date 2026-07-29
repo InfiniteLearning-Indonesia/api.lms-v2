@@ -25,11 +25,13 @@ export class UsersController {
 
   @Post()
   invite(@Body() dto: CreateUserDto) {
+    console.log('[USERS CONTROLLER] POST /users called with:', JSON.stringify(dto));
     return this.usersService.invite(dto);
   }
 
   @Post('invite')
   inviteAlias(@Body() dto: CreateUserDto) {
+    console.log('[USERS CONTROLLER] POST /users/invite called with:', JSON.stringify(dto));
     return this.usersService.invite(dto);
   }
 
@@ -94,11 +96,19 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
-    return this.usersService.update(id, dto);
+    console.log(`[USERS CONTROLLER] PATCH /users/${id} received! Payload:`, JSON.stringify(dto));
+    try {
+      const res = await this.usersService.update(id, dto);
+      console.log(`[USERS CONTROLLER SUCCESS] PATCH /users/${id} completed! User assignedBatchIds:`, res.assignedBatchIds);
+      return res;
+    } catch (err) {
+      console.error(`[USERS CONTROLLER ERROR] PATCH /users/${id} failed:`, err);
+      throw err;
+    }
   }
 
   @Post(':id/send-warning-email')
