@@ -34,7 +34,7 @@ export class UsersService {
 
   private async autoRepairMissingStudentEnrollments(users: User[]) {
     try {
-      const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(TRIM(status)) = 'active' LIMIT 1`);
+      const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(status::text) = 'active' LIMIT 1`);
       if (activeBatchRes.length === 0) return;
       const activeBatchId = activeBatchRes[0].id;
 
@@ -182,7 +182,7 @@ export class UsersService {
       if (!dto.selectedProgram) {
         throw new BadRequestException('Setiap Student dan Mentor wajib memiliki program studi (Rule 29).');
       }
-      const activeBatches = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active'`);
+      const activeBatches = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(status::text) = 'active'`);
       if (activeBatches.length === 0) {
         throw new BadRequestException('Pendaftaran dibatalkan: Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu.');
       }
@@ -221,7 +221,7 @@ export class UsersService {
     // Auto-enroll student into active batch class for their selected program
     if (targetRoles.includes(UserRole.STUDENT) || targetRoles.includes(UserRole.MENTOR)) {
       try {
-        const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(TRIM(status)) = 'active' LIMIT 1`);
+        const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(status::text) = 'active' LIMIT 1`);
         if (activeBatchRes.length > 0) {
           const activeBatchId = activeBatchRes[0].id;
           savedUser.assignedBatchIds = [activeBatchId];
