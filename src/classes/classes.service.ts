@@ -1182,7 +1182,7 @@ export class ClassesService {
   }
 
   async getCompetencies(programId?: string) {
-    const whereClause = programId ? [{ programId }, { isGlobal: true }] : {};
+    const whereClause = (programId && programId !== 'all') ? [{ programId }, { isGlobal: true }] : {};
     const competencies = await this.competencyRepository.find({
       where: whereClause,
       relations: { program: true, creatorMentor: true, programCompetency: true },
