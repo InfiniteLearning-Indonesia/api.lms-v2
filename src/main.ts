@@ -38,6 +38,14 @@ async function bootstrap() {
     console.log(`✅ Bootstrap: admin "${adminEmail}" created.`);
   }
 
+  // Ensure PostgreSQL enum users_status_enum includes 'graduated'
+  try {
+    await dataSource.query(`ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'graduated'`);
+    console.log(`✅ Bootstrap: Postgres Enum 'users_status_enum' updated with 'graduated'.`);
+  } catch (err: any) {
+    console.warn(`⚠️ Bootstrap: Enum update note:`, err?.message);
+  }
+
   // Validation pipe
   app.useGlobalPipes(
     new ValidationPipe({

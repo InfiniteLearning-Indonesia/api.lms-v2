@@ -1,5 +1,5 @@
 import { IsEmail, IsString, IsEnum, IsOptional, IsBoolean } from 'class-validator';
-import { UserRole } from '../entities/user.entity.js';
+import { UserRole, UserStatus } from '../entities/user.entity.js';
 
 export class CreateUserDto {
   @IsString()
@@ -15,6 +15,10 @@ export class CreateUserDto {
   @IsEnum(UserRole, { each: true })
   @IsOptional()
   roles?: UserRole[];
+
+  @IsEnum(UserStatus)
+  @IsOptional()
+  status?: UserStatus;
 
   @IsString()
   @IsOptional()
