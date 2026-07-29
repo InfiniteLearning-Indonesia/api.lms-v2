@@ -32,11 +32,71 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { id } });
   }
 
+  private async autoRepairMissingStudentEnrollments(users: User[]) {
+    try {
+      const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE LOWER(TRIM(status)) = 'active' LIMIT 1`);
+      if (activeBatchRes.length === 0) return;
+      const activeBatchId = activeBatchRes[0].id;
+
+      const allPrograms = await this.dataSource.query(`SELECT id, name FROM programs`);
+      if (allPrograms.length === 0) return;
+
+      for (const user of users) {
+        const roles = (user.roles || []).map((r) => String(r).toLowerCase());
+        const userRoleStr = String((user as any).role || "").toLowerCase();
+        const isStudent = roles.includes("student") || userRoleStr === "student";
+
+        if (isStudent) {
+          const currentEnrolls = await this.dataSource.query(
+            `SELECT id FROM enrollments WHERE "studentId" = $1 LIMIT 1`,
+            [user.id]
+          );
+
+          if (currentEnrolls.length === 0) {
+            let progId = user.programId;
+            if (!progId && user.selectedProgram) {
+              const matchedProg = allPrograms.find(
+                (p: any) => p.name.trim().toLowerCase() === user.selectedProgram?.trim().toLowerCase()
+              );
+              if (matchedProg) progId = matchedProg.id;
+            }
+            if (!progId) progId = allPrograms[0].id;
+
+            let classRes = await this.dataSource.query(
+              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+              [progId, activeBatchId]
+            );
+            let classId: string;
+            if (classRes.length > 0) {
+              classId = classRes[0].id;
+            } else {
+              const newClass = await this.dataSource.query(
+                `INSERT INTO classes (id, "programId", "batchId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) RETURNING id`,
+                [progId, activeBatchId]
+              );
+              classId = newClass[0].id;
+            }
+
+            await this.dataSource.query(
+              `INSERT INTO enrollments (id, "studentId", "classId", "createdAt") VALUES (gen_random_uuid(), $1, $2, NOW()) ON CONFLICT DO NOTHING`,
+              [user.id, classId]
+            );
+            console.log(`[AutoRepair] Successfully auto-enrolled student ${user.email} into active batch ${activeBatchId}`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[AutoRepair Error]', err);
+    }
+  }
+
   async findAll(): Promise<any[]> {
     try {
       console.log('[DB DIAGNOSTIC] Fetching all users from Supabase PostgreSQL...');
       const users = await this.usersRepository.find({ order: { createdAt: 'DESC' } });
       console.log(`[DB DIAGNOSTIC] Found ${users.length} raw user entities in DB.`);
+      
+      await this.autoRepairMissingStudentEnrollments(users);
       
       // Fetch student enrollments
       const studentEnrollments = await this.dataSource.query(`
@@ -556,6 +616,11 @@ export class UsersService {
               if (pRes.length > 0) progId = pRes[0].id;
             }
 
+            if (!progId) {
+              const defaultProg = await this.dataSource.query(`SELECT id FROM programs LIMIT 1`);
+              if (defaultProg.length > 0) progId = defaultProg[0].id;
+            }
+
             if (progId) {
               let classRes = await this.dataSource.query(
                 `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
@@ -588,6 +653,10 @@ export class UsersService {
               [user.selectedProgram]
             );
             if (pRes.length > 0) progId = pRes[0].id;
+          }
+          if (!progId) {
+            const defaultProg = await this.dataSource.query(`SELECT id FROM programs LIMIT 1`);
+            if (defaultProg.length > 0) progId = defaultProg[0].id;
           }
           if (progId) {
             let classRes = await this.dataSource.query(
