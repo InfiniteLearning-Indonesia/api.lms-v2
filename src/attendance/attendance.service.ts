@@ -6,6 +6,7 @@ import { Holiday } from './entities/holiday.entity';
 import { Batch } from '../classes/entities/batch.entity';
 import { User, UserStatus } from '../users/entities/user.entity';
 import { CreateAttendanceDto, BulkCreateAttendanceDto } from './dto/attendance.dto';
+import { MentorAsyncDay } from '../classes/entities/mentor-async-day.entity';
 import * as crypto from 'crypto';
 
 import { PermissionRequest } from './entities/permission-request.entity';
@@ -28,6 +29,8 @@ export class AttendanceService {
     private batchRepository: Repository<Batch>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(MentorAsyncDay)
+    private mentorAsyncDayRepository: Repository<MentorAsyncDay>,
     private storageService: StorageService,
   ) {}
 
@@ -318,8 +321,134 @@ export class AttendanceService {
       
       return { success: true, message: 'Student unsuspended' };
     }
-    
-    return { success: false, message: 'Student is not suspended' };
+  }
+
+  async getActiveDaysForDateRange(batchId: string, startDate?: Date | null, endDate?: Date | null): Promise<{ total: number, days: Date[], activeDateStrings: string[] }> {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    const start = startDate ? new Date(startDate) : (batch?.startDate ? new Date(batch.startDate) : null);
+    const end = endDate ? new Date(endDate) : (batch?.endDate ? new Date(batch.endDate) : null);
+
+    if (!start || !end) {
+      return { total: 0, days: [], activeDateStrings: [] };
+    }
+
+    const y = start.getFullYear();
+    const holidays = await this.getHolidays(y);
+    const holidayDates = holidays.map(h => {
+      const d = new Date(h.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
+
+    const mentorAsyncDays = await this.mentorAsyncDayRepository.find();
+    const asyncDateStrings = mentorAsyncDays.map(a => a.date);
+
+    const activeDays: Date[] = [];
+    const activeDateStrings: string[] = [];
+
+    let current = new Date(start);
+    current.setHours(0, 0, 0, 0);
+    const endLimit = new Date(end);
+    endLimit.setHours(23, 59, 59, 999);
+
+    while (current <= endLimit) {
+      const dayOfWeek = current.getDay();
+      // Skip weekends (0 = Sunday, 6 = Saturday) and Fridays (5 = Asynchronous Off-day)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && dayOfWeek !== 5) {
+        const dateString = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        // Skip national holidays & mentor async days
+        if (!holidayDates.includes(dateString) && !asyncDateStrings.includes(dateString)) {
+          activeDays.push(new Date(current));
+          activeDateStrings.push(dateString);
+        }
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return { total: activeDays.length, days: activeDays, activeDateStrings };
+  }
+
+  async calculateStudentPhaseScore(batchId: string, studentId: string, startDate?: Date | null, endDate?: Date | null): Promise<{
+    totalSyncDays: number;
+    alphaDays: number;
+    cleanAttendance: number;
+    score: number;
+  }> {
+    const activeInfo = await this.getActiveDaysForDateRange(batchId, startDate, endDate);
+    const totalSyncDays = activeInfo.total;
+
+    if (totalSyncDays === 0) {
+      return { totalSyncDays: 0, alphaDays: 0, cleanAttendance: 0, score: 65.0 };
+    }
+
+    const start = startDate ? new Date(startDate) : new Date(0);
+    const end = endDate ? new Date(endDate) : new Date(2099, 11, 31);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const attendances = await this.attendanceRepository.find({
+      where: {
+        studentId,
+        batchId,
+        date: Between(start, end)
+      }
+    });
+
+    const alphaDays = attendances.filter(a => {
+      if (a.status !== AttendanceStatus.ALPHA) return false;
+      const d = new Date(a.date);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return activeInfo.activeDateStrings.includes(ds);
+    }).length;
+
+    const cleanAttendance = Math.max(0, totalSyncDays - alphaDays);
+    const rawScore = (cleanAttendance / totalSyncDays) * 95;
+    const score = Math.max(65.0, Math.min(95.0, Math.round(rawScore * 10) / 10));
+
+    return {
+      totalSyncDays,
+      alphaDays,
+      cleanAttendance,
+      score
+    };
+  }
+
+  async getBatchPhaseAttendanceScores(batchId: string) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) return {};
+
+    let microStart = batch.microStartDate || batch.startDate;
+    let microEnd = batch.microEndDate;
+    let massiveStart = batch.massiveStartDate;
+    let massiveEnd = batch.massiveEndDate || batch.endDate;
+
+    // If microEndDate / massiveStartDate not explicitly set, calculate midpoint
+    if (!microEnd && batch.startDate && batch.endDate) {
+      const startTime = new Date(batch.startDate).getTime();
+      const endTime = new Date(batch.endDate).getTime();
+      const midTime = startTime + (endTime - startTime) / 2;
+      microEnd = new Date(midTime);
+      massiveStart = new Date(midTime + 86400000);
+    }
+
+    // Get all attendances in this batch
+    const attendances = await this.attendanceRepository.find({ where: { batchId } });
+    const studentIds = Array.from(new Set(attendances.map(a => a.studentId)));
+
+    const scoresMap: Record<string, any> = {};
+
+    for (const studentId of studentIds) {
+      const microRes = await this.calculateStudentPhaseScore(batchId, studentId, microStart, microEnd);
+      const massiveRes = await this.calculateStudentPhaseScore(batchId, studentId, massiveStart, massiveEnd);
+
+      scoresMap[studentId] = {
+        microScore: microRes.score,
+        massiveScore: massiveRes.score,
+        microDetails: microRes,
+        massiveDetails: massiveRes,
+      };
+    }
+
+    return scoresMap;
   }
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {

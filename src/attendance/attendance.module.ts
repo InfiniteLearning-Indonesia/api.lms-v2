@@ -11,9 +11,11 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { StorageModule } from '../storage/storage.module';
 
+import { MentorAsyncDay } from '../classes/entities/mentor-async-day.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attendance, Holiday, PermissionRequest, Batch, User]),
+    TypeOrmModule.forFeature([Attendance, Holiday, PermissionRequest, Batch, User, MentorAsyncDay]),
     AuthModule,
     UsersModule,
     StorageModule,

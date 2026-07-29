@@ -29,6 +29,18 @@ export class Batch {
   @Column({ type: 'timestamp', nullable: true })
   endDate?: Date | null;
 
+  @Column({ type: 'timestamp', nullable: true })
+  microStartDate?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  microEndDate?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  massiveStartDate?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  massiveEndDate?: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

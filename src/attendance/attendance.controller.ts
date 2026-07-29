@@ -67,6 +67,12 @@ export class AttendanceController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Get('scores')
+  async getPhaseAttendanceScores(@Query('batchId') batchId: string) {
+    return this.attendanceService.getBatchPhaseAttendanceScores(batchId);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Post('unsuspend/:studentId')
   async unsuspendStudent(@Param('studentId') studentId: string) {
     return this.attendanceService.unsuspendStudent(studentId);
