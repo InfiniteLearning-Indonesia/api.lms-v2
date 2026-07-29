@@ -18,6 +18,7 @@ export enum UserStatus {
   ACTIVE = 'active',
   SUSPENDED = 'suspended',
   INACTIVE = 'inactive',
+  GRADUATED = 'graduated',
 }
 
 export enum MentorSpecialization {
