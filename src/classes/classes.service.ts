@@ -2401,4 +2401,17 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       order: { date: 'ASC' },
     });
   }
+
+  async updateBatchPhaseDates(batchId: string, payload: { microStartDate?: string; microEndDate?: string; massiveStartDate?: string; massiveEndDate?: string }) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch tidak ditemukan.');
+
+    if (payload.microStartDate !== undefined) batch.microStartDate = payload.microStartDate ? new Date(payload.microStartDate) : null;
+    if (payload.microEndDate !== undefined) batch.microEndDate = payload.microEndDate ? new Date(payload.microEndDate) : null;
+    if (payload.massiveStartDate !== undefined) batch.massiveStartDate = payload.massiveStartDate ? new Date(payload.massiveStartDate) : null;
+    if (payload.massiveEndDate !== undefined) batch.massiveEndDate = payload.massiveEndDate ? new Date(payload.massiveEndDate) : null;
+
+    await this.batchRepository.save(batch);
+    return { success: true, batch };
+  }
 }

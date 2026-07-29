@@ -448,7 +448,15 @@ export class AttendanceService {
       };
     }
 
-    return scoresMap;
+    return {
+      scores: scoresMap,
+      phaseDates: {
+        microStartDate: microStart,
+        microEndDate: microEnd,
+        massiveStartDate: massiveStart,
+        massiveEndDate: massiveEnd,
+      }
+    };
   }
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {

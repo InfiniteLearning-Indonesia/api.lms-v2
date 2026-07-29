@@ -428,4 +428,13 @@ export class ClassesController {
   async getStudentMentorAsyncDays(@Req() req: any) {
     return this.classesService.getStudentMentorAsyncDays(req.user.id);
   }
+
+  @UseGuards(SessionAuthGuard)
+  @Put('batches/:batchId/phase-dates')
+  async updateBatchPhaseDates(
+    @Param('batchId') batchId: string,
+    @Body() body: { microStartDate?: string; microEndDate?: string; massiveStartDate?: string; massiveEndDate?: string }
+  ) {
+    return this.classesService.updateBatchPhaseDates(batchId, body);
+  }
 }
