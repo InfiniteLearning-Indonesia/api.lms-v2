@@ -56,11 +56,15 @@ export class UsersService {
 
       const result = users.map((user) => {
         let userBatches: any[] = [];
-        const roles = user.roles || [];
-        if (roles.includes(UserRole.STUDENT)) {
+        const roles = (user.roles || []).map((r) => String(r).toLowerCase());
+        const userRoleStr = String(user.role || "").toLowerCase();
+        const isStudent = roles.includes("student") || userRoleStr === "student";
+        const isMentor = roles.includes("mentor") || userRoleStr === "mentor";
+
+        if (isStudent) {
           const enrolls = studentEnrollments.filter((e: any) => e.studentId === user.id);
           userBatches = enrolls.map((e: any) => ({ id: e.batchId, name: e.batchName }));
-        } else if (roles.includes(UserRole.MENTOR)) {
+        } else if (isMentor) {
           const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
           userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
         }
@@ -92,7 +96,9 @@ export class UsersService {
       throw new ConflictException(`User dengan email ${email} sudah terdaftar.`);
     }
 
-    const targetRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
+    const rawRoles = dto.roles || (dto.role ? [dto.role] : [UserRole.STUDENT]);
+    const targetRoles = rawRoles.map(r => String(r).toLowerCase() as UserRole);
+
     if (targetRoles.includes(UserRole.FACILITATOR)) {
       if (!dto.selectedProgram && !dto.programId) {
         throw new BadRequestException('Facilitator wajib dipautkan dengan Program tertentu.');
@@ -112,7 +118,7 @@ export class UsersService {
     let selectedProgram = dto.selectedProgram || null;
 
     if (selectedProgram && !programId) {
-      const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [selectedProgram]);
+      const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`, [selectedProgram]);
       if (progRes.length > 0) {
         programId = progRes[0].id;
       }
@@ -144,7 +150,7 @@ export class UsersService {
         const activeBatchRes = await this.dataSource.query(`SELECT id FROM batches WHERE status = 'active' LIMIT 1`);
         if (activeBatchRes.length > 0) {
           const activeBatchId = activeBatchRes[0].id;
-          const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [dto.selectedProgram]);
+          const progRes = await this.dataSource.query(`SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`, [dto.selectedProgram]);
           if (progRes.length > 0) {
             const programId = progRes[0].id;
 
@@ -506,12 +512,18 @@ export class UsersService {
 
     const { batchIds, ...userFields } = dto;
     Object.assign(user, userFields);
+
+    // Normalize roles to lowercased enum values to clean up legacy DB entries (e.g. ['STUDENT'] -> ['student'])
+    if (user.roles && Array.isArray(user.roles)) {
+      user.roles = user.roles.map(r => String(r).toLowerCase() as UserRole);
+    }
     const savedUser = await this.usersRepository.save(user);
 
     if (batchIds && Array.isArray(batchIds)) {
-      const roles = user.roles || [];
-      const isStudent = roles.includes(UserRole.STUDENT) || (user as any).role === UserRole.STUDENT;
-      const isMentor = roles.includes(UserRole.MENTOR) || (user as any).role === UserRole.MENTOR;
+      const roles = (user.roles || []).map((r) => String(r).toLowerCase());
+      const userRoleStr = String((user as any).role || "").toLowerCase();
+      const isStudent = roles.includes("student") || userRoleStr === "student";
+      const isMentor = roles.includes("mentor") || userRoleStr === "mentor";
 
       if (isStudent) {
         // Fetch current enrollments for this student with class & batch
@@ -537,7 +549,10 @@ export class UsersService {
           if (!currentBatchIds.includes(targetBatchId)) {
             let progId = user.programId;
             if (!progId && user.selectedProgram) {
-              const pRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [user.selectedProgram]);
+              const pRes = await this.dataSource.query(
+                `SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
+                [user.selectedProgram]
+              );
               if (pRes.length > 0) progId = pRes[0].id;
             }
 
@@ -568,7 +583,10 @@ export class UsersService {
         for (const targetBatchId of batchIds) {
           let progId = user.programId;
           if (!progId && user.selectedProgram) {
-            const pRes = await this.dataSource.query(`SELECT id FROM programs WHERE name = $1 LIMIT 1`, [user.selectedProgram]);
+            const pRes = await this.dataSource.query(
+              `SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
+              [user.selectedProgram]
+            );
             if (pRes.length > 0) progId = pRes[0].id;
           }
           if (progId) {
