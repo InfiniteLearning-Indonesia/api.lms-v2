@@ -77,6 +77,10 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   specialization: string | null;
 
+  // Explicit batch assignments array stored directly on user entity
+  @Column({ type: 'simple-json', nullable: true, default: '[]' })
+  assignedBatchIds: string[] | null;
+
   // AI & External API Credentials Configuration
   @Column({ type: 'varchar', nullable: true })
   githubToken: string | null;

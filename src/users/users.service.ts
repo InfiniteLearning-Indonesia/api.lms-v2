@@ -114,6 +114,9 @@ export class UsersService {
         WHERE c."mentorId" IS NOT NULL
       `);
 
+      // Fetch all batches for direct ID lookup
+      const allBatches = await this.dataSource.query(`SELECT id, name FROM batches`);
+
       const result = users.map((user) => {
         let userBatches: any[] = [];
         const roles = (user.roles || []).map((r) => String(r).toLowerCase());
@@ -127,6 +130,16 @@ export class UsersService {
         } else if (isMentor) {
           const classes = mentorClasses.filter((c: any) => c.mentorId === user.id);
           userBatches = classes.map((c: any) => ({ id: c.batchId, name: c.batchName }));
+        }
+
+        // Merge explicit assignedBatchIds stored directly on user entity
+        if (Array.isArray(user.assignedBatchIds) && user.assignedBatchIds.length > 0) {
+          user.assignedBatchIds.forEach((bId) => {
+            const matched = allBatches.find((b: any) => b.id === bId);
+            if (matched) {
+              userBatches.push({ id: matched.id, name: matched.name });
+            }
+          });
         }
 
         // Deduplicate batches
@@ -562,6 +575,14 @@ export class UsersService {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
+    const targetBatchIds = dto.batchIds || dto.assignedBatchIds;
+    console.log(`[UPDATE USER DIAGNOSTIC] Updating User ID: ${id}, Name: ${user.name}, Email: ${user.email}`);
+    console.log(`[UPDATE USER DIAGNOSTIC] Incoming batchIds payload:`, targetBatchIds);
+
+    if (targetBatchIds && Array.isArray(targetBatchIds)) {
+      user.assignedBatchIds = targetBatchIds;
+    }
+
     if (dto.avatarUrl) {
       if (dto.avatarUrl.startsWith('data:image')) {
         dto.avatarUrl = await this.storageService.uploadBase64(dto.avatarUrl, 'avatars');
@@ -570,7 +591,7 @@ export class UsersService {
       }
     }
 
-    const { batchIds, ...userFields } = dto;
+    const { batchIds, assignedBatchIds, ...userFields } = dto;
     Object.assign(user, userFields);
 
     // Normalize roles to lowercased enum values to clean up legacy DB entries (e.g. ['STUDENT'] -> ['student'])
@@ -578,6 +599,7 @@ export class UsersService {
       user.roles = user.roles.map(r => String(r).toLowerCase() as UserRole);
     }
     const savedUser = await this.usersRepository.save(user);
+    console.log(`[UPDATE USER DIAGNOSTIC SUCCESS] Saved User entity. assignedBatchIds:`, savedUser.assignedBatchIds);
 
     if (batchIds && Array.isArray(batchIds)) {
       const roles = (user.roles || []).map((r) => String(r).toLowerCase());

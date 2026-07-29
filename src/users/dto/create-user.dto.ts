@@ -47,4 +47,10 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   avatarUrl?: string;
+
+  @IsOptional()
+  batchIds?: string[];
+
+  @IsOptional()
+  assignedBatchIds?: string[];
 }

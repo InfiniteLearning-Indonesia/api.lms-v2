@@ -3,4 +3,5 @@ import { CreateUserDto } from './create-user.dto.js';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
   batchIds?: string[];
+  assignedBatchIds?: string[];
 }
