@@ -437,7 +437,7 @@ export class ClassesService {
 
       const programMentors = allUsers.filter(u => {
         if (!u.roles.includes(UserRole.MENTOR) && !u.roles.includes(UserRole.ADMIN)) return false;
-        if (u.status !== UserStatus.ACTIVE) return false;
+        if (u.status === UserStatus.SUSPENDED) return false;
 
         const specStr = String(u.specialization || '').toLowerCase();
         const isProf = specStr.includes('prof');
@@ -1201,7 +1201,7 @@ export class ClassesService {
     // All mentors (regular, professional, UI/UX) assigned to or eligible for this program get an equal share of students.
     const targetMentors = allUsers.filter(u => {
       if (!u.roles.includes(UserRole.MENTOR)) return false;
-      if (u.status !== UserStatus.ACTIVE) return false;
+      if (u.status === UserStatus.SUSPENDED) return false;
 
       const specStr = String(u.specialization || '').toLowerCase();
       const isProf = specStr.includes('prof');
