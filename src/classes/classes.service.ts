@@ -306,16 +306,23 @@ export class ClassesService {
           relations: { program: true, batch: true },
         });
 
-        const existingIds = new Set(classes.map((c) => c.id));
+        const existingClassIds = new Set(classes.map((c) => c.id));
+        const existingProgramIds = new Set(classes.map((c) => c.programId));
+
         for (const bCls of allBatchClasses) {
-          if (!existingIds.has(bCls.id)) {
+          if (!existingClassIds.has(bCls.id)) {
+            // 🛡️ Deduplicate by Program ID: If mentor already has a class for this program, skip duplicate class entries of other mentors for the same program
+            if (existingProgramIds.has(bCls.programId)) continue;
+
             const pName = (bCls.program?.name || '').toLowerCase();
             if (isProfessional) {
               classes.push(bCls);
-              existingIds.add(bCls.id);
+              existingClassIds.add(bCls.id);
+              existingProgramIds.add(bCls.programId);
             } else if (isUiUx && (pName.includes('web') || pName.includes('mobile'))) {
               classes.push(bCls);
-              existingIds.add(bCls.id);
+              existingClassIds.add(bCls.id);
+              existingProgramIds.add(bCls.programId);
             }
           }
         }
