@@ -129,7 +129,7 @@ export class ClassesController {
   }
 
   @Post('program-distribute-modulo')
-  @Roles('admin')
+  @Roles('admin', 'mentor')
   async distributeModulo(@Body() body: { programName: string }) {
     return this.classesService.distributeModulo(body.programName);
   }
