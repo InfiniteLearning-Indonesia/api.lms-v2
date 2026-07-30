@@ -1175,30 +1175,24 @@ export class ClassesService {
 
     const studentsInBatch = programStudents.filter(s => enrollments.some(e => e.studentId === s.id));
 
-    const primaryMentors = allUsers.filter(u =>
+    // ⚖️ Equal Student Distribution:
+    // All mentors (regular, professional, UI/UX) whose primary program is programName get an equal share of students.
+    const programMentors = allUsers.filter(u =>
       u.roles.includes(UserRole.MENTOR) &&
       u.status === UserStatus.ACTIVE &&
-      u.selectedProgram === programName &&
-      !u.specialization?.includes('UI/UX') &&
-      !u.specialization?.includes('Professional')
+      u.selectedProgram === programName
     );
 
-    const secondaryMentors = allUsers.filter(u =>
+    const targetMentors = programMentors.length > 0 ? programMentors : allUsers.filter(u =>
       u.roles.includes(UserRole.MENTOR) &&
-      u.status === UserStatus.ACTIVE &&
-      u.specialization?.includes('UI/UX')
+      u.status === UserStatus.ACTIVE
     );
-    const supportingMentors = allUsers.filter(u =>
-      u.roles.includes(UserRole.MENTOR) &&
-      u.status === UserStatus.ACTIVE &&
-      u.specialization?.includes('Professional')
-    );
+
+    if (targetMentors.length === 0) {
+      throw new BadRequestException('Tidak ada mentor aktif yang terdaftar untuk program ini.');
+    }
 
     const totalStudents = studentsInBatch.length;
-    const numPrimary = Math.max(1, primaryMentors.length);
-    const baseAllocation = Math.floor(totalStudents / numPrimary);
-    const remainder = totalStudents % numPrimary;
-
     if (totalStudents === 0) {
       throw new BadRequestException('Tidak ada siswa aktif yang terdaftar di batch berjalan pada program ini.');
     }
@@ -1216,65 +1210,32 @@ export class ClassesService {
       return cls;
     };
 
-    const primaryClasses: Class[] = [];
-    for (const m of primaryMentors) {
-      primaryClasses.push(await getOrCreateClass(m.id));
+    const mentorClasses: Class[] = [];
+    for (const m of targetMentors) {
+      mentorClasses.push(await getOrCreateClass(m.id));
     }
 
-    const supportMentors = [...secondaryMentors, ...supportingMentors];
-    const supportClasses: Class[] = [];
-    for (const m of supportMentors) {
-      supportClasses.push(await getOrCreateClass(m.id));
-    }
-
-    let studentIdx = 0;
-    for (let mIdx = 0; mIdx < primaryClasses.length; mIdx++) {
-      const cls = primaryClasses[mIdx];
-      for (let i = 0; i < baseAllocation; i++) {
-        if (studentIdx >= studentsInBatch.length) break;
-        const student = studentsInBatch[studentIdx++];
-        const enroll = enrollments.find(e => e.studentId === student.id);
-        if (enroll) {
-          enroll.classId = cls.id;
-          await this.enrollmentRepository.save(enroll);
-        }
+    // Distribute students evenly across mentorClasses using Round-Robin (difference max 1 student)
+    for (let i = 0; i < studentsInBatch.length; i++) {
+      const student = studentsInBatch[i];
+      const targetClass = mentorClasses[i % mentorClasses.length];
+      const enroll = enrollments.find(e => e.studentId === student.id);
+      if (enroll) {
+        enroll.classId = targetClass.id;
+        await this.enrollmentRepository.save(enroll);
       }
     }
 
-    const isWebOrMobile = programName.includes('Web') || programName.includes('Mobile');
-    if (isWebOrMobile && supportClasses.length > 0) {
-      for (let i = 0; i < remainder; i++) {
-        if (studentIdx >= studentsInBatch.length) break;
-        const student = studentsInBatch[studentIdx++];
-        const cls = supportClasses[i % supportClasses.length];
-        const enroll = enrollments.find(e => e.studentId === student.id);
-        if (enroll) {
-          enroll.classId = cls.id;
-          await this.enrollmentRepository.save(enroll);
-        }
-      }
-    } else {
-      for (let i = 0; i < remainder; i++) {
-        if (studentIdx >= studentsInBatch.length) break;
-        const student = studentsInBatch[studentIdx++];
-        const cls = primaryClasses[i % primaryClasses.length];
-        const enroll = enrollments.find(e => e.studentId === student.id);
-        if (enroll) {
-          enroll.classId = cls.id;
-          await this.enrollmentRepository.save(enroll);
-        }
-      }
-    }
+    const baseAllocation = Math.floor(totalStudents / mentorClasses.length);
+    const remainder = totalStudents % mentorClasses.length;
 
     return {
       programName,
       totalStudents,
-      numPrimaryMentors: primaryMentors.length,
-      baseAllocationPerPrimary: baseAllocation,
-      remainderModulo: remainder,
-      secondaryUiUxMentorsCount: secondaryMentors.length,
-      supportingProfessionalMentorsCount: supportingMentors.length,
-      message: `Berhasil mengeksekusi kalkulasi Modulo: ${baseAllocation} murid per Mentor Utama. Sisa ${remainder} murid didistribusikan ke Mentor UI/UX dan Professional (untuk Web/Mobile) atau dibagikan ke Mentor Utama (untuk AI/Game).`
+      numTargetMentors: targetMentors.length,
+      baseAllocationPerMentor: baseAllocation,
+      remainder,
+      message: `Berhasil membagi ${totalStudents} murid secara setara kepada ${targetMentors.length} mentor pengampu program. Setiap mentor menerima ${baseAllocation}${remainder > 0 ? ` s/d ${baseAllocation + 1}` : ''} murid.`
     };
   }
 
