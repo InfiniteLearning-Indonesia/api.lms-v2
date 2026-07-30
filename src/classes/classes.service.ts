@@ -252,7 +252,8 @@ export class ClassesService {
   async findMentorClasses(mentorId: string) {
     await this.healEnrollments();
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    const isProfessional = mentor?.specialization === MentorSpecialization.PROFESSIONAL;
+    const specStr = String(mentor?.specialization || '').toLowerCase();
+    const isProfessional = specStr === 'professional' || specStr.includes('prof');
 
     let classes = await this.classRepository.find({
       where: { mentorId },
@@ -266,8 +267,8 @@ export class ClassesService {
     if (classes.length === 0 && mentor) {
       let targetBatchIds = mentor.assignedBatchIds || [];
       if (targetBatchIds.length === 0) {
-        const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
-        if (activeBatch) targetBatchIds = [activeBatch.id];
+        const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+        targetBatchIds = activeBatches.map((b) => b.id);
       }
 
       let progId = mentor.programId;
@@ -287,7 +288,7 @@ export class ClassesService {
       }
     }
 
-    // 🎓 Professional Mentor Dual-Scope: Also include active classes from other programs in the active batch
+    // 🎓 Professional Mentor Dual-Scope: Also include active classes from other programs in active cohorts
     if (isProfessional) {
       const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
       const activeBatchIds = activeBatches.map((b) => b.id);
