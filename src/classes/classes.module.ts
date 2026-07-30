@@ -15,6 +15,7 @@ import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity
 import { Submission } from './entities/submission.entity';
 import { Logbook } from './entities/logbook.entity';
 import { MentorAsyncDay } from './entities/mentor-async-day.entity';
+import { CompetencyScore } from './entities/competency-score.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 
@@ -22,7 +23,7 @@ import { AiEvaluatorService } from './services/ai-evaluator.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, ProgramCompetency, RubrikAssessment, RubrikAssessmentScore, Submission, Logbook, MentorAsyncDay, User]),
+    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, ProgramCompetency, RubrikAssessment, RubrikAssessmentScore, CompetencyScore, Submission, Logbook, MentorAsyncDay, User]),
     UsersModule,
   ],
   controllers: [ClassesController],

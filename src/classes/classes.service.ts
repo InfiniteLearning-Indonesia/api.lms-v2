@@ -14,6 +14,7 @@ import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 import { ProgramCompetency } from './entities/program-competency.entity.js';
 
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity.js';
+import { CompetencyScore } from './entities/competency-score.entity.js';
 import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
 import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
 import { AiEvaluatorService } from './services/ai-evaluator.service.js';
@@ -49,6 +50,8 @@ export class ClassesService {
     private mentorAsyncDayRepository: Repository<MentorAsyncDay>,
     @InjectRepository(ProgramCompetency)
     private programCompetencyRepository: Repository<ProgramCompetency>,
+    @InjectRepository(CompetencyScore)
+    private competencyScoreRepository: Repository<CompetencyScore>,
     private aiEvaluatorService: AiEvaluatorService,
   ) { }
 
@@ -1215,6 +1218,10 @@ export class ClassesService {
     // Rule 10: Capstone Project -> Mentor UI/UX
     if (category === 'Capstone Project') {
       return specialization.includes('UI/UX');
+    }
+
+    if (category === 'Design') {
+      return specialization.includes('UI/UX') || specialization.includes('Web') || specialization.includes('Mobile') || specialization.includes('Professional');
     }
 
     // Category Technical
@@ -2426,5 +2433,124 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     await this.batchRepository.save(batch);
     return { success: true, batch };
+  }
+
+  async getCompetencyScores(programId?: string) {
+    const scores = await this.competencyScoreRepository.find({
+      relations: { competency: true }
+    });
+
+    if (programId && programId !== 'all') {
+      return scores.filter(s => s.competency && (s.competency.programId === programId || s.competency.isGlobal));
+    }
+    return scores;
+  }
+
+  async upsertCompetencyScore(studentId: string, competencyId: string, score: number) {
+    let record = await this.competencyScoreRepository.findOne({
+      where: { studentId, competencyId }
+    });
+
+    if (!record) {
+      record = this.competencyScoreRepository.create({
+        studentId,
+        competencyId,
+        score
+      });
+    } else {
+      record.score = score;
+    }
+
+    return await this.competencyScoreRepository.save(record);
+  }
+
+  async smartImportScores(mentorId: string, programId: string, payload: {
+    newColumns?: Array<{ name: string; category?: string }>;
+    scores: Array<{ email?: string; name?: string; targetType?: 'competency' | 'rubrik'; targetId?: string; columnName?: string; score: number }>;
+  }) {
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor) throw new ForbiddenException('Akses ditolak.');
+
+    const nameToCompMap = new Map<string, Competency>();
+    const existingComps = await this.competencyRepository.find();
+    for (const c of existingComps) {
+      nameToCompMap.set(c.name.toLowerCase(), c);
+    }
+
+    if (payload.newColumns && payload.newColumns.length > 0) {
+      for (const col of payload.newColumns) {
+        if (!col.name) continue;
+        const key = col.name.trim().toLowerCase();
+        if (!nameToCompMap.has(key)) {
+          const newComp = this.competencyRepository.create({
+            name: col.name.trim(),
+            programId: (programId && programId !== 'all') ? programId : null,
+            isGlobal: (!programId || programId === 'all'),
+            category: col.category || 'Technical',
+            creatorMentorId: mentorId,
+          });
+          const savedComp = await this.competencyRepository.save(newComp);
+          nameToCompMap.set(key, savedComp);
+        }
+      }
+    }
+
+    const allUsers = await this.userRepository.find();
+    const students = allUsers.filter(u => u.roles && u.roles.includes(UserRole.STUDENT));
+    const studentsByEmail = new Map(students.map(s => [s.email.toLowerCase(), s]));
+    const studentsByName = new Map(students.map(s => [s.name.toLowerCase(), s]));
+
+    const existingRAs = await this.rubrikAssessmentRepository.find();
+    const nameToRaMap = new Map(existingRAs.map(r => [r.name.toLowerCase(), r]));
+
+    let importedCount = 0;
+
+    for (const item of payload.scores) {
+      if (isNaN(item.score)) continue;
+
+      let student: User | undefined = undefined;
+      if (item.email && studentsByEmail.has(item.email.toLowerCase())) {
+        student = studentsByEmail.get(item.email.toLowerCase());
+      } else if (item.name && studentsByName.has(item.name.toLowerCase())) {
+        student = studentsByName.get(item.name.toLowerCase());
+      }
+      if (!student) continue;
+
+      let compId = item.targetId;
+      let targetType = item.targetType;
+
+      if (!compId && item.columnName) {
+        const colKey = item.columnName.trim().toLowerCase();
+        if (nameToCompMap.has(colKey)) {
+          compId = nameToCompMap.get(colKey)?.id;
+          targetType = 'competency';
+        } else if (nameToRaMap.has(colKey)) {
+          compId = nameToRaMap.get(colKey)?.id;
+          targetType = 'rubrik';
+        }
+      }
+
+      if (!compId) continue;
+
+      if (targetType === 'rubrik') {
+        let record = await this.rubrikAssessmentScoreRepository.findOne({
+          where: { studentId: student.id, rubrikAssessmentId: compId }
+        });
+        if (!record) {
+          record = this.rubrikAssessmentScoreRepository.create({
+            studentId: student.id,
+            rubrikAssessmentId: compId,
+          });
+        }
+        record.score = item.score;
+        await this.rubrikAssessmentScoreRepository.save(record);
+        importedCount++;
+      } else {
+        await this.upsertCompetencyScore(student.id, compId, item.score);
+        importedCount++;
+      }
+    }
+
+    return { success: true, importedCount };
   }
 }

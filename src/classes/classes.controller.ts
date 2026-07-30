@@ -228,6 +228,28 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Get('programs/:programId/competencies/scores')
+  async getProgramCompetencyScores(@Param('programId') programId: string) {
+    return this.classesService.getCompetencyScores(programId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Get('competencies/scores')
+  async getGlobalCompetencyScores() {
+    return this.classesService.getCompetencyScores();
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Post('competencies/scores')
+  async upsertCompetencyScore(
+    @Req() req: any,
+    @Body() body: { studentId: string; competencyId: string; score: number }
+  ) {
+    return this.classesService.upsertCompetencyScore(body.studentId, body.competencyId, body.score);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Post('programs/:programId/rubrik-assessments/import-scores')
   async importAssessmentScores(
     @Req() req: any,
@@ -235,6 +257,19 @@ export class ClassesController {
     @Body() body: { scores: Array<{ email?: string, name?: string, rubrikAssessmentId: string, score: number }> }
   ) {
     return this.classesService.importAssessmentScores(req.user.id, programId, body.scores);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post('programs/:programId/smart-import-scores')
+  async smartImportScores(
+    @Req() req: any,
+    @Param('programId') programId: string,
+    @Body() body: {
+      newColumns?: Array<{ name: string; category?: string }>;
+      scores: Array<{ email?: string; name?: string; targetType?: 'competency' | 'rubrik'; targetId?: string; columnName?: string; score: number }>;
+    }
+  ) {
+    return this.classesService.smartImportScores(req.user.id, programId, body);
   }
 
   @UseGuards(SessionAuthGuard)
