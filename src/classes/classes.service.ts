@@ -213,11 +213,35 @@ export class ClassesService {
         totalMassiveScore,
         finalScore,
         predicate,
+        isTranscriptReleased: cls.isTranscriptReleased || false,
         isCertificateReleased: cls.isCertificateReleased || false
       });
     }
 
     return results;
+  }
+
+  async releaseTranscript(mentorId: string, programId: string) {
+    let classes = await this.classRepository.find({ where: { programId, mentorId } });
+    if (classes.length === 0) {
+      classes = await this.classRepository.find({ where: { programId } });
+      if (classes.length === 0) throw new NotFoundException('Kelas program tidak ditemukan.');
+    }
+
+    const nextState = !classes[0].isTranscriptReleased;
+    for (const cls of classes) {
+      cls.isTranscriptReleased = nextState;
+      if (!nextState) {
+        cls.isCertificateReleased = false;
+      }
+      await this.classRepository.save(cls);
+    }
+
+    return {
+      success: true,
+      isTranscriptReleased: nextState,
+      isCertificateReleased: nextState ? classes[0].isCertificateReleased : false
+    };
   }
 
   async releaseCertificate(mentorId: string, programId: string) {
@@ -228,12 +252,22 @@ export class ClassesService {
     }
 
     const nextState = !classes[0].isCertificateReleased;
+
+    // Constraint: Require Transkrip (Micro Phase) to be released first before Sertifikat (Massive Phase) can be released!
+    if (nextState && !classes[0].isTranscriptReleased) {
+      throw new BadRequestException('Gagal! Transkrip Nilai (Fase Micro) harus dirilis terlebih dahulu sebelum Sertifikat (Fase Massive) dapat dirilis.');
+    }
+
     for (const cls of classes) {
       cls.isCertificateReleased = nextState;
       await this.classRepository.save(cls);
     }
 
-    return { success: true, isCertificateReleased: nextState };
+    return {
+      success: true,
+      isTranscriptReleased: classes[0].isTranscriptReleased,
+      isCertificateReleased: nextState
+    };
   }
 
   async findMentorClasses(mentorId: string) {

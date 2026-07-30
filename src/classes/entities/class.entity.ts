@@ -20,6 +20,9 @@ export class Class {
   mentorId?: string | null;
 
   @Column({ type: 'boolean', default: false })
+  isTranscriptReleased: boolean;
+
+  @Column({ type: 'boolean', default: false })
   isCertificateReleased: boolean;
 
   @ManyToOne(() => Program)

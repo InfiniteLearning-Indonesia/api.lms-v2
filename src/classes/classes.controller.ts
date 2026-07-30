@@ -19,6 +19,11 @@ export class ClassesController {
     return this.classesService.findMyGrades(req.user.id);
   }
 
+  @Post('programs/:programId/release-transcript')
+  async releaseTranscript(@Param('programId') programId: string, @Req() req: any) {
+    return this.classesService.releaseTranscript(req.user.id, programId);
+  }
+
   @Post('programs/:programId/release-certificate')
   async releaseCertificate(@Param('programId') programId: string, @Req() req: any) {
     return this.classesService.releaseCertificate(req.user.id, programId);

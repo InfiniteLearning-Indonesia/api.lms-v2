@@ -41,9 +41,10 @@ async function bootstrap() {
   // Ensure PostgreSQL enum users_status_enum includes 'graduated'
   try {
     await dataSource.query(`ALTER TYPE users_status_enum ADD VALUE IF NOT EXISTS 'graduated'`);
-    console.log(`✅ Bootstrap: Postgres Enum 'users_status_enum' updated with 'graduated'.`);
+    await dataSource.query(`ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "isTranscriptReleased" boolean DEFAULT false`);
+    console.log(`✅ Bootstrap: Postgres Enum & 'classes.isTranscriptReleased' column updated.`);
   } catch (err: any) {
-    console.warn(`⚠️ Bootstrap: Enum update note:`, err?.message);
+    console.warn(`⚠️ Bootstrap: Schema update note:`, err?.message);
   }
 
   // Validation pipe
