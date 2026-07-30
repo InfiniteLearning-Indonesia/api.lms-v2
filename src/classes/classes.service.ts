@@ -435,11 +435,30 @@ export class ClassesService {
       const activeBatchClasses = classes.filter(c => c.batchId === activeBatch?.id);
       const activeBatchClassIds = activeBatchClasses.map(c => c.id);
 
-      const programMentors = allUsers.filter(u =>
-        (u.roles.includes(UserRole.MENTOR) || u.roles.includes(UserRole.ADMIN)) &&
-        u.status === UserStatus.ACTIVE &&
-        activeBatch && activeBatchClasses.some(c => c.mentorId === u.id)
-      );
+      const programMentors = allUsers.filter(u => {
+        if (!u.roles.includes(UserRole.MENTOR) && !u.roles.includes(UserRole.ADMIN)) return false;
+        if (u.status !== UserStatus.ACTIVE) return false;
+
+        const specStr = String(u.specialization || '').toLowerCase();
+        const isProf = specStr.includes('prof');
+        const isUiUx = specStr.includes('ui') || specStr.includes('ux');
+        const pNameLower = prog.name.toLowerCase();
+
+        // 1. Has an active class in this program batch
+        if (activeBatchClasses.some(c => c.mentorId === u.id)) return true;
+
+        // 2. Primary selectedProgram or programId match
+        if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) return true;
+        if (u.programId === prog.id) return true;
+
+        // 3. Professional Mentor (all active programs)
+        if (isProf) return true;
+
+        // 4. UI/UX Mentor (web and mobile programs)
+        if (isUiUx && (pNameLower.includes('web') || pNameLower.includes('mobile'))) return true;
+
+        return false;
+      });
 
       const programStudents = allUsers.filter(u =>
         u.roles.includes(UserRole.STUDENT) &&
@@ -1175,18 +1194,26 @@ export class ClassesService {
 
     const studentsInBatch = programStudents.filter(s => enrollments.some(e => e.studentId === s.id));
 
-    // ⚖️ Equal Student Distribution:
-    // All mentors (regular, professional, UI/UX) whose primary program is programName get an equal share of students.
-    const programMentors = allUsers.filter(u =>
-      u.roles.includes(UserRole.MENTOR) &&
-      u.status === UserStatus.ACTIVE &&
-      u.selectedProgram === programName
-    );
+    const pNameLower = programName.toLowerCase();
+    const isWebOrMobile = pNameLower.includes('web') || pNameLower.includes('mobile');
 
-    const targetMentors = programMentors.length > 0 ? programMentors : allUsers.filter(u =>
-      u.roles.includes(UserRole.MENTOR) &&
-      u.status === UserStatus.ACTIVE
-    );
+    // ⚖️ Equal Student Distribution:
+    // All mentors (regular, professional, UI/UX) assigned to or eligible for this program get an equal share of students.
+    const targetMentors = allUsers.filter(u => {
+      if (!u.roles.includes(UserRole.MENTOR)) return false;
+      if (u.status !== UserStatus.ACTIVE) return false;
+
+      const specStr = String(u.specialization || '').toLowerCase();
+      const isProf = specStr.includes('prof');
+      const isUiUx = specStr.includes('ui') || specStr.includes('ux');
+
+      if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) return true;
+      if (u.programId === program.id) return true;
+      if (isProf) return true;
+      if (isUiUx && isWebOrMobile) return true;
+
+      return false;
+    });
 
     if (targetMentors.length === 0) {
       throw new BadRequestException('Tidak ada mentor aktif yang terdaftar untuk program ini.');
