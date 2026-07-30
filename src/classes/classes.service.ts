@@ -277,9 +277,13 @@ export class ClassesService {
         if (pRes) progId = pRes.id;
       }
 
-      if (targetBatchIds.length > 0 && progId) {
+      if (targetBatchIds.length > 0) {
+        const whereCondition: any = { batchId: In(targetBatchIds) };
+        if (progId) {
+          whereCondition.programId = progId;
+        }
         const matchedClasses = await this.classRepository.find({
-          where: { batchId: In(targetBatchIds), programId: progId },
+          where: whereCondition,
           relations: { program: true, batch: true },
         });
         if (matchedClasses.length > 0) {
