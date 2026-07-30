@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -73,6 +74,74 @@ export class AuthController {
       const errorMessage = encodeURIComponent(error.message || 'Login failed');
       return res.redirect(`${envFrontendUrl}/login?error=${errorMessage}`);
     }
+  }
+
+  @Post('check-status')
+  async checkStatus(@Body() body: { email: string }) {
+    return this.authService.checkEmailStatus(body.email);
+  }
+
+  @Post('login-local')
+  async loginLocal(@Body() body: { email: string; password?: string }, @Req() req: any) {
+    const user = await this.authService.validateLocalUser(body.email, body.password || '');
+    req.session.userId = user.id;
+    req.session.userEmail = user.email;
+
+    return new Promise((resolve, reject) => {
+      req.session.save((err: any) => {
+        if (err) return reject(err);
+        resolve({
+          message: 'Login berhasil',
+          token: req.sessionID,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            roles: user.roles,
+          },
+        });
+      });
+    });
+  }
+
+  @Post('setup-password')
+  async setupPassword(@Body() body: { email: string; password?: string }, @Req() req: any) {
+    const user = await this.authService.setupInitialPassword(body.email, body.password || '');
+    req.session.userId = user.id;
+    req.session.userEmail = user.email;
+
+    return new Promise((resolve, reject) => {
+      req.session.save((err: any) => {
+        if (err) return reject(err);
+        resolve({
+          message: 'Password berhasil dibuat dan login berhasil',
+          token: req.sessionID,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            roles: user.roles,
+          },
+        });
+      });
+    });
+  }
+
+  @Post('change-password')
+  @UseGuards(SessionAuthGuard)
+  async changePassword(
+    @CurrentUser() user: User,
+    @Body() body: { currentPassword?: string; newPassword?: string },
+  ) {
+    const updatedUser = await this.authService.changePassword(
+      user.id,
+      body.currentPassword || '',
+      body.newPassword || '',
+    );
+    return {
+      message: 'Password berhasil diubah!',
+      user: updatedUser,
+    };
   }
 
   @Get('me')

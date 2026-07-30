@@ -13,6 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { BulkInviteDto } from './dto/bulk-invite.dto.js';
 import { MailService } from './mail.service.js';
 import { StorageService } from '../storage/storage.service.js';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -28,8 +29,35 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { email } });
   }
 
+  async findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        googleId: true,
+        roles: true,
+        status: true,
+        avatarUrl: true,
+        whatsapp: true,
+        institution: true,
+        studyProgram: true,
+        selectedProgram: true,
+        programId: true,
+        specialization: true,
+        assignedBatchIds: true,
+      },
+    });
+  }
+
   async findById(id: string): Promise<User | null> {
     return this.usersRepository.findOne({ where: { id } });
+  }
+
+  async saveUser(user: User): Promise<User> {
+    return this.usersRepository.save(user);
   }
 
   private async autoRepairMissingStudentEnrollments(users: User[]) {
@@ -203,9 +231,15 @@ export class UsersService {
       }
     }
 
+    const isGmail = email.endsWith('@gmail.com');
+    const defaultPassword = isGmail ? null : await bcrypt.hash('Student123!', 10);
+    const isPasswordChanged = isGmail ? true : false;
+
     const user = this.usersRepository.create({
       name: dto.name,
       email,
+      password: defaultPassword,
+      isPasswordChanged,
       roles: targetRoles,
       status: UserStatus.INVITED,
       whatsapp: dto.whatsapp || null,

@@ -8,10 +8,11 @@ import { Assignment } from './entities/assignment.entity.js';
 import { Competency } from './entities/competency.entity.js';
 import { Program } from './entities/program.entity.js';
 import { Batch, BatchStatus } from './entities/batch.entity.js';
-import { User, UserRole, UserStatus } from '../users/entities/user.entity.js';
+import { User, UserRole, UserStatus, MentorSpecialization } from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
 import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 import { ProgramCompetency } from './entities/program-competency.entity.js';
+import * as bcrypt from 'bcryptjs';
 
 import { RubrikAssessmentScore } from './entities/rubrik-assessment-score.entity.js';
 import { CompetencyScore } from './entities/competency-score.entity.js';
@@ -250,6 +251,9 @@ export class ClassesService {
 
   async findMentorClasses(mentorId: string) {
     await this.healEnrollments();
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const isProfessional = mentor?.specialization === MentorSpecialization.PROFESSIONAL;
+
     let classes = await this.classRepository.find({
       where: { mentorId },
       relations: {
@@ -257,6 +261,52 @@ export class ClassesService {
         batch: true,
       },
     });
+
+    // 🛡️ Fallback Safe Lookup: If mentor has 0 direct classes, match via assignedBatchIds & programId
+    if (classes.length === 0 && mentor) {
+      let targetBatchIds = mentor.assignedBatchIds || [];
+      if (targetBatchIds.length === 0) {
+        const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+        if (activeBatch) targetBatchIds = [activeBatch.id];
+      }
+
+      let progId = mentor.programId;
+      if (!progId && mentor.selectedProgram) {
+        const pRes = await this.programRepository.findOne({ where: { name: mentor.selectedProgram } });
+        if (pRes) progId = pRes.id;
+      }
+
+      if (targetBatchIds.length > 0 && progId) {
+        const matchedClasses = await this.classRepository.find({
+          where: { batchId: In(targetBatchIds), programId: progId },
+          relations: { program: true, batch: true },
+        });
+        if (matchedClasses.length > 0) {
+          classes = matchedClasses;
+        }
+      }
+    }
+
+    // 🎓 Professional Mentor Dual-Scope: Also include active classes from other programs in the active batch
+    if (isProfessional) {
+      const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      const activeBatchIds = activeBatches.map((b) => b.id);
+
+      if (activeBatchIds.length > 0) {
+        const allBatchClasses = await this.classRepository.find({
+          where: { batchId: In(activeBatchIds) },
+          relations: { program: true, batch: true },
+        });
+
+        const existingIds = new Set(classes.map((c) => c.id));
+        for (const bCls of allBatchClasses) {
+          if (!existingIds.has(bCls.id)) {
+            classes.push(bCls);
+            existingIds.add(bCls.id);
+          }
+        }
+      }
+    }
 
     // For each class, fetch enrollments to get student list
     const enrichedClasses = await Promise.all(
@@ -297,6 +347,16 @@ export class ClassesService {
           status: f.status,
         }));
 
+        // Determine if primary program
+        let isPrimaryProgram = true;
+        if (isProfessional && mentor) {
+          const mentorProgName = mentor.selectedProgram?.toLowerCase() || '';
+          const clsProgName = cls.program?.name?.toLowerCase() || '';
+          const isProgIdMatch = mentor.programId && cls.programId && mentor.programId === cls.programId;
+          const isProgNameMatch = mentorProgName && clsProgName && (mentorProgName.includes(clsProgName) || clsProgName.includes(mentorProgName));
+          isPrimaryProgram = !!(isProgIdMatch || isProgNameMatch || cls.mentorId === mentorId);
+        }
+
         return {
           ...cls,
           materials,
@@ -304,6 +364,7 @@ export class ClassesService {
           enrolledStudentsCount: enrolledStudents.length,
           enrolledStudents,
           facilitators,
+          isPrimaryProgram,
         };
       }),
     );
@@ -753,12 +814,18 @@ export class ClassesService {
       const cleanEmail = item.email.trim().toLowerCase();
       const cleanName = item.name.trim();
 
-      // 1. Silent Whitelist / User Creation (Rule: Gmail silent, no spam)
+      // 1. Silent Whitelist / User Creation
       let user = await this.userRepository.findOne({ where: { email: cleanEmail } });
       if (!user) {
+        const isGmail = cleanEmail.endsWith('@gmail.com');
+        const defaultPassword = isGmail ? null : await bcrypt.hash('Student123!', 10);
+        const isPasswordChanged = isGmail ? true : false;
+
         user = await this.userRepository.save(this.userRepository.create({
           email: cleanEmail,
           name: cleanName,
+          password: defaultPassword,
+          isPasswordChanged,
           role: UserRole.STUDENT,
           status: UserStatus.INVITED, // Silent whitelist per Gmail rule
           whatsapp: item.whatsapp ? item.whatsapp.replace(/\D/g, '') : undefined,
