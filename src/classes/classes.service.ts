@@ -254,6 +254,7 @@ export class ClassesService {
     const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
     const specStr = String(mentor?.specialization || '').toLowerCase();
     const isProfessional = specStr === 'professional' || specStr.includes('prof');
+    const isUiUx = specStr.includes('ui') || specStr.includes('ux');
 
     let classes = await this.classRepository.find({
       where: { mentorId },
@@ -292,8 +293,10 @@ export class ClassesService {
       }
     }
 
-    // 🎓 Professional Mentor Dual-Scope: Also include active classes from other programs in active cohorts
-    if (isProfessional) {
+    // 🎓 Dual-Scope Mentorship Architecture:
+    // Professional Mentors get ALL active classes across programs (Web, Mobile, AI, Game).
+    // UI/UX Mentors get active classes for Web & Mobile programs only.
+    if (isProfessional || isUiUx) {
       const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
       const activeBatchIds = activeBatches.map((b) => b.id);
 
@@ -306,8 +309,14 @@ export class ClassesService {
         const existingIds = new Set(classes.map((c) => c.id));
         for (const bCls of allBatchClasses) {
           if (!existingIds.has(bCls.id)) {
-            classes.push(bCls);
-            existingIds.add(bCls.id);
+            const pName = (bCls.program?.name || '').toLowerCase();
+            if (isProfessional) {
+              classes.push(bCls);
+              existingIds.add(bCls.id);
+            } else if (isUiUx && (pName.includes('web') || pName.includes('mobile'))) {
+              classes.push(bCls);
+              existingIds.add(bCls.id);
+            }
           }
         }
       }
