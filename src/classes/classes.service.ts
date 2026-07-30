@@ -233,19 +233,6 @@ export class ClassesService {
       await this.classRepository.save(cls);
     }
 
-    if (nextState) {
-      const classIds = classes.map(c => c.id);
-      if (classIds.length > 0) {
-        const enrolls = await this.enrollmentRepository.find({
-          where: classIds.map(classId => ({ classId })),
-        });
-        const studentIds = Array.from(new Set(enrolls.map(e => e.studentId)));
-        for (const sid of studentIds) {
-          await this.userRepository.update(sid, { status: UserStatus.GRADUATED });
-        }
-      }
-    }
-
     return { success: true, isCertificateReleased: nextState };
   }
 
