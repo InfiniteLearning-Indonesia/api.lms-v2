@@ -25,6 +25,9 @@ export class Class {
   @Column({ type: 'boolean', default: false })
   isCertificateReleased: boolean;
 
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  importantLinks?: { id: string; title: string; url: string; iconType?: string }[];
+
   @ManyToOne(() => Program)
   @JoinColumn({ name: 'programId' })
   program: Program;

@@ -4,7 +4,7 @@ import { Repository, Between, In } from 'typeorm';
 import { Attendance, AttendanceStatus } from './entities/attendance.entity';
 import { Holiday } from './entities/holiday.entity';
 import { Batch } from '../classes/entities/batch.entity';
-import { User, UserStatus } from '../users/entities/user.entity';
+import { User, UserRole, UserStatus } from '../users/entities/user.entity';
 import { CreateAttendanceDto, BulkCreateAttendanceDto } from './dto/attendance.dto';
 import { MentorAsyncDay } from '../classes/entities/mentor-async-day.entity';
 import * as crypto from 'crypto';
@@ -279,10 +279,14 @@ export class AttendanceService {
     // Assuming Enrollment entity holds this relationship, but for simplicity we might need to join it.
     // Let's implement mentor filter via subquery if needed, or join enrollments.
     if (mentorId) {
-       query.leftJoin('enrollments', 'en', 'en."studentId" = attendance."studentId"')
-            .leftJoin('classes', 'cls', 'cls.id = en."classId"')
-            .andWhere('cls."batchId" = attendance."batchId"')
-            .andWhere('cls."mentorId" = :mentorId', { mentorId });
+      const user = await this.userRepository.findOne({ where: { id: mentorId } });
+      const isFacilitator = user?.roles?.includes(UserRole.FACILITATOR) || user?.role === UserRole.FACILITATOR;
+      if (!isFacilitator && user?.role !== UserRole.ADMIN) {
+        query.leftJoin('enrollments', 'en', 'en."studentId" = attendance."studentId"')
+             .leftJoin('classes', 'cls', 'cls.id = en."classId"')
+             .andWhere('cls."batchId" = attendance."batchId"')
+             .andWhere('cls."mentorId" = :mentorId', { mentorId });
+      }
     }
 
     query.orderBy('attendance.date', 'DESC');
@@ -511,10 +515,14 @@ export class AttendanceService {
     }
 
     if (mentorId) {
-      query.leftJoin('enrollments', 'en', 'en."studentId" = perm."studentId"')
-           .leftJoin('classes', 'cls', 'cls.id = en."classId"')
-           .andWhere('cls."batchId" = perm."batchId"')
-           .andWhere('cls."mentorId" = :mentorId', { mentorId });
+      const user = await this.userRepository.findOne({ where: { id: mentorId } });
+      const isFacilitator = user?.roles?.includes(UserRole.FACILITATOR) || user?.role === UserRole.FACILITATOR;
+      if (!isFacilitator && user?.role !== UserRole.ADMIN) {
+        query.leftJoin('enrollments', 'en', 'en."studentId" = perm."studentId"')
+             .leftJoin('classes', 'cls', 'cls.id = en."classId"')
+             .andWhere('cls."batchId" = perm."batchId"')
+             .andWhere('cls."mentorId" = :mentorId', { mentorId });
+      }
     }
 
     query.orderBy('perm.createdAt', 'DESC');

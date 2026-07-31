@@ -139,6 +139,24 @@ export class ClassesController {
     return this.classesService.distributeModulo(body.programName);
   }
 
+  @Patch('programs/:programId/links')
+  @Roles('admin')
+  async updateProgramLinks(
+    @Param('programId') programId: string,
+    @Body() body: { links: any[] },
+  ) {
+    return this.classesService.updateProgramLinks(programId, body.links);
+  }
+
+  @Patch(':classId/links')
+  @Roles('admin')
+  async updateClassLinks(
+    @Param('classId') classId: string,
+    @Body() body: { links: any[] },
+  ) {
+    return this.classesService.updateClassLinks(classId, body.links);
+  }
+
   @UseGuards(SessionAuthGuard)
   @Get('competencies')
   async getCompetencies(@Req() req: any) {

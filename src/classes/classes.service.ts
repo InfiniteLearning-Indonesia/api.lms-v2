@@ -500,6 +500,7 @@ export class ClassesService {
         activeBatch: activeBatch ? { id: activeBatch.id, name: activeBatch.name, status: activeBatch.status } : null,
         batch: activeBatch ? { id: activeBatch.id, name: activeBatch.name, status: activeBatch.status } : { id: 'no-batch', name: 'Belum Ada Batch Berjalan', status: 'completed' },
         batchHistory,
+        importantLinks: activeBatchClasses.find(c => c.importantLinks && c.importantLinks.length > 0)?.importantLinks || activeBatchClasses[0]?.importantLinks || [],
         mentorsCount: programMentors.length,
         mentors: programMentors.map(m => ({ id: m.id, name: m.name, email: m.email, whatsapp: m.whatsapp, status: m.status, specialization: m.specialization })),
         studentsCount: programStudents.length,
@@ -2649,5 +2650,42 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
 
     return { success: true, importedCount };
+  }
+
+  async updateProgramLinks(programId: string, links: any[]) {
+    const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    if (!activeBatch) {
+      throw new BadRequestException('Tidak ada Batch/Cohort aktif.');
+    }
+
+    const classes = await this.classRepository.find({
+      where: { programId, batchId: activeBatch.id }
+    });
+
+    if (classes.length === 0) {
+      const newClass = await this.classRepository.save(
+        this.classRepository.create({
+          programId,
+          batchId: activeBatch.id,
+          importantLinks: links,
+        })
+      );
+      return { success: true, updatedCount: 1, links };
+    }
+
+    for (const cls of classes) {
+      cls.importantLinks = links;
+      await this.classRepository.save(cls);
+    }
+
+    return { success: true, updatedCount: classes.length, links };
+  }
+
+  async updateClassLinks(classId: string, links: any[]) {
+    const cls = await this.classRepository.findOne({ where: { id: classId } });
+    if (!cls) throw new NotFoundException('Kelas tidak ditemukan');
+    cls.importantLinks = links;
+    await this.classRepository.save(cls);
+    return { success: true, classId: cls.id, links };
   }
 }
