@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, UseGuards, Req, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, UseGuards, Req, Param, BadRequestException } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -236,6 +236,24 @@ export class ClassesController {
   @Delete('materials/:id')
   async deleteMaterial(@Req() req: any, @Param('id') id: string) {
     return this.classesService.deleteMaterial(req.user.id, id);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Post(':classId/clone')
+  async cloneClassData(@Req() req: any, @Param('classId') classId: string, @Body() body: { sourceClassId: string }) {
+    if (!body.sourceClassId) {
+      throw new BadRequestException('sourceClassId is required');
+    }
+    return this.classesService.cloneClassData(req.user.id, classId, body.sourceClassId);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Patch(':classId/remap-competencies')
+  async remapClassCompetencies(@Req() req: any, @Param('classId') classId: string, @Body() body: { remappingData: { type: 'material' | 'assignment', id: string, newCompetencyName: string }[] }) {
+    if (!body.remappingData || !Array.isArray(body.remappingData)) {
+      throw new BadRequestException('remappingData array is required');
+    }
+    return this.classesService.remapClassCompetencies(req.user.id, classId, body.remappingData);
   }
 
   @UseGuards(SessionAuthGuard)

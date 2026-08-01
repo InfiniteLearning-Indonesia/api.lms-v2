@@ -2429,6 +2429,82 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     });
   }
 
+  async cloneClassData(mentorId: string, targetClassId: string, sourceClassId: string) {
+    // Verifikasi bahwa user adalah admin atau mentor dari target class
+    const targetClass = await this.classRepository.findOne({ where: { id: targetClassId } });
+    if (!targetClass) throw new NotFoundException('Kelas target tidak ditemukan');
+
+    const sourceClass = await this.classRepository.findOne({ where: { id: sourceClassId } });
+    if (!sourceClass) throw new NotFoundException('Kelas sumber tidak ditemukan');
+
+    // Pastikan programId-nya sama (agar syllabus dan competency ID tetap valid)
+    if (targetClass.programId !== sourceClass.programId) {
+      throw new BadRequestException('Tidak bisa melakukan clone dari program studi yang berbeda.');
+    }
+
+    // 1. Clone Materials
+    const sourceMaterials = await this.materialRepository.find({ where: { classId: sourceClassId } });
+    for (const mat of sourceMaterials) {
+      const newMat = this.materialRepository.create({
+        classId: targetClassId,
+        title: mat.title,
+        type: mat.type,
+        competency: mat.competency,
+        url: mat.url,
+        content: mat.content,
+      });
+      await this.materialRepository.save(newMat);
+    }
+
+    // 2. Clone Assignments
+    const sourceAssignments = await this.assignmentRepository.find({ where: { classId: sourceClassId } });
+    for (const assignment of sourceAssignments) {
+      const newAssignment = this.assignmentRepository.create({
+        classId: targetClassId,
+        title: assignment.title,
+        competency: assignment.competency,
+        selectedRubrics: assignment.selectedRubrics,
+        description: assignment.description,
+        weight: assignment.weight,
+        dueDate: null as any, // Reset Due Date untuk batch baru
+      });
+      await this.assignmentRepository.save(newAssignment);
+    }
+
+    return { success: true, message: 'Data kelas berhasil diduplikasi' };
+  }
+
+  async remapClassCompetencies(mentorId: string, classId: string, remappingData: { type: 'material' | 'assignment', id: string, newCompetencyName: string }[]) {
+    const classEntity = await this.classRepository.findOne({ where: { id: classId } });
+    if (!classEntity) throw new NotFoundException('Kelas tidak ditemukan');
+    
+    // Verifikasi kepemilikan mentor atau admin
+    if (classEntity.mentorId !== mentorId) {
+      const user = await this.userRepository.findOne({ where: { id: mentorId } });
+      if (!user || !user.roles.includes(UserRole.ADMIN)) {
+        throw new ForbiddenException('Akses ditolak');
+      }
+    }
+
+    for (const item of remappingData) {
+      if (item.type === 'material') {
+        const mat = await this.materialRepository.findOne({ where: { id: item.id, classId: classId } });
+        if (mat) {
+          mat.competency = item.newCompetencyName;
+          await this.materialRepository.save(mat);
+        }
+      } else if (item.type === 'assignment') {
+        const assignment = await this.assignmentRepository.findOne({ where: { id: item.id, classId: classId } });
+        if (assignment) {
+          assignment.competency = item.newCompetencyName;
+          await this.assignmentRepository.save(assignment);
+        }
+      }
+    }
+
+    return { success: true, message: 'Pemetaan kompetensi berhasil diperbarui' };
+  }
+
   async saveMentorMatrix(batchId: string, matrix: Record<string, any>) {
     if (!matrix) return { success: true };
     for (const [programId, mentors] of Object.entries(matrix)) {
