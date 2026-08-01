@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull, Between } from 'typeorm';
+import { Repository, In, Not, IsNull, Between, Like } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
 import { Class } from './entities/class.entity.js';
 import { Material } from './entities/material.entity.js';
@@ -799,7 +799,7 @@ export class ClassesService {
     if (!program) throw new NotFoundException('Program studi tidak ditemukan');
 
     const batchClasses = await this.classRepository.find({ where: { batchId: batch.id, programId: program.id } });
-    const allMentors = await this.userRepository.find({ where: { role: UserRole.MENTOR } });
+    const allMentors = await this.userRepository.find({ where: { roles: Like(`%"${UserRole.MENTOR}"%`) as any } });
 
     // Ensure classes exist for selected mentors
     const otherClasses = await this.classRepository.find({ where: { batchId: batch.id } });
@@ -944,7 +944,7 @@ export class ClassesService {
 
     // 3. Auto-Distribution across mentors for each program in this batch
     if (payload.autoDistribute) {
-      const allMentors = await this.userRepository.find({ where: { role: UserRole.MENTOR, status: UserStatus.ACTIVE } });
+      const allMentors = await this.userRepository.find({ where: { roles: Like(`%"${UserRole.MENTOR}"%`) as any, status: UserStatus.ACTIVE } });
       const batchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
       const allEnrollments = await this.enrollmentRepository.find();
 
