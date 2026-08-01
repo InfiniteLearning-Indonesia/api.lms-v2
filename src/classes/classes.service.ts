@@ -592,7 +592,7 @@ export class ClassesService {
         const progMentors = allUsers.filter(u =>
           (u.roles.includes(UserRole.MENTOR) || u.roles.includes(UserRole.ADMIN)) &&
           u.status === UserStatus.ACTIVE &&
-          (progClasses.some(c => c.mentorId === u.id) || u.selectedProgram === p.name)
+          progClasses.some(c => c.mentorId === u.id)
         );
 
         const progStudents = allUsers.filter(u =>
