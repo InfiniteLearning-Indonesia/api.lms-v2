@@ -314,6 +314,18 @@ export class UsersService {
     if (dto.users && dto.users.length > 0) {
       for (const userDto of dto.users) {
         try {
+          if (userDto.selectedProgram) {
+            const lowerProg = userDto.selectedProgram.toLowerCase();
+            if (lowerProg.includes('ai') || lowerProg.includes('artificial')) {
+              userDto.selectedProgram = 'AI Development';
+            } else if (lowerProg.includes('web') || lowerProg.includes('front')) {
+              userDto.selectedProgram = 'Web Development and UI/UX Design';
+            } else if (lowerProg.includes('mobile') || lowerProg.includes('android') || lowerProg.includes('ios')) {
+              userDto.selectedProgram = 'Mobile Development and UI/UX Design';
+            } else if (lowerProg.includes('game') || lowerProg.includes('unity')) {
+              userDto.selectedProgram = 'Game Development';
+            }
+          }
           const invitedUser = await this.invite(userDto);
           results.invited.push({
             email: invitedUser.email,
