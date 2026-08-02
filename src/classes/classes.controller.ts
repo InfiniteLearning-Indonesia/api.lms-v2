@@ -761,7 +761,7 @@ export class ClassesController {
   }
 
   @Put('batches/:batchId/phase-dates')
-  @Roles('admin')
+  @Roles('admin', 'mentor')
   async updateBatchPhaseDates(
     @Param('batchId') batchId: string,
     @Body()
