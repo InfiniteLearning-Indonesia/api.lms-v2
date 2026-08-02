@@ -467,6 +467,8 @@ export class AttendanceService {
     alphaDays: number;
     cleanAttendance: number;
     score: number;
+    oncamDays: number;
+    oncamScore: number;
   }> {
     const activeInfo = await this.getActiveDaysForDateRange(
       batchId,
@@ -481,6 +483,8 @@ export class AttendanceService {
         alphaDays: 0,
         cleanAttendance: 0,
         score: 65.0,
+        oncamDays: 0,
+        oncamScore: 65.0,
       };
     }
 
@@ -504,6 +508,13 @@ export class AttendanceService {
       return activeInfo.activeDateStrings.includes(ds);
     }).length;
 
+    const oncamDays = attendances.filter((a) => {
+      if (a.status !== AttendanceStatus.HADIR_ON_CAM) return false;
+      const d = new Date(a.date);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return activeInfo.activeDateStrings.includes(ds);
+    }).length;
+
     const cleanAttendance = Math.max(0, totalSyncDays - alphaDays);
     const rawScore = (cleanAttendance / totalSyncDays) * 95;
     const score = Math.max(
@@ -511,11 +522,19 @@ export class AttendanceService {
       Math.min(95.0, Math.round(rawScore * 10) / 10),
     );
 
+    const rawOncamScore = 65.0 + (oncamDays / totalSyncDays) * 30;
+    const oncamScore = Math.max(
+      65.0,
+      Math.min(95.0, Math.round(rawOncamScore * 10) / 10),
+    );
+
     return {
       totalSyncDays,
       alphaDays,
       cleanAttendance,
       score,
+      oncamDays,
+      oncamScore,
     };
   }
 
