@@ -16,16 +16,16 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.get<string[]>(
-      'roles',
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [
       context.getHandler(),
-    );
+      context.getClass(),
+    ]);
     if (!requiredRoles) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest();
-    
+
     // Fallback: if SessionAuthGuard did not attach request.user, load it using session userId
     if (!request.user && request.session?.userId) {
       const user = await this.usersService.findById(request.session.userId);
@@ -33,14 +33,20 @@ export class RolesGuard implements CanActivate {
     }
 
     const user = request.user;
-    if (!user || !user.roles || !requiredRoles.some(role => user.roles.includes(role))) {
+    if (
+      !user ||
+      !user.roles ||
+      !requiredRoles.some((role) => user.roles.includes(role))
+    ) {
       throw new ForbiddenException(
         'Anda tidak memiliki izin untuk mengakses resource ini.',
       );
     }
 
     if (user.status === UserStatus.SUSPENDED) {
-      throw new ForbiddenException('Akun kamu telah di-suspend oleh Admin. Akses ditolak.');
+      throw new ForbiddenException(
+        'Akun kamu telah di-suspend oleh Admin. Akses ditolak.',
+      );
     }
 
     return true;

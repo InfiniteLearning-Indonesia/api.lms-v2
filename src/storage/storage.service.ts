@@ -10,12 +10,30 @@ export class StorageService {
 
   constructor(private configService: ConfigService) {}
 
-  private getS3Client(): { client: S3Client | null; bucketName: string; publicDomain: string } {
-    const accountId = this.configService.get<string>('R2_ACCOUNT_ID', '649b8b8a633c02a6a059be8140fe254d');
-    const accessKeyId = this.configService.get<string>('R2_ACCESS_KEY_ID', process.env.R2_ACCESS_KEY_ID || '');
-    const secretAccessKey = this.configService.get<string>('R2_SECRET_ACCESS_KEY', process.env.R2_SECRET_ACCESS_KEY || '');
-    const bucketName = this.configService.get<string>('R2_BUCKET_NAME', 'lms-v2');
-    const publicDomain = (this.configService.get<string>('R2_PUBLIC_DOMAIN', 'https://media.lms-v2.my.id')).replace(/\/$/, '');
+  private getS3Client(): {
+    client: S3Client | null;
+    bucketName: string;
+    publicDomain: string;
+  } {
+    const accountId = this.configService.get<string>(
+      'R2_ACCOUNT_ID',
+      '649b8b8a633c02a6a059be8140fe254d',
+    );
+    const accessKeyId = this.configService.get<string>(
+      'R2_ACCESS_KEY_ID',
+      process.env.R2_ACCESS_KEY_ID || '',
+    );
+    const secretAccessKey = this.configService.get<string>(
+      'R2_SECRET_ACCESS_KEY',
+      process.env.R2_SECRET_ACCESS_KEY || '',
+    );
+    const bucketName = this.configService.get<string>(
+      'R2_BUCKET_NAME',
+      'lms-v2',
+    );
+    const publicDomain = this.configService
+      .get<string>('R2_PUBLIC_DOMAIN', 'https://media.lms-v2.my.id')
+      .replace(/\/$/, '');
 
     if (!this.s3Client && accessKeyId && secretAccessKey) {
       this.s3Client = new S3Client({
@@ -26,7 +44,9 @@ export class StorageService {
           secretAccessKey,
         },
       });
-      this.logger.log(`Initialized Cloudflare R2 S3 Client for bucket "${bucketName}"`);
+      this.logger.log(
+        `Initialized Cloudflare R2 S3 Client for bucket "${bucketName}"`,
+      );
     }
 
     return { client: this.s3Client, bucketName, publicDomain };
@@ -35,7 +55,10 @@ export class StorageService {
   /**
    * Uploads a base64 encoded file string to Cloudflare R2 Storage and returns its public URL.
    */
-  async uploadBase64(base64Str: string, folder = 'permissions'): Promise<string> {
+  async uploadBase64(
+    base64Str: string,
+    folder = 'permissions',
+  ): Promise<string> {
     // If it's already an HTTP/HTTPS URL, return as is
     if (base64Str.startsWith('http://') || base64Str.startsWith('https://')) {
       return base64Str;
@@ -44,7 +67,9 @@ export class StorageService {
     const { client, bucketName, publicDomain } = this.getS3Client();
 
     if (!client) {
-      this.logger.warn('R2 S3 Client not configured (missing R2_ACCESS_KEY_ID or R2_SECRET_ACCESS_KEY). Falling back to direct data handling.');
+      this.logger.warn(
+        'R2 S3 Client not configured (missing R2_ACCESS_KEY_ID or R2_SECRET_ACCESS_KEY). Falling back to direct data handling.',
+      );
       return base64Str;
     }
 
@@ -75,10 +100,15 @@ export class StorageService {
       await client.send(command);
 
       const publicUrl = `${publicDomain}/${filename}`;
-      this.logger.log(`Successfully uploaded file to Cloudflare R2: ${publicUrl}`);
+      this.logger.log(
+        `Successfully uploaded file to Cloudflare R2: ${publicUrl}`,
+      );
       return publicUrl;
     } catch (error) {
-      this.logger.error(`Failed to upload file to Cloudflare R2: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to upload file to Cloudflare R2: ${error.message}`,
+        error.stack,
+      );
       // Fallback to original input if upload fails
       return base64Str;
     }
@@ -87,9 +117,14 @@ export class StorageService {
   /**
    * Upload multiple base64 strings
    */
-  async uploadMultipleBase64(base64Array: string[], folder = 'permissions'): Promise<string[]> {
+  async uploadMultipleBase64(
+    base64Array: string[],
+    folder = 'permissions',
+  ): Promise<string[]> {
     if (!base64Array || base64Array.length === 0) return [];
-    return Promise.all(base64Array.map((str) => this.uploadBase64(str, folder)));
+    return Promise.all(
+      base64Array.map((str) => this.uploadBase64(str, folder)),
+    );
   }
 
   /**
@@ -97,7 +132,7 @@ export class StorageService {
    */
   async uploadUrlToR2(imageUrl: string, folder = 'avatars'): Promise<string> {
     if (!imageUrl) return imageUrl;
-    
+
     // If it's already on our R2 public domain, return as is
     const { publicDomain, client, bucketName } = this.getS3Client();
     if (imageUrl.startsWith(publicDomain)) {
@@ -105,14 +140,18 @@ export class StorageService {
     }
 
     if (!client) {
-      this.logger.warn('R2 S3 Client not configured. Returning original avatar URL.');
+      this.logger.warn(
+        'R2 S3 Client not configured. Returning original avatar URL.',
+      );
       return imageUrl;
     }
 
     try {
       const response = await fetch(imageUrl);
       if (!response.ok) {
-        this.logger.warn(`Failed to fetch remote image from ${imageUrl}: ${response.statusText}`);
+        this.logger.warn(
+          `Failed to fetch remote image from ${imageUrl}: ${response.statusText}`,
+        );
         return imageUrl;
       }
 
@@ -133,10 +172,14 @@ export class StorageService {
       await client.send(command);
 
       const publicUrl = `${publicDomain}/${filename}`;
-      this.logger.log(`Successfully synced remote avatar to Cloudflare R2: ${publicUrl}`);
+      this.logger.log(
+        `Successfully synced remote avatar to Cloudflare R2: ${publicUrl}`,
+      );
       return publicUrl;
     } catch (error) {
-      this.logger.error(`Failed to upload remote avatar URL to R2: ${error.message}`);
+      this.logger.error(
+        `Failed to upload remote avatar URL to R2: ${error.message}`,
+      );
       return imageUrl;
     }
   }

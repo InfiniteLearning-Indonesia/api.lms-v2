@@ -13,7 +13,8 @@ export class MailService {
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
 
-    const enableBlast = this.configService.get<string>('ENABLE_EMAIL_BLAST') === 'true';
+    const enableBlast =
+      this.configService.get<string>('ENABLE_EMAIL_BLAST') === 'true';
 
     if (host && user && pass && enableBlast) {
       this.transporter = nodemailer.createTransport({
@@ -25,7 +26,9 @@ export class MailService {
           pass,
         },
       });
-      this.logger.log('SMTP mail transporter initialized successfully (Real Email Sending Enabled).');
+      this.logger.log(
+        'SMTP mail transporter initialized successfully (Real Email Sending Enabled).',
+      );
     } else {
       this.transporter = null;
       this.logger.warn(
@@ -173,4 +176,3 @@ Pesan: Harap segera hubungi mentor untuk memperbarui akun login ke Google Mail (
     }
   }
 }
-

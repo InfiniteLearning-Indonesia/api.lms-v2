@@ -1,4 +1,10 @@
-import { Injectable, ForbiddenException, BadRequestException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service.js';
 import { User, UserStatus } from '../users/entities/user.entity.js';
 import * as bcrypt from 'bcryptjs';
@@ -38,7 +44,9 @@ export class AuthService {
   async checkEmailStatus(email: string) {
     const user = await this.usersService.findByEmailWithPassword(email);
     if (!user) {
-      throw new ForbiddenException('Akun email tidak ditemukan dalam sistem. Hubungi Admin.');
+      throw new ForbiddenException(
+        'Akun email tidak ditemukan dalam sistem. Hubungi Admin.',
+      );
     }
 
     const hasPassword = !!user.password;
@@ -60,7 +68,9 @@ export class AuthService {
     }
 
     if (!user.password) {
-      throw new BadRequestException('Password belum dibuat. Silakan buat password pertama Anda terlebih dahulu.');
+      throw new BadRequestException(
+        'Password belum dibuat. Silakan buat password pertama Anda terlebih dahulu.',
+      );
     }
 
     const isMatch = await bcrypt.compare(pass, user.password);
@@ -82,7 +92,9 @@ export class AuthService {
 
     const user = await this.usersService.findByEmailWithPassword(email);
     if (!user) {
-      throw new ForbiddenException('Email belum terdaftar dalam sistem LMS. Hubungi Admin.');
+      throw new ForbiddenException(
+        'Email belum terdaftar dalam sistem LMS. Hubungi Admin.',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(newPass, 10);
@@ -94,7 +106,11 @@ export class AuthService {
     return this.usersService.saveUser(user);
   }
 
-  async changePassword(userId: string, currentPass: string, newPass: string): Promise<User> {
+  async changePassword(
+    userId: string,
+    currentPass: string,
+    newPass: string,
+  ): Promise<User> {
     if (!newPass || newPass.length < 6) {
       throw new BadRequestException('Password baru minimal 6 karakter.');
     }
@@ -104,14 +120,19 @@ export class AuthService {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
-    const fullUser = await this.usersService.findByEmailWithPassword(user.email);
+    const fullUser = await this.usersService.findByEmailWithPassword(
+      user.email,
+    );
     if (!fullUser) {
       throw new NotFoundException('User tidak ditemukan.');
     }
 
     // Verify current password if user has a password set
     if (fullUser.password) {
-      const isMatch = await bcrypt.compare(currentPass || '', fullUser.password);
+      const isMatch = await bcrypt.compare(
+        currentPass || '',
+        fullUser.password,
+      );
       if (!isMatch) {
         throw new BadRequestException('Password lama / default salah.');
       }

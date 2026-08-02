@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
 import { Program } from './program.entity';
 import { Batch } from './batch.entity';
 import { User } from '../../users/entities/user.entity';
@@ -26,7 +35,12 @@ export class Class {
   isCertificateReleased: boolean;
 
   @Column({ type: 'jsonb', nullable: true, default: [] })
-  importantLinks?: { id: string; title: string; url: string; iconType?: string }[];
+  importantLinks?: {
+    id: string;
+    title: string;
+    url: string;
+    iconType?: string;
+  }[];
 
   @ManyToOne(() => Program)
   @JoinColumn({ name: 'programId' })

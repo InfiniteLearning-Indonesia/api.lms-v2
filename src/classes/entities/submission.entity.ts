@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Assignment } from './assignment.entity';
 
@@ -34,7 +42,9 @@ export class Submission {
   @Column({ nullable: true })
   gradedByMentorId: string;
 
-  @ManyToOne(() => Assignment, (assignment) => assignment.submissions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Assignment, (assignment) => assignment.submissions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'assignmentId' })
   assignment: Assignment;
 

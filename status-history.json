@@ -1,0 +1,149 @@
+[
+  {
+    "timestamp": "2/8/2026, 05.46.54",
+    "status": "ok",
+    "uptimeMs": 11828,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 90
+  },
+  {
+    "timestamp": "2/8/2026, 05.49.32",
+    "status": "ok",
+    "uptimeMs": 12174,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 90
+  },
+  {
+    "timestamp": "2/8/2026, 06.03.21",
+    "status": "ok",
+    "uptimeMs": 11584,
+    "memoryUsageMb": 108,
+    "dbLatencyMs": 87
+  },
+  {
+    "timestamp": "2/8/2026, 06.03.38",
+    "status": "ok",
+    "uptimeMs": 11027,
+    "memoryUsageMb": 107,
+    "dbLatencyMs": 87
+  },
+  {
+    "timestamp": "2/8/2026, 06.04.01",
+    "status": "ok",
+    "uptimeMs": 11819,
+    "memoryUsageMb": 107,
+    "dbLatencyMs": 94
+  },
+  {
+    "timestamp": "2/8/2026, 06.04.20",
+    "status": "ok",
+    "uptimeMs": 11282,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 89
+  },
+  {
+    "timestamp": "2/8/2026, 06.19.15",
+    "status": "degraded",
+    "uptimeMs": 906887,
+    "memoryUsageMb": 109,
+    "dbLatencyMs": 708
+  },
+  {
+    "timestamp": "2/8/2026, 06.34.16",
+    "status": "degraded",
+    "uptimeMs": 1807258,
+    "memoryUsageMb": 110,
+    "dbLatencyMs": 1069
+  },
+  {
+    "timestamp": "2/8/2026, 06.49.15",
+    "status": "degraded",
+    "uptimeMs": 2706929,
+    "memoryUsageMb": 111,
+    "dbLatencyMs": 727
+  },
+  {
+    "timestamp": "2/8/2026, 07.04.15",
+    "status": "degraded",
+    "uptimeMs": 3607022,
+    "memoryUsageMb": 113,
+    "dbLatencyMs": 815
+  },
+  {
+    "timestamp": "2/8/2026, 07.19.15",
+    "status": "degraded",
+    "uptimeMs": 4506916,
+    "memoryUsageMb": 113,
+    "dbLatencyMs": 707
+  },
+  {
+    "timestamp": "2/8/2026, 07.34.15",
+    "status": "degraded",
+    "uptimeMs": 5406894,
+    "memoryUsageMb": 115,
+    "dbLatencyMs": 680
+  },
+  {
+    "timestamp": "2/8/2026, 07.48.49",
+    "status": "ok",
+    "uptimeMs": 11809,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 94
+  },
+  {
+    "timestamp": "2/8/2026, 08.03.45",
+    "status": "ok",
+    "uptimeMs": 907862,
+    "memoryUsageMb": 111,
+    "dbLatencyMs": 1142
+  },
+  {
+    "timestamp": "2/8/2026, 08.08.28",
+    "status": "ok",
+    "uptimeMs": 11590,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 87
+  },
+  {
+    "timestamp": "2/8/2026, 08.10.42",
+    "status": "ok",
+    "uptimeMs": 32324,
+    "memoryUsageMb": 109,
+    "dbLatencyMs": 390
+  },
+  {
+    "timestamp": "2/8/2026, 08.14.07",
+    "status": "ok",
+    "uptimeMs": 19605,
+    "memoryUsageMb": 107,
+    "dbLatencyMs": 266
+  },
+  {
+    "timestamp": "2/8/2026, 08.14.32",
+    "status": "ok",
+    "uptimeMs": 12335,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 86
+  },
+  {
+    "timestamp": "2/8/2026, 08.14.47",
+    "status": "ok",
+    "uptimeMs": 12002,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 89
+  },
+  {
+    "timestamp": "2/8/2026, 08.19.18",
+    "status": "ok",
+    "uptimeMs": 13974,
+    "memoryUsageMb": 106,
+    "dbLatencyMs": 87
+  },
+  {
+    "timestamp": "2/8/2026, 08.19.48",
+    "status": "ok",
+    "uptimeMs": 12779,
+    "memoryUsageMb": 107,
+    "dbLatencyMs": 94
+  }
+]

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, Between, Like } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
@@ -8,7 +13,12 @@ import { Assignment } from './entities/assignment.entity.js';
 import { Competency } from './entities/competency.entity.js';
 import { Program } from './entities/program.entity.js';
 import { Batch, BatchStatus } from './entities/batch.entity.js';
-import { User, UserRole, UserStatus, MentorSpecialization } from '../users/entities/user.entity.js';
+import {
+  User,
+  UserRole,
+  UserStatus,
+  MentorSpecialization,
+} from '../users/entities/user.entity.js';
 import { Submission } from './entities/submission.entity.js';
 import { RubrikAssessment } from './entities/rubrik-assessment.entity.js';
 import { ProgramCompetency } from './entities/program-competency.entity.js';
@@ -54,7 +64,7 @@ export class ClassesService {
     @InjectRepository(CompetencyScore)
     private competencyScoreRepository: Repository<CompetencyScore>,
     private aiEvaluatorService: AiEvaluatorService,
-  ) { }
+  ) {}
 
   async healEnrollments() {
     // Disabled automatic heal scan to prevent unwanted auto-enrollment of alumni students and mentors across batches
@@ -69,8 +79,8 @@ export class ClassesService {
         class: {
           program: true,
           batch: true,
-          mentor: true
-        }
+          mentor: true,
+        },
       },
     });
 
@@ -78,27 +88,29 @@ export class ClassesService {
       enrollments.map(async (e) => {
         const cls = e.class;
         const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId }
+          where: { programId: cls.programId, batchId: cls.batchId },
         });
-        const relatedClassIds = relatedClasses.map(c => c.id);
+        const relatedClassIds = relatedClasses.map((c) => c.id);
 
         const assignments = await this.assignmentRepository.find({
           where: { classId: In(relatedClassIds) },
-          order: { createdAt: 'ASC' }
+          order: { createdAt: 'ASC' },
         });
 
         return {
           ...cls,
-          assignments
+          assignments,
         };
-      })
+      }),
     );
 
     return enrichedClasses;
   }
 
   async findMyGrades(studentId: string) {
-    const student = await this.userRepository.findOne({ where: { id: studentId } });
+    const student = await this.userRepository.findOne({
+      where: { id: studentId },
+    });
     if (!student) throw new NotFoundException('Student tidak ditemukan');
 
     const enrollments = await this.enrollmentRepository.find({
@@ -107,9 +119,9 @@ export class ClassesService {
         class: {
           program: true,
           batch: true,
-          mentor: true
-        }
-      }
+          mentor: true,
+        },
+      },
     });
 
     const results: any[] = [];
@@ -123,26 +135,20 @@ export class ClassesService {
 
       // 1. Fetch competencies
       const competencies = await this.competencyRepository.find({
-        where: [
-          { programId: program.id },
-          { isGlobal: true }
-        ],
-        order: { createdAt: 'ASC' }
+        where: [{ programId: program.id }, { isGlobal: true }],
+        order: { createdAt: 'ASC' },
       });
 
       // 2. Fetch rubrik assessments
       const rubrikAssessments = await this.rubrikAssessmentRepository.find({
-        where: [
-          { programId: program.id },
-          { isGlobal: true }
-        ],
-        order: { createdAt: 'ASC' }
+        where: [{ programId: program.id }, { isGlobal: true }],
+        order: { createdAt: 'ASC' },
       });
 
       // 3. Fetch imported external scores
       const externalScores = await this.rubrikAssessmentScoreRepository.find({
         where: { studentId, rubrikAssessment: { programId: program.id } },
-        relations: { rubrikAssessment: true }
+        relations: { rubrikAssessment: true },
       });
 
       // Helper for minimum score 65.0
@@ -152,42 +158,54 @@ export class ClassesService {
       };
 
       // 4. Calculate Micro Phase Items (for Transcript)
-      const microRAs = rubrikAssessments.filter(r => !r.phase || r.phase === 'Micro');
-      const microItems = microRAs.map(ra => {
-        const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
+      const microRAs = rubrikAssessments.filter(
+        (r) => !r.phase || r.phase === 'Micro',
+      );
+      const microItems = microRAs.map((ra) => {
+        const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
         const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
         return {
           id: ra.id,
           name: ra.name,
           category: 'Rubrik Assessment',
           phase: 'Micro',
-          score: ensureMin(rawScore)
+          score: ensureMin(rawScore),
         };
       });
 
-      const totalMicroScore = microItems.length > 0
-        ? ensureMin(microItems.reduce((acc, curr) => acc + curr.score, 0) / microItems.length)
-        : 65.0;
+      const totalMicroScore =
+        microItems.length > 0
+          ? ensureMin(
+              microItems.reduce((acc, curr) => acc + curr.score, 0) /
+                microItems.length,
+            )
+          : 65.0;
 
       // 5. Calculate Massive Phase Items (for Certificate)
-      const massiveRAs = rubrikAssessments.filter(r => r.phase === 'Massive');
-      const massiveItems = massiveRAs.map(ra => {
-        const ext = externalScores.find(s => s.rubrikAssessmentId === ra.id);
+      const massiveRAs = rubrikAssessments.filter((r) => r.phase === 'Massive');
+      const massiveItems = massiveRAs.map((ra) => {
+        const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
         const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
         return {
           id: ra.id,
           name: ra.name,
           category: 'Rubrik Assessment',
           phase: 'Massive',
-          score: ensureMin(rawScore)
+          score: ensureMin(rawScore),
         };
       });
 
-      const totalMassiveScore = massiveItems.length > 0
-        ? ensureMin(massiveItems.reduce((acc, curr) => acc + curr.score, 0) / massiveItems.length)
-        : 65.0;
+      const totalMassiveScore =
+        massiveItems.length > 0
+          ? ensureMin(
+              massiveItems.reduce((acc, curr) => acc + curr.score, 0) /
+                massiveItems.length,
+            )
+          : 65.0;
 
-      const finalScore = ensureMin((totalMicroScore * 0.4) + (totalMassiveScore * 0.6));
+      const finalScore = ensureMin(
+        totalMicroScore * 0.4 + totalMassiveScore * 0.6,
+      );
       let predicate = 'Satisfactory';
       if (finalScore >= 90) predicate = 'With Distinction';
       else if (finalScore >= 80) predicate = 'Very Good';
@@ -199,14 +217,16 @@ export class ClassesService {
           name: student.name,
           email: student.email,
           institution: student.institution || 'Infinite Learning Partner',
-          studyProgram: student.studyProgram || 'Studi Independen'
+          studyProgram: student.studyProgram || 'Studi Independen',
         },
         program: {
           id: program.id,
           name: program.name,
-          batchName: batch?.name || 'Batch Active'
+          batchName: batch?.name || 'Batch Active',
         },
-        mentor: cls.mentor ? { name: cls.mentor.name, email: cls.mentor.email } : null,
+        mentor: cls.mentor
+          ? { name: cls.mentor.name, email: cls.mentor.email }
+          : null,
         microItems,
         totalMicroScore,
         massiveItems,
@@ -214,7 +234,7 @@ export class ClassesService {
         finalScore,
         predicate,
         isTranscriptReleased: cls.isTranscriptReleased || false,
-        isCertificateReleased: cls.isCertificateReleased || false
+        isCertificateReleased: cls.isCertificateReleased || false,
       });
     }
 
@@ -222,10 +242,13 @@ export class ClassesService {
   }
 
   async releaseTranscript(mentorId: string, programId: string) {
-    let classes = await this.classRepository.find({ where: { programId, mentorId } });
+    let classes = await this.classRepository.find({
+      where: { programId, mentorId },
+    });
     if (classes.length === 0) {
       classes = await this.classRepository.find({ where: { programId } });
-      if (classes.length === 0) throw new NotFoundException('Kelas program tidak ditemukan.');
+      if (classes.length === 0)
+        throw new NotFoundException('Kelas program tidak ditemukan.');
     }
 
     const nextState = !classes[0].isTranscriptReleased;
@@ -240,22 +263,29 @@ export class ClassesService {
     return {
       success: true,
       isTranscriptReleased: nextState,
-      isCertificateReleased: nextState ? classes[0].isCertificateReleased : false
+      isCertificateReleased: nextState
+        ? classes[0].isCertificateReleased
+        : false,
     };
   }
 
   async releaseCertificate(mentorId: string, programId: string) {
-    let classes = await this.classRepository.find({ where: { programId, mentorId } });
+    let classes = await this.classRepository.find({
+      where: { programId, mentorId },
+    });
     if (classes.length === 0) {
       classes = await this.classRepository.find({ where: { programId } });
-      if (classes.length === 0) throw new NotFoundException('Kelas program tidak ditemukan.');
+      if (classes.length === 0)
+        throw new NotFoundException('Kelas program tidak ditemukan.');
     }
 
     const nextState = !classes[0].isCertificateReleased;
 
     // Constraint: Require Transkrip (Micro Phase) to be released first before Sertifikat (Massive Phase) can be released!
     if (nextState && !classes[0].isTranscriptReleased) {
-      throw new BadRequestException('Gagal! Transkrip Nilai (Fase Micro) harus dirilis terlebih dahulu sebelum Sertifikat (Fase Massive) dapat dirilis.');
+      throw new BadRequestException(
+        'Gagal! Transkrip Nilai (Fase Micro) harus dirilis terlebih dahulu sebelum Sertifikat (Fase Massive) dapat dirilis.',
+      );
     }
 
     for (const cls of classes) {
@@ -266,15 +296,18 @@ export class ClassesService {
     return {
       success: true,
       isTranscriptReleased: classes[0].isTranscriptReleased,
-      isCertificateReleased: nextState
+      isCertificateReleased: nextState,
     };
   }
 
   async findMentorClasses(mentorId: string) {
     await this.healEnrollments();
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     const specStr = String(mentor?.specialization || '').toLowerCase();
-    const isProfessional = specStr === 'professional' || specStr.includes('prof');
+    const isProfessional =
+      specStr === 'professional' || specStr.includes('prof');
     const isUiUx = specStr.includes('ui') || specStr.includes('ux');
 
     let classes = await this.classRepository.find({
@@ -289,13 +322,17 @@ export class ClassesService {
     if (classes.length === 0 && mentor) {
       let targetBatchIds = mentor.assignedBatchIds || [];
       if (targetBatchIds.length === 0) {
-        const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+        const activeBatches = await this.batchRepository.find({
+          where: { status: BatchStatus.ACTIVE },
+        });
         targetBatchIds = activeBatches.map((b) => b.id);
       }
 
       let progId = mentor.programId;
       if (!progId && mentor.selectedProgram) {
-        const pRes = await this.programRepository.findOne({ where: { name: mentor.selectedProgram } });
+        const pRes = await this.programRepository.findOne({
+          where: { name: mentor.selectedProgram },
+        });
         if (pRes) progId = pRes.id;
       }
 
@@ -318,7 +355,9 @@ export class ClassesService {
     // Professional Mentors get ALL active classes across programs (Web, Mobile, AI, Game).
     // UI/UX Mentors get active classes for Web & Mobile programs only.
     if (isProfessional || isUiUx) {
-      const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      const activeBatches = await this.batchRepository.find({
+        where: { status: BatchStatus.ACTIVE },
+      });
       const activeBatchIds = activeBatches.map((b) => b.id);
 
       if (activeBatchIds.length > 0) {
@@ -340,7 +379,10 @@ export class ClassesService {
               classes.push(bCls);
               existingClassIds.add(bCls.id);
               existingProgramIds.add(bCls.programId);
-            } else if (isUiUx && (pName.includes('web') || pName.includes('mobile'))) {
+            } else if (
+              isUiUx &&
+              (pName.includes('web') || pName.includes('mobile'))
+            ) {
               classes.push(bCls);
               existingClassIds.add(bCls.id);
               existingProgramIds.add(bCls.programId);
@@ -353,19 +395,45 @@ export class ClassesService {
     // For each class, fetch enrollments to get student list
     const enrichedClasses = await Promise.all(
       classes.map(async (cls) => {
+        const relatedClasses = await this.classRepository.find({
+          where: { programId: cls.programId, batchId: cls.batchId },
+        });
+        const relatedClassIds = relatedClasses.map((c) => c.id);
+
         const enrollments = await this.enrollmentRepository.find({
-          where: { classId: cls.id },
+          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
           relations: { student: true },
         });
-        const enrolledStudents = enrollments.map((e) => e.student).filter(Boolean);
+        let enrolledStudents = enrollments
+          .map((e) => e.student)
+          .filter((s) => {
+            if (!s) return false;
+            const roles = (s.roles || []).map((r) => String(r).toLowerCase());
+            const roleStr = String(s.role || '').toLowerCase();
+            const isStudent = roles.includes('student') || roleStr === 'student';
+            const isStaff = roles.includes('mentor') || roleStr === 'mentor' || roles.includes('facilitator') || roleStr === 'facilitator' || roles.includes('admin') || roleStr === 'admin';
+            return isStudent || !isStaff;
+          });
 
-        const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId }
-        });
-        const relatedClassIds = relatedClasses.map(c => c.id);
+        // 🛡️ Fallback: If 0 explicit enrollments found, fetch all students in User repository matching programId or selectedProgram
+        if (enrolledStudents.length === 0) {
+          const allProgramStudents = await this.userRepository.find({
+            where: [
+              { programId: cls.programId },
+              { selectedProgram: cls.program?.name },
+            ],
+          });
+          enrolledStudents = allProgramStudents.filter((s) => {
+            if (!s) return false;
+            const roles = (s.roles || []).map((r) => String(r).toLowerCase());
+            const roleStr = String(s.role || '').toLowerCase();
+            const isStudentRole = (roles.includes('student') || roleStr === 'student') && !roles.includes('facilitator') && roleStr !== 'facilitator' && !roles.includes('mentor') && roleStr !== 'mentor' && !roles.includes('admin') && roleStr !== 'admin';
+            return isStudentRole && (!s.status || s.status.toLowerCase() !== 'graduated');
+          });
+        }
 
         const materials = await this.materialRepository.find({
-          where: { classId: In(relatedClassIds) }
+          where: { classId: In(relatedClassIds) },
         });
         const assignments = await this.assignmentRepository.find({
           where: { classId: In(relatedClassIds) },
@@ -374,29 +442,48 @@ export class ClassesService {
 
         // Fetch facilitators assigned to this program
         const allUsersForFac = await this.userRepository.find();
-        const facilitators = allUsersForFac.filter(f =>
-          (f.roles?.includes(UserRole.FACILITATOR) || (f as any).role === UserRole.FACILITATOR) &&
-          (f.programId === cls.programId || (f.selectedProgram && cls.program?.name && f.selectedProgram.toLowerCase() === cls.program.name.toLowerCase()))
-        ).map(f => ({
-          id: f.id,
-          name: f.name,
-          email: f.email,
-          avatarUrl: f.avatarUrl,
-          whatsapp: f.whatsapp,
-          institution: f.institution,
-          studyProgram: f.studyProgram,
-          selectedProgram: f.selectedProgram,
-          status: f.status,
-        }));
+        const facilitators = allUsersForFac
+          .filter(
+            (f) =>
+              (f.roles?.includes(UserRole.FACILITATOR) ||
+                (f as any).role === UserRole.FACILITATOR) &&
+              (f.programId === cls.programId ||
+                (f.selectedProgram &&
+                  cls.program?.name &&
+                  f.selectedProgram.toLowerCase() ===
+                    cls.program.name.toLowerCase())),
+          )
+          .map((f) => ({
+            id: f.id,
+            name: f.name,
+            email: f.email,
+            avatarUrl: f.avatarUrl,
+            whatsapp: f.whatsapp,
+            institution: f.institution,
+            studyProgram: f.studyProgram,
+            selectedProgram: f.selectedProgram,
+            status: f.status,
+          }));
 
         // Determine if primary program
         let isPrimaryProgram = true;
         if (isProfessional && mentor) {
           const mentorProgName = mentor.selectedProgram?.toLowerCase() || '';
           const clsProgName = cls.program?.name?.toLowerCase() || '';
-          const isProgIdMatch = mentor.programId && cls.programId && mentor.programId === cls.programId;
-          const isProgNameMatch = mentorProgName && clsProgName && (mentorProgName.includes(clsProgName) || clsProgName.includes(mentorProgName));
-          isPrimaryProgram = !!(isProgIdMatch || isProgNameMatch || cls.mentorId === mentorId);
+          const isProgIdMatch =
+            mentor.programId &&
+            cls.programId &&
+            mentor.programId === cls.programId;
+          const isProgNameMatch =
+            mentorProgName &&
+            clsProgName &&
+            (mentorProgName.includes(clsProgName) ||
+              clsProgName.includes(mentorProgName));
+          isPrimaryProgram = !!(
+            isProgIdMatch ||
+            isProgNameMatch ||
+            cls.mentorId === mentorId
+          );
         }
 
         return {
@@ -422,124 +509,227 @@ export class ClassesService {
       'AI Development',
       'Game Development',
       'Web Development and UI/UX Design',
-      'Mobile Development and UI/UX Design'
+      'Mobile Development and UI/UX Design',
     ];
 
-    let programs = await this.programRepository.find();
+    const programs = await this.programRepository.find();
     for (const name of officialNames) {
-      if (!programs.some(p => p.name === name)) {
-        const newProg = await this.programRepository.save(this.programRepository.create({
-          name,
-          description: `Program Resmi ${name} sesuai Source of Truth v2.0`
-        }));
+      if (!programs.some((p) => p.name === name)) {
+        const newProg = await this.programRepository.save(
+          this.programRepository.create({
+            name,
+            description: `Program Resmi ${name} sesuai Source of Truth v2.0`,
+          }),
+        );
         programs.push(newProg);
       }
     }
 
     // Clean slate reset: Ensure legacy global batch is completed if it exists without programId
-    let legacyBatch = await this.batchRepository.findOne({ where: { name: 'Batch 7 - 2026' } });
+    const legacyBatch = await this.batchRepository.findOne({
+      where: { name: 'Batch 7 - 2026' },
+    });
     if (legacyBatch && legacyBatch.status === BatchStatus.ACTIVE) {
       legacyBatch.status = BatchStatus.COMPLETED;
       await this.batchRepository.save(legacyBatch);
     }
 
-    const allBatches = await this.batchRepository.find({ order: { createdAt: 'DESC' } });
+    const allBatches = await this.batchRepository.find({
+      order: { createdAt: 'DESC' },
+    });
     const allUsers = await this.userRepository.find();
     const allClasses = await this.classRepository.find();
     const allEnrollments = await this.enrollmentRepository.find();
 
-    const result = await Promise.all(programs.map(async (prog) => {
-      const classes = allClasses.filter(c => c.programId === prog.id);
+    const result = await Promise.all(
+      programs.map(async (prog) => {
+        const classes = allClasses.filter((c) => c.programId === prog.id);
 
-      const progBatches = allBatches.filter(b => !b.includedProgramIds || b.includedProgramIds.length === 0 || b.includedProgramIds.includes(prog.id) || b.programId === prog.id);
-      const activeBatch = allBatches.find(b => b.status === BatchStatus.ACTIVE && (!b.includedProgramIds || b.includedProgramIds.length === 0 || b.includedProgramIds.includes(prog.id) || b.programId === prog.id)) || null;
-      const batchHistory = progBatches.filter(b => b.status !== BatchStatus.ACTIVE || b.id !== activeBatch?.id).map(b => ({
-        id: b.id,
-        name: b.name,
-        status: b.status,
-        createdAt: b.createdAt
-      }));
+        const progBatches = allBatches.filter(
+          (b) =>
+            !b.includedProgramIds ||
+            b.includedProgramIds.length === 0 ||
+            b.includedProgramIds.includes(prog.id) ||
+            b.programId === prog.id,
+        );
+        const activeBatch =
+          allBatches.find(
+            (b) =>
+              b.status === BatchStatus.ACTIVE &&
+              (!b.includedProgramIds ||
+                b.includedProgramIds.length === 0 ||
+                b.includedProgramIds.includes(prog.id) ||
+                b.programId === prog.id),
+          ) || null;
+        const batchHistory = progBatches
+          .filter(
+            (b) => b.status !== BatchStatus.ACTIVE || b.id !== activeBatch?.id,
+          )
+          .map((b) => ({
+            id: b.id,
+            name: b.name,
+            status: b.status,
+            createdAt: b.createdAt,
+          }));
 
-      const activeBatchClasses = classes.filter(c => c.batchId === activeBatch?.id);
-      const activeBatchClassIds = activeBatchClasses.map(c => c.id);
+        const activeBatchClasses = classes.filter(
+          (c) => c.batchId === activeBatch?.id,
+        );
+        const activeBatchClassIds = activeBatchClasses.map((c) => c.id);
 
-      const programMentors = allUsers.filter(u => {
-        if (!u.roles.includes(UserRole.MENTOR) && !u.roles.includes(UserRole.ADMIN)) return false;
-        if (u.status === UserStatus.SUSPENDED) return false;
+        const programMentors = allUsers.filter((u) => {
+          if (
+            !u.roles.includes(UserRole.MENTOR) &&
+            !u.roles.includes(UserRole.ADMIN)
+          )
+            return false;
+          if (u.status === UserStatus.SUSPENDED) return false;
 
-        const specStr = String(u.specialization || '').toLowerCase();
-        const isProf = specStr.includes('prof');
-        const isUiUx = specStr.includes('ui') || specStr.includes('ux');
-        const pNameLower = prog.name.toLowerCase();
+          const specStr = String(u.specialization || '').toLowerCase();
+          const isProf = specStr.includes('prof');
+          const isUiUx = specStr.includes('ui') || specStr.includes('ux');
+          const pNameLower = prog.name.toLowerCase();
 
-        // 1. Has an active class in this program batch
-        if (activeBatchClasses.some(c => c.mentorId === u.id)) return true;
+          // 1. Has an active class in this program batch
+          if (activeBatchClasses.some((c) => c.mentorId === u.id)) return true;
 
-        // 2. Primary selectedProgram or programId match
-        if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) return true;
-        if (u.programId === prog.id) return true;
+          // 2. Primary selectedProgram or programId match
+          if (
+            u.selectedProgram &&
+            u.selectedProgram.toLowerCase() === pNameLower
+          )
+            return true;
+          if (u.programId === prog.id) return true;
 
-        // 3. Professional Mentor (all active programs)
-        if (isProf) return true;
+          // 3. Professional Mentor (all active programs)
+          if (isProf) return true;
 
-        // 4. UI/UX Mentor (web and mobile programs)
-        if (isUiUx && (pNameLower.includes('web') || pNameLower.includes('mobile'))) return true;
+          // 4. UI/UX Mentor (web and mobile programs)
+          if (
+            isUiUx &&
+            (pNameLower.includes('web') || pNameLower.includes('mobile'))
+          )
+            return true;
 
-        return false;
-      });
+          return false;
+        });
 
-      const programStudents = allUsers.filter(u =>
-        u.roles.includes(UserRole.STUDENT) &&
-        allEnrollments.some(e => e.studentId === u.id && activeBatchClassIds.includes(e.classId))
-      );
+        const programStudents = allUsers.filter(
+          (u) =>
+            u.roles.includes(UserRole.STUDENT) &&
+            allEnrollments.some(
+              (e) =>
+                e.studentId === u.id && activeBatchClassIds.includes(e.classId),
+            ),
+        );
 
-      return {
-        id: prog.id,
-        name: prog.name,
-        description: prog.description,
-        activeBatch: activeBatch ? { id: activeBatch.id, name: activeBatch.name, status: activeBatch.status } : null,
-        batch: activeBatch ? { id: activeBatch.id, name: activeBatch.name, status: activeBatch.status } : { id: 'no-batch', name: 'Belum Ada Batch Berjalan', status: 'completed' },
-        batchHistory,
-        importantLinks: activeBatchClasses.find(c => c.importantLinks && c.importantLinks.length > 0)?.importantLinks || activeBatchClasses[0]?.importantLinks || [],
-        mentorsCount: programMentors.length,
-        mentors: programMentors.map(m => ({ id: m.id, name: m.name, email: m.email, whatsapp: m.whatsapp, status: m.status, specialization: m.specialization })),
-        studentsCount: programStudents.length,
-        students: programStudents.map(s => {
-          const enroll = allEnrollments.find(e => e.studentId === s.id && activeBatchClassIds.includes(e.classId));
-          const cls = allClasses.find(c => c.id === enroll?.classId);
-          const mentor = programMentors.find(m => m.id === cls?.mentorId);
-          return {
-            id: s.id,
-            name: s.name,
-            email: s.email,
-            whatsapp: s.whatsapp,
-            status: s.status,
-            selectedProgram: s.selectedProgram,
-            mentorName: mentor ? mentor.name : 'Belum Ditentukan'
-          };
-        }),
-      };
-    }));
+        return {
+          id: prog.id,
+          name: prog.name,
+          description: prog.description,
+          activeBatch: activeBatch
+            ? {
+                id: activeBatch.id,
+                name: activeBatch.name,
+                status: activeBatch.status,
+              }
+            : null,
+          batch: activeBatch
+            ? {
+                id: activeBatch.id,
+                name: activeBatch.name,
+                status: activeBatch.status,
+              }
+            : {
+                id: 'no-batch',
+                name: 'Belum Ada Batch Berjalan',
+                status: 'completed',
+              },
+          batchHistory,
+          importantLinks:
+            activeBatchClasses.find(
+              (c) => c.importantLinks && c.importantLinks.length > 0,
+            )?.importantLinks ||
+            activeBatchClasses[0]?.importantLinks ||
+            [],
+          mentorsCount: programMentors.length,
+          mentors: programMentors.map((m) => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            whatsapp: m.whatsapp,
+            status: m.status,
+            specialization: m.specialization,
+          })),
+          studentsCount: programStudents.length,
+          students: programStudents.map((s) => {
+            const enroll = allEnrollments.find(
+              (e) =>
+                e.studentId === s.id && activeBatchClassIds.includes(e.classId),
+            );
+            const cls = allClasses.find((c) => c.id === enroll?.classId);
+            const mentor = programMentors.find((m) => m.id === cls?.mentorId);
+            return {
+              id: s.id,
+              name: s.name,
+              email: s.email,
+              whatsapp: s.whatsapp,
+              status: s.status,
+              selectedProgram: s.selectedProgram,
+              mentorName: mentor ? mentor.name : 'Belum Ditentukan',
+            };
+          }),
+        };
+      }),
+    );
 
-    const globalActive = allBatches.find(b => b.status === 'active') || { id: 'no-batch', name: 'Belum Ada Batch Berjalan', status: 'completed' };
+    const globalActive = allBatches.find((b) => b.status === 'active') || {
+      id: 'no-batch',
+      name: 'Belum Ada Batch Berjalan',
+      status: 'completed',
+    };
 
     return {
-      batch: { id: globalActive.id, name: globalActive.name, status: globalActive.status },
+      batch: {
+        id: globalActive.id,
+        name: globalActive.name,
+        status: globalActive.status,
+      },
       programs: result,
-      availableMentors: allUsers.filter(u => u.roles.includes(UserRole.MENTOR) && u.status === UserStatus.ACTIVE).map(m => ({
-        id: m.id, name: m.name, email: m.email, whatsapp: m.whatsapp, status: m.status, selectedProgram: m.selectedProgram, specialization: m.specialization
-      }))
+      availableMentors: allUsers
+        .filter(
+          (u) =>
+            u.roles.includes(UserRole.MENTOR) && u.status === UserStatus.ACTIVE,
+        )
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          email: m.email,
+          whatsapp: m.whatsapp,
+          status: m.status,
+          selectedProgram: m.selectedProgram,
+          specialization: m.specialization,
+        })),
     };
   }
 
-  async updateBatchStatus(payload: { status: 'active' | 'completed'; batchId?: string; programId?: string } | 'active' | 'completed') {
+  async updateBatchStatus(
+    payload:
+      | { status: 'active' | 'completed'; batchId?: string; programId?: string }
+      | 'active'
+      | 'completed',
+  ) {
     const rawStatus = typeof payload === 'string' ? payload : payload.status;
-    const status = (rawStatus === 'active' ? BatchStatus.ACTIVE : BatchStatus.COMPLETED);
+    const status =
+      rawStatus === 'active' ? BatchStatus.ACTIVE : BatchStatus.COMPLETED;
     const batchId = typeof payload === 'object' ? payload.batchId : undefined;
-    const programId = typeof payload === 'object' ? payload.programId : undefined;
+    const programId =
+      typeof payload === 'object' ? payload.programId : undefined;
 
     if (status === BatchStatus.ACTIVE) {
-      const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      const activeBatches = await this.batchRepository.find({
+        where: { status: BatchStatus.ACTIVE },
+      });
       for (const ab of activeBatches) {
         if (!batchId || ab.id !== batchId) {
           ab.status = BatchStatus.COMPLETED;
@@ -555,13 +745,28 @@ export class ClassesService {
         await this.batchRepository.save(b);
       }
     } else if (programId) {
-      const batches = await this.batchRepository.find({ where: { programId, status: status === BatchStatus.ACTIVE ? BatchStatus.COMPLETED : BatchStatus.ACTIVE } });
+      const batches = await this.batchRepository.find({
+        where: {
+          programId,
+          status:
+            status === BatchStatus.ACTIVE
+              ? BatchStatus.COMPLETED
+              : BatchStatus.ACTIVE,
+        },
+      });
       for (const b of batches) {
         b.status = status;
         await this.batchRepository.save(b);
       }
     } else {
-      const activeBatches = await this.batchRepository.find({ where: { status: status === BatchStatus.ACTIVE ? BatchStatus.COMPLETED : BatchStatus.ACTIVE } });
+      const activeBatches = await this.batchRepository.find({
+        where: {
+          status:
+            status === BatchStatus.ACTIVE
+              ? BatchStatus.COMPLETED
+              : BatchStatus.ACTIVE,
+        },
+      });
       for (const b of activeBatches) {
         b.status = status;
         await this.batchRepository.save(b);
@@ -571,51 +776,61 @@ export class ClassesService {
   }
 
   async getAllBatches() {
-    const batches = await this.batchRepository.find({ order: { createdAt: 'DESC' } });
+    const batches = await this.batchRepository.find({
+      order: { createdAt: 'DESC' },
+    });
     const programs = await this.programRepository.find();
     const allClasses = await this.classRepository.find();
     const allEnrollments = await this.enrollmentRepository.find();
     const allUsers = await this.userRepository.find();
 
-    return batches.map(batch => {
-      const batchClasses = allClasses.filter(c => c.batchId === batch.id);
-      const batchEnrollments = allEnrollments.filter(e => batchClasses.some(c => c.id === e.classId));
+    return batches.map((batch) => {
+      const batchClasses = allClasses.filter((c) => c.batchId === batch.id);
+      const batchEnrollments = allEnrollments.filter((e) =>
+        batchClasses.some((c) => c.id === e.classId),
+      );
 
-      const includedPrograms = batch.includedProgramIds && batch.includedProgramIds.length > 0
-        ? programs.filter(p => batch.includedProgramIds?.includes(p.id))
-        : programs;
+      const includedPrograms =
+        batch.includedProgramIds && batch.includedProgramIds.length > 0
+          ? programs.filter((p) => batch.includedProgramIds?.includes(p.id))
+          : programs;
 
-      const programsWithDetails = includedPrograms.map(p => {
-        const progClasses = batchClasses.filter(c => c.programId === p.id);
-        const progEnrollments = batchEnrollments.filter(e => progClasses.some(c => c.id === e.classId));
-
-        const progMentors = allUsers.filter(u =>
-          (u.roles.includes(UserRole.MENTOR) || u.roles.includes(UserRole.ADMIN)) &&
-          u.status === UserStatus.ACTIVE &&
-          progClasses.some(c => c.mentorId === u.id)
+      const programsWithDetails = includedPrograms.map((p) => {
+        const progClasses = batchClasses.filter((c) => c.programId === p.id);
+        const progEnrollments = batchEnrollments.filter((e) =>
+          progClasses.some((c) => c.id === e.classId),
         );
 
-        const progStudents = allUsers.filter(u =>
-          u.roles.includes(UserRole.STUDENT) &&
-          progEnrollments.some(e => e.studentId === u.id)
+        const progMentors = allUsers.filter(
+          (u) =>
+            (u.roles.includes(UserRole.MENTOR) ||
+              u.roles.includes(UserRole.ADMIN)) &&
+            u.status === UserStatus.ACTIVE &&
+            progClasses.some((c) => c.mentorId === u.id),
+        );
+
+        const progStudents = allUsers.filter(
+          (u) =>
+            u.roles.includes(UserRole.STUDENT) &&
+            progEnrollments.some((e) => e.studentId === u.id),
         );
 
         return {
           ...p,
           mentorsCount: progMentors.length,
-          mentors: progMentors.map(m => ({
+          mentors: progMentors.map((m) => ({
             id: m.id,
             name: m.name,
             email: m.email,
             whatsapp: m.whatsapp,
             status: m.status,
-            specialization: m.specialization
+            specialization: m.specialization,
           })),
           studentsCount: progStudents.length,
-          students: progStudents.map(s => {
-            const enroll = progEnrollments.find(e => e.studentId === s.id);
-            const cls = progClasses.find(c => c.id === enroll?.classId);
-            const mentor = progMentors.find(m => m.id === cls?.mentorId);
+          students: progStudents.map((s) => {
+            const enroll = progEnrollments.find((e) => e.studentId === s.id);
+            const cls = progClasses.find((c) => c.id === enroll?.classId);
+            const mentor = progMentors.find((m) => m.id === cls?.mentorId);
             return {
               id: s.id,
               name: s.name,
@@ -623,9 +838,12 @@ export class ClassesService {
               whatsapp: s.whatsapp,
               status: s.status,
               selectedProgram: s.selectedProgram,
-              mentorName: mentor ? mentor.name : (progMentors.map(m => m.name).join(', ') || 'Seluruh Mentor Program')
+              mentorName: mentor
+                ? mentor.name
+                : progMentors.map((m) => m.name).join(', ') ||
+                  'Seluruh Mentor Program',
             };
-          })
+          }),
         };
       });
 
@@ -648,17 +866,23 @@ export class ClassesService {
   }) {
     const status = (payload.status as BatchStatus) || BatchStatus.DRAFT;
 
-    let programIds: string[] = payload.includedProgramIds ? [...payload.includedProgramIds] : [];
+    const programIds: string[] = payload.includedProgramIds
+      ? [...payload.includedProgramIds]
+      : [];
 
     if (payload.newProgramNames && payload.newProgramNames.length > 0) {
       for (const progName of payload.newProgramNames) {
         if (progName && progName.trim().length > 0) {
-          let existingProg = await this.programRepository.findOne({ where: { name: progName.trim() } });
+          let existingProg = await this.programRepository.findOne({
+            where: { name: progName.trim() },
+          });
           if (!existingProg) {
-            existingProg = await this.programRepository.save(this.programRepository.create({
-              name: progName.trim(),
-              description: `Program studi ekspansi kurikulum ${progName.trim()}`,
-            }));
+            existingProg = await this.programRepository.save(
+              this.programRepository.create({
+                name: progName.trim(),
+                description: `Program studi ekspansi kurikulum ${progName.trim()}`,
+              }),
+            );
           }
           if (!programIds.includes(existingProg.id)) {
             programIds.push(existingProg.id);
@@ -668,55 +892,79 @@ export class ClassesService {
     }
 
     if (status === BatchStatus.ACTIVE) {
-      const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      const activeBatches = await this.batchRepository.find({
+        where: { status: BatchStatus.ACTIVE },
+      });
       for (const b of activeBatches) {
         b.status = BatchStatus.COMPLETED;
         await this.batchRepository.save(b);
       }
     }
 
-    const newBatch = (await this.batchRepository.save(this.batchRepository.create({
-      name: payload.name,
-      status,
-      includedProgramIds: programIds,
-      startDate: payload.startDate ? new Date(payload.startDate) : null,
-      endDate: payload.endDate ? new Date(payload.endDate) : null,
-    }))) as Batch;
+    const newBatch = await this.batchRepository.save(
+      this.batchRepository.create({
+        name: payload.name,
+        status,
+        includedProgramIds: programIds,
+        startDate: payload.startDate ? new Date(payload.startDate) : null,
+        endDate: payload.endDate ? new Date(payload.endDate) : null,
+      }),
+    );
 
     if (status === BatchStatus.ACTIVE) {
       for (const progId of programIds) {
-        let cls = await this.classRepository.findOne({ where: { programId: progId, batchId: newBatch.id } });
+        const cls = await this.classRepository.findOne({
+          where: { programId: progId, batchId: newBatch.id },
+        });
         if (!cls) {
-          await this.classRepository.save(this.classRepository.create({
-            programId: progId,
-            batchId: newBatch.id,
-          }));
+          await this.classRepository.save(
+            this.classRepository.create({
+              programId: progId,
+              batchId: newBatch.id,
+            }),
+          );
         }
       }
     }
 
-    return { success: true, batch: newBatch, message: `Batch angkatan "${payload.name}" berhasil dibuat dengan status ${status.toUpperCase()}.` };
+    return {
+      success: true,
+      batch: newBatch,
+      message: `Batch angkatan "${payload.name}" berhasil dibuat dengan status ${status.toUpperCase()}.`,
+    };
   }
 
-  async updateGlobalBatch(batchId: string, payload: {
-    name?: string;
-    status?: string;
-    includedProgramIds?: string[];
-    newProgramNames?: string[];
-    startDate?: string | Date;
-    endDate?: string | Date;
-  }) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+  async updateGlobalBatch(
+    batchId: string,
+    payload: {
+      name?: string;
+      status?: string;
+      includedProgramIds?: string[];
+      newProgramNames?: string[];
+      startDate?: string | Date;
+      endDate?: string | Date;
+    },
+  ) {
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
 
     if (payload.name) batch.name = payload.name;
-    if (payload.startDate !== undefined) batch.startDate = payload.startDate ? new Date(payload.startDate) : null;
-    if (payload.endDate !== undefined) batch.endDate = payload.endDate ? new Date(payload.endDate) : null;
+    if (payload.startDate !== undefined)
+      batch.startDate = payload.startDate ? new Date(payload.startDate) : null;
+    if (payload.endDate !== undefined)
+      batch.endDate = payload.endDate ? new Date(payload.endDate) : null;
 
     if (payload.status) {
       const castStatus = payload.status as BatchStatus;
-      if (castStatus === BatchStatus.ACTIVE && batch.status !== BatchStatus.ACTIVE) {
-        const activeBatches = await this.batchRepository.find({ where: { status: BatchStatus.ACTIVE } });
+      if (
+        castStatus === BatchStatus.ACTIVE &&
+        batch.status !== BatchStatus.ACTIVE
+      ) {
+        const activeBatches = await this.batchRepository.find({
+          where: { status: BatchStatus.ACTIVE },
+        });
         for (const b of activeBatches) {
           if (b.id !== batch.id) {
             b.status = BatchStatus.COMPLETED;
@@ -727,17 +975,23 @@ export class ClassesService {
       batch.status = castStatus;
     }
 
-    let programIds: string[] = payload.includedProgramIds ? [...payload.includedProgramIds] : (batch.includedProgramIds || []);
+    const programIds: string[] = payload.includedProgramIds
+      ? [...payload.includedProgramIds]
+      : batch.includedProgramIds || [];
 
     if (payload.newProgramNames && payload.newProgramNames.length > 0) {
       for (const progName of payload.newProgramNames) {
         if (progName && progName.trim().length > 0) {
-          let existingProg = await this.programRepository.findOne({ where: { name: progName.trim() } });
+          let existingProg = await this.programRepository.findOne({
+            where: { name: progName.trim() },
+          });
           if (!existingProg) {
-            existingProg = await this.programRepository.save(this.programRepository.create({
-              name: progName.trim(),
-              description: `Program studi ekspansi kurikulum ${progName.trim()}`,
-            }));
+            existingProg = await this.programRepository.save(
+              this.programRepository.create({
+                name: progName.trim(),
+                description: `Program studi ekspansi kurikulum ${progName.trim()}`,
+              }),
+            );
           }
           if (!programIds.includes(existingProg.id)) {
             programIds.push(existingProg.id);
@@ -746,7 +1000,10 @@ export class ClassesService {
       }
     }
 
-    if (payload.includedProgramIds !== undefined || (payload.newProgramNames && payload.newProgramNames.length > 0)) {
+    if (
+      payload.includedProgramIds !== undefined ||
+      (payload.newProgramNames && payload.newProgramNames.length > 0)
+    ) {
       batch.includedProgramIds = programIds;
     }
 
@@ -754,32 +1011,52 @@ export class ClassesService {
 
     if (batch.status === 'active') {
       for (const progId of programIds) {
-        let cls = await this.classRepository.findOne({ where: { programId: progId, batchId: batch.id } });
+        const cls = await this.classRepository.findOne({
+          where: { programId: progId, batchId: batch.id },
+        });
         if (!cls) {
-          await this.classRepository.save(this.classRepository.create({
-            programId: progId,
-            batchId: batch.id,
-          }));
+          await this.classRepository.save(
+            this.classRepository.create({
+              programId: progId,
+              batchId: batch.id,
+            }),
+          );
         }
       }
     }
 
-    return { success: true, batch, message: `Batch "${batch.name}" berhasil diperbarui.` };
+    return {
+      success: true,
+      batch,
+      message: `Batch "${batch.name}" berhasil diperbarui.`,
+    };
   }
 
   async deleteGlobalBatch(batchId: string) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
 
-    const batchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
+    const batchClasses = await this.classRepository.find({
+      where: { batchId: batch.id },
+    });
     for (const cls of batchClasses) {
-      const enrolls = await this.enrollmentRepository.count({ where: { classId: cls.id } });
-      const mats = await this.materialRepository.count({ where: { classId: cls.id } });
-      const ass = await this.assignmentRepository.count({ where: { classId: cls.id } });
+      const enrolls = await this.enrollmentRepository.count({
+        where: { classId: cls.id },
+      });
+      const mats = await this.materialRepository.count({
+        where: { classId: cls.id },
+      });
+      const ass = await this.assignmentRepository.count({
+        where: { classId: cls.id },
+      });
 
       if (enrolls > 0 || mats > 0 || ass > 0) {
         if (batch.status === 'active' || batch.status === 'completed') {
-          throw new ForbiddenException(`Batch "${batch.name}" tidak dapat dihapus karena sudah memiliki data kelas/murid aktif. Silakan ubah status menjadi Read-Only (Selesai).`);
+          throw new ForbiddenException(
+            `Batch "${batch.name}" tidak dapat dihapus karena sudah memiliki data kelas/murid aktif. Silakan ubah status menjadi Read-Only (Selesai).`,
+          );
         }
       }
       await this.enrollmentRepository.delete({ classId: cls.id });
@@ -789,44 +1066,69 @@ export class ClassesService {
     }
 
     await this.batchRepository.delete({ id: batch.id });
-    return { success: true, message: `Batch "${batch.name}" berhasil dihapus sepenuhnya.` };
+    return {
+      success: true,
+      message: `Batch "${batch.name}" berhasil dihapus sepenuhnya.`,
+    };
   }
 
-  async assignBatchMentors(batchId: string, programId: string, mentorIds: string[]) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+  async assignBatchMentors(
+    batchId: string,
+    programId: string,
+    mentorIds: string[],
+  ) {
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
-    const program = await this.programRepository.findOne({ where: { id: programId } });
+    const program = await this.programRepository.findOne({
+      where: { id: programId },
+    });
     if (!program) throw new NotFoundException('Program studi tidak ditemukan');
 
-    const batchClasses = await this.classRepository.find({ where: { batchId: batch.id, programId: program.id } });
-    const allMentors = await this.userRepository.find({ where: { roles: Like(`%"${UserRole.MENTOR}"%`) as any } });
+    const batchClasses = await this.classRepository.find({
+      where: { batchId: batch.id, programId: program.id },
+    });
+    const allMentors = await this.userRepository.find({
+      where: { roles: Like(`%"${UserRole.MENTOR}"%`) as any },
+    });
 
     // Ensure classes exist for selected mentors
-    const otherClasses = await this.classRepository.find({ where: { batchId: batch.id } });
+    const otherClasses = await this.classRepository.find({
+      where: { batchId: batch.id },
+    });
 
     for (const mId of mentorIds) {
-      const m = allMentors.find(u => u.id === mId);
+      const m = allMentors.find((u) => u.id === mId);
       const isUIUX = m?.specialization?.includes('UI/UX');
       const isProfessional = m?.specialization?.includes('Professional');
 
       if (!isUIUX && !isProfessional) {
-        const existingInOther = otherClasses.find(c => c.mentorId === mId && c.programId !== program.id);
+        const existingInOther = otherClasses.find(
+          (c) => c.mentorId === mId && c.programId !== program.id,
+        );
         if (existingInOther) {
-          throw new BadRequestException(`Mentor Utama ${m?.name} tidak boleh ditugaskan di lebih dari 1 program!`);
+          throw new BadRequestException(
+            `Mentor Utama ${m?.name} tidak boleh ditugaskan di lebih dari 1 program!`,
+          );
         }
       } else if (isUIUX) {
         if (!program.name.includes('Web') && !program.name.includes('Mobile')) {
-          throw new BadRequestException(`Mentor UI/UX ${m?.name} hanya boleh ditugaskan di Program Web atau Mobile!`);
+          throw new BadRequestException(
+            `Mentor UI/UX ${m?.name} hanya boleh ditugaskan di Program Web atau Mobile!`,
+          );
         }
       }
 
-      let cls = batchClasses.find(c => c.mentorId === mId);
+      let cls = batchClasses.find((c) => c.mentorId === mId);
       if (!cls) {
-        cls = await this.classRepository.save(this.classRepository.create({
-          batchId: batch.id,
-          programId: program.id,
-          mentorId: mId,
-        }));
+        cls = await this.classRepository.save(
+          this.classRepository.create({
+            batchId: batch.id,
+            programId: program.id,
+            mentorId: mId,
+          }),
+        );
         batchClasses.push(cls);
       }
       if (m && m.selectedProgram !== program.name) {
@@ -838,31 +1140,41 @@ export class ClassesService {
     // Remove or unassign mentors not in mentorIds for this program in this batch
     for (const cls of batchClasses) {
       if (cls.mentorId && !mentorIds.includes(cls.mentorId)) {
-        const enrollCount = await this.enrollmentRepository.count({ where: { classId: cls.id } });
+        const enrollCount = await this.enrollmentRepository.count({
+          where: { classId: cls.id },
+        });
         if (enrollCount === 0 && batchClasses.length > 1) {
           await this.classRepository.delete({ id: cls.id });
         } else {
-          cls.mentorId = null as any;
+          cls.mentorId = null;
           await this.classRepository.save(cls);
         }
       }
     }
 
-    return { success: true, message: `Berhasil memperbarui penugasan mentor untuk program ${program.name} di angkatan "${batch.name}".` };
+    return {
+      success: true,
+      message: `Berhasil memperbarui penugasan mentor untuk program ${program.name} di angkatan "${batch.name}".`,
+    };
   }
 
-  async importAndEnrollBatch(batchId: string, payload: {
-    users: Array<{
-      name: string;
-      email: string;
-      whatsapp?: string;
-      institution?: string;
-      studyProgram?: string;
-      selectedProgram: string;
-    }>;
-    autoDistribute?: boolean;
-  }) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+  async importAndEnrollBatch(
+    batchId: string,
+    payload: {
+      users: Array<{
+        name: string;
+        email: string;
+        whatsapp?: string;
+        institution?: string;
+        studyProgram?: string;
+        selectedProgram: string;
+      }>;
+      autoDistribute?: boolean;
+    },
+  ) {
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan');
 
     const programs = await this.programRepository.find();
@@ -877,42 +1189,59 @@ export class ClassesService {
       const cleanName = item.name.trim();
 
       // 1. Silent Whitelist / User Creation
-      let user = await this.userRepository.findOne({ where: { email: cleanEmail } });
+      let user = await this.userRepository.findOne({
+        where: { email: cleanEmail },
+      });
       if (!user) {
         const isGmail = cleanEmail.endsWith('@gmail.com');
-        const defaultPassword = isGmail ? null : await bcrypt.hash('Student123!', 10);
+        const defaultPassword = isGmail
+          ? null
+          : await bcrypt.hash('Student123!', 10);
         const isPasswordChanged = isGmail ? true : false;
 
-        user = await this.userRepository.save(this.userRepository.create({
-          email: cleanEmail,
-          name: cleanName,
-          password: defaultPassword,
-          isPasswordChanged,
-          role: UserRole.STUDENT,
-          status: UserStatus.INVITED, // Silent whitelist per Gmail rule
-          whatsapp: item.whatsapp ? item.whatsapp.replace(/\D/g, '') : undefined,
-          institution: item.institution ? item.institution.trim() : undefined,
-          studyProgram: item.studyProgram ? item.studyProgram.trim() : undefined,
-          selectedProgram: item.selectedProgram ? item.selectedProgram.trim() : undefined,
-        }));
+        user = await this.userRepository.save(
+          this.userRepository.create({
+            email: cleanEmail,
+            name: cleanName,
+            password: defaultPassword,
+            isPasswordChanged,
+            role: UserRole.STUDENT,
+            status: UserStatus.INVITED, // Silent whitelist per Gmail rule
+            whatsapp: item.whatsapp
+              ? item.whatsapp.replace(/\D/g, '')
+              : undefined,
+            institution: item.institution ? item.institution.trim() : undefined,
+            studyProgram: item.studyProgram
+              ? item.studyProgram.trim()
+              : undefined,
+            selectedProgram: item.selectedProgram
+              ? item.selectedProgram.trim()
+              : undefined,
+          }),
+        );
         importedCount++;
       } else {
         if (item.whatsapp) user.whatsapp = item.whatsapp.replace(/\D/g, '');
         if (item.institution) user.institution = item.institution.trim();
         if (item.studyProgram) user.studyProgram = item.studyProgram.trim();
-        if (item.selectedProgram) user.selectedProgram = item.selectedProgram.trim();
+        if (item.selectedProgram)
+          user.selectedProgram = item.selectedProgram.trim();
         await this.userRepository.save(user);
         importedCount++;
       }
 
       // 2. Auto-Enrollment into selectedProgram within target Batch
       if (user.selectedProgram) {
-        let prog = programs.find(p => p.name.toLowerCase() === user.selectedProgram?.toLowerCase());
+        let prog = programs.find(
+          (p) => p.name.toLowerCase() === user.selectedProgram?.toLowerCase(),
+        );
         if (!prog) {
-          prog = await this.programRepository.save(this.programRepository.create({
-            name: user.selectedProgram,
-            description: `Program studi ${user.selectedProgram}`,
-          }));
+          prog = await this.programRepository.save(
+            this.programRepository.create({
+              name: user.selectedProgram,
+              description: `Program studi ${user.selectedProgram}`,
+            }),
+          );
           programs.push(prog);
 
           if (!batch.includedProgramIds) batch.includedProgramIds = [];
@@ -922,47 +1251,75 @@ export class ClassesService {
           }
         }
 
-        let cls = await this.classRepository.findOne({ where: { programId: prog.id, batchId: batch.id } });
+        let cls = await this.classRepository.findOne({
+          where: { programId: prog.id, batchId: batch.id },
+        });
         if (!cls) {
-          cls = await this.classRepository.save(this.classRepository.create({
-            programId: prog.id,
-            batchId: batch.id,
-          }));
+          cls = await this.classRepository.save(
+            this.classRepository.create({
+              programId: prog.id,
+              batchId: batch.id,
+            }),
+          );
         }
 
-        const existingEnroll = await this.enrollmentRepository.findOne({ where: { studentId: user.id, classId: cls.id } });
+        const existingEnroll = await this.enrollmentRepository.findOne({
+          where: { studentId: user.id, classId: cls.id },
+        });
         if (!existingEnroll) {
-          await this.enrollmentRepository.save(this.enrollmentRepository.create({
-            studentId: user.id,
-            classId: cls.id,
-          }));
+          await this.enrollmentRepository.save(
+            this.enrollmentRepository.create({
+              studentId: user.id,
+              classId: cls.id,
+            }),
+          );
           enrolledCount++;
-          distributionSummary[prog.name] = (distributionSummary[prog.name] || 0) + 1;
+          distributionSummary[prog.name] =
+            (distributionSummary[prog.name] || 0) + 1;
         }
       }
     }
 
     // 3. Auto-Distribution across mentors for each program in this batch
     if (payload.autoDistribute) {
-      const allMentors = await this.userRepository.find({ where: { roles: Like(`%"${UserRole.MENTOR}"%`) as any, status: UserStatus.ACTIVE } });
-      const batchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
+      const allMentors = await this.userRepository.find({
+        where: {
+          roles: Like(`%"${UserRole.MENTOR}"%`) as any,
+          status: UserStatus.ACTIVE,
+        },
+      });
+      const batchClasses = await this.classRepository.find({
+        where: { batchId: batch.id },
+      });
       const allEnrollments = await this.enrollmentRepository.find();
 
       for (const prog of programs) {
-        const progMentors = allMentors.filter(m => m.selectedProgram === prog.name || batchClasses.some(c => c.programId === prog.id && c.mentorId === m.id));
+        const progMentors = allMentors.filter(
+          (m) =>
+            m.selectedProgram === prog.name ||
+            batchClasses.some(
+              (c) => c.programId === prog.id && c.mentorId === m.id,
+            ),
+        );
         if (progMentors.length > 0) {
-          const progClasses = batchClasses.filter(c => c.programId === prog.id);
-          const progEnrollments = allEnrollments.filter(e => progClasses.some(c => c.id === e.classId));
+          const progClasses = batchClasses.filter(
+            (c) => c.programId === prog.id,
+          );
+          const progEnrollments = allEnrollments.filter((e) =>
+            progClasses.some((c) => c.id === e.classId),
+          );
 
           const mentorClasses: Class[] = [];
           for (const m of progMentors) {
-            let mCls = progClasses.find(c => c.mentorId === m.id);
+            let mCls = progClasses.find((c) => c.mentorId === m.id);
             if (!mCls) {
-              mCls = await this.classRepository.save(this.classRepository.create({
-                programId: prog.id,
-                batchId: batch.id,
-                mentorId: m.id,
-              }));
+              mCls = await this.classRepository.save(
+                this.classRepository.create({
+                  programId: prog.id,
+                  batchId: batch.id,
+                  mentorId: m.id,
+                }),
+              );
               progClasses.push(mCls);
             }
             mentorClasses.push(mCls);
@@ -989,25 +1346,33 @@ export class ClassesService {
   }
 
   async createProgramBatch(payload: { programId: string; batchName: string }) {
-    const prog = await this.programRepository.findOne({ where: { id: payload.programId } });
+    const prog = await this.programRepository.findOne({
+      where: { id: payload.programId },
+    });
     if (!prog) throw new NotFoundException('Program studi tidak ditemukan');
 
     // Archive any existing active batch for this program
-    const existingActive = await this.batchRepository.find({ where: { programId: prog.id, status: BatchStatus.ACTIVE } });
+    const existingActive = await this.batchRepository.find({
+      where: { programId: prog.id, status: BatchStatus.ACTIVE },
+    });
     for (const b of existingActive) {
       b.status = BatchStatus.COMPLETED;
       await this.batchRepository.save(b);
     }
 
     // Create new active batch
-    const newBatch = (await this.batchRepository.save(this.batchRepository.create({
-      name: payload.batchName,
-      programId: prog.id,
-      status: BatchStatus.ACTIVE
-    }))) as Batch;
+    const newBatch = await this.batchRepository.save(
+      this.batchRepository.create({
+        name: payload.batchName,
+        programId: prog.id,
+        status: BatchStatus.ACTIVE,
+      }),
+    );
 
     // Create or update class for this program to point to the new batch
-    let cls = await this.classRepository.findOne({ where: { programId: prog.id } });
+    let cls = await this.classRepository.findOne({
+      where: { programId: prog.id },
+    });
     if (!cls) {
       cls = this.classRepository.create({
         programId: prog.id,
@@ -1018,7 +1383,11 @@ export class ClassesService {
     }
     await this.classRepository.save(cls);
 
-    return { success: true, batch: newBatch, message: `Batch baru "${payload.batchName}" berhasil dibuat untuk program ${prog.name}` };
+    return {
+      success: true,
+      batch: newBatch,
+      message: `Batch baru "${payload.batchName}" berhasil dibuat untuk program ${prog.name}`,
+    };
   }
 
   async enrollStudentToProgram(payload: {
@@ -1028,26 +1397,42 @@ export class ClassesService {
     isCase3Transfer?: boolean;
   }) {
     // Validate program exists first
-    const program = await this.programRepository.findOne({ where: { name: payload.programName } });
+    const program = await this.programRepository.findOne({
+      where: { name: payload.programName },
+    });
     if (!program) {
-      throw new BadRequestException(`Program studi "${payload.programName}" tidak ditemukan di database.`);
+      throw new BadRequestException(
+        `Program studi "${payload.programName}" tidak ditemukan di database.`,
+      );
     }
 
     // Validate active batch exists BEFORE any state mutation (Rule 27 + Entitas 5)
-    const batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    const batch = await this.batchRepository.findOne({
+      where: { status: BatchStatus.ACTIVE },
+    });
     if (!batch) {
-      throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum mendaftarkan siswa.');
+      throw new BadRequestException(
+        'Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum mendaftarkan siswa.',
+      );
     }
 
-    const student = await this.userRepository.findOne({ where: { id: payload.studentId } });
+    const student = await this.userRepository.findOne({
+      where: { id: payload.studentId },
+    });
     if (!student) throw new NotFoundException('Siswa tidak ditemukan');
 
     const oldProgram = student.selectedProgram;
 
     // Rule 25: CASE 3 CLEAN TRANSFER & PROGRESS RESET
-    if (oldProgram && oldProgram !== payload.programName && payload.isCase3Transfer) {
+    if (
+      oldProgram &&
+      oldProgram !== payload.programName &&
+      payload.isCase3Transfer
+    ) {
       await this.enrollmentRepository.delete({ studentId: student.id });
-      console.log(`[Clean Transfer] Removed all enrollments and progress for student ${student.email} from ${oldProgram}`);
+      console.log(
+        `[Clean Transfer] Removed all enrollments and progress for student ${student.email} from ${oldProgram}`,
+      );
     }
 
     student.selectedProgram = payload.programName;
@@ -1066,41 +1451,61 @@ export class ClassesService {
         where: {
           programId: program.id,
           batchId: batch.id,
-          mentorId: Not(IsNull())
-        }
+          mentorId: Not(IsNull()),
+        },
       });
       if (classWithMentor?.mentorId) {
         mentorIdToUse = classWithMentor.mentorId;
       } else {
         // 2. Try to find any mentor user assigned to this program (active or invited status!)
         const mentors = await this.userRepository.find();
-        const anyMentor = mentors.find(u =>
-          (u.roles?.includes(UserRole.MENTOR) || u.role === UserRole.MENTOR) &&
-          u.selectedProgram === payload.programName
+        const anyMentor = mentors.find(
+          (u) =>
+            (u.roles?.includes(UserRole.MENTOR) ||
+              u.role === UserRole.MENTOR) &&
+            u.selectedProgram === payload.programName,
         );
         mentorIdToUse = anyMentor?.id;
       }
     }
 
     if (mentorIdToUse) {
-      const mentor = await this.userRepository.findOne({ where: { id: mentorIdToUse } });
+      const mentor = await this.userRepository.findOne({
+        where: { id: mentorIdToUse },
+      });
       if (mentor) {
         const spec = mentor.specialization || '';
         if (payload.programName.includes('AI')) {
           if (!spec.includes('AI')) {
-            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program AI (Rule 1).`);
+            throw new BadRequestException(
+              `Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program AI (Rule 1).`,
+            );
           }
         } else if (payload.programName.includes('Game')) {
           if (!spec.includes('Game')) {
-            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Game (Rule 2).`);
+            throw new BadRequestException(
+              `Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Game (Rule 2).`,
+            );
           }
         } else if (payload.programName.includes('Web')) {
-          if (!spec.includes('Web') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
-            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Web (Rule 3).`);
+          if (
+            !spec.includes('Web') &&
+            !spec.includes('UI/UX') &&
+            !spec.includes('Professional')
+          ) {
+            throw new BadRequestException(
+              `Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Web (Rule 3).`,
+            );
           }
         } else if (payload.programName.includes('Mobile')) {
-          if (!spec.includes('Mobile') && !spec.includes('UI/UX') && !spec.includes('Professional')) {
-            throw new BadRequestException(`Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Mobile (Rule 4).`);
+          if (
+            !spec.includes('Mobile') &&
+            !spec.includes('UI/UX') &&
+            !spec.includes('Professional')
+          ) {
+            throw new BadRequestException(
+              `Mentor ${mentor.name} dengan spesialisasi ${spec || 'kosong'} tidak diizinkan membimbing murid di program Mobile (Rule 4).`,
+            );
           }
         }
 
@@ -1115,50 +1520,68 @@ export class ClassesService {
       where: {
         programId: program.id,
         batchId: batch.id,
-        mentorId: mentorIdToUse || IsNull()
-      }
+        mentorId: mentorIdToUse || IsNull(),
+      },
     });
     if (!cls) {
-      cls = await this.classRepository.save(this.classRepository.create({
-        programId: program.id,
-        batchId: batch.id,
-        mentorId: mentorIdToUse || null,
-      }));
+      cls = await this.classRepository.save(
+        this.classRepository.create({
+          programId: program.id,
+          batchId: batch.id,
+          mentorId: mentorIdToUse || null,
+        }),
+      );
     }
 
     // Ensure mentee only has 1 program enrollment per batch
-    const allBatchClasses = await this.classRepository.find({ where: { batchId: batch.id } });
-    const batchClassIds = allBatchClasses.map(c => c.id);
+    const allBatchClasses = await this.classRepository.find({
+      where: { batchId: batch.id },
+    });
+    const batchClassIds = allBatchClasses.map((c) => c.id);
 
-    const existingEnrolls = await this.enrollmentRepository.find({ where: { studentId: student.id } });
+    const existingEnrolls = await this.enrollmentRepository.find({
+      where: { studentId: student.id },
+    });
     for (const e of existingEnrolls) {
       if (batchClassIds.includes(e.classId)) {
         await this.enrollmentRepository.delete({ id: e.id });
       }
     }
 
-    await this.enrollmentRepository.save(this.enrollmentRepository.create({
-      studentId: student.id,
-      classId: cls.id,
-    }));
+    await this.enrollmentRepository.save(
+      this.enrollmentRepository.create({
+        studentId: student.id,
+        classId: cls.id,
+      }),
+    );
 
     return { success: true, student };
   }
 
   async assignMentorToProgram(mentorId: string, programName: string) {
     // Validate program exists first
-    const program = await this.programRepository.findOne({ where: { name: programName } });
+    const program = await this.programRepository.findOne({
+      where: { name: programName },
+    });
     if (!program) {
-      throw new BadRequestException(`Program studi "${programName}" tidak ditemukan di database.`);
+      throw new BadRequestException(
+        `Program studi "${programName}" tidak ditemukan di database.`,
+      );
     }
 
     // Validate active batch exists BEFORE any state mutation
-    const batch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    const batch = await this.batchRepository.findOne({
+      where: { status: BatchStatus.ACTIVE },
+    });
     if (!batch) {
-      throw new BadRequestException('Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum meng-assign mentor.');
+      throw new BadRequestException(
+        'Tidak ada Batch/Cohort aktif. Silakan buat atau aktifkan Batch terlebih dahulu sebelum meng-assign mentor.',
+      );
     }
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     if (!mentor) throw new NotFoundException('Mentor tidak ditemukan');
 
     mentor.selectedProgram = programName;
@@ -1170,13 +1593,17 @@ export class ClassesService {
       await this.batchRepository.save(batch);
     }
 
-    let cls = await this.classRepository.findOne({ where: { programId: program.id, mentorId: mentor.id } });
+    let cls = await this.classRepository.findOne({
+      where: { programId: program.id, mentorId: mentor.id },
+    });
     if (!cls) {
-      cls = await this.classRepository.save(this.classRepository.create({
-        programId: program.id,
-        batchId: batch.id,
-        mentorId: mentor.id,
-      }));
+      cls = await this.classRepository.save(
+        this.classRepository.create({
+          programId: program.id,
+          batchId: batch.id,
+          mentorId: mentor.id,
+        }),
+      );
     }
 
     // Move any students currently in a mentor-less class for this program/batch to this mentor's class
@@ -1184,17 +1611,19 @@ export class ClassesService {
       where: {
         programId: program.id,
         batchId: batch.id,
-        mentorId: IsNull()
-      }
+        mentorId: IsNull(),
+      },
     });
 
     if (mentorlessClass) {
       const mentorlessEnrollments = await this.enrollmentRepository.find({
-        where: { classId: mentorlessClass.id }
+        where: { classId: mentorlessClass.id },
       });
       for (const enroll of mentorlessEnrollments) {
         await this.enrollmentRepository.update(enroll.id, { classId: cls.id });
-        console.log(`[Assign Mentor] Moved student enrollment ${enroll.id} to new mentor ${mentor.name}`);
+        console.log(
+          `[Assign Mentor] Moved student enrollment ${enroll.id} to new mentor ${mentor.name}`,
+        );
       }
     }
 
@@ -1202,33 +1631,47 @@ export class ClassesService {
   }
 
   async distributeModulo(programName: string) {
-    const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    const activeBatch = await this.batchRepository.findOne({
+      where: { status: BatchStatus.ACTIVE },
+    });
     if (!activeBatch) {
-      throw new BadRequestException('Tidak ada Batch/Cohort yang sedang aktif.');
+      throw new BadRequestException(
+        'Tidak ada Batch/Cohort yang sedang aktif.',
+      );
     }
 
-    const program = await this.programRepository.findOne({ where: { name: programName } });
+    const program = await this.programRepository.findOne({
+      where: { name: programName },
+    });
     if (!program) {
       throw new NotFoundException('Program studi tidak ditemukan');
     }
 
     const allUsers = await this.userRepository.find();
-    const programStudents = allUsers.filter(u => u.roles.includes(UserRole.STUDENT) && u.selectedProgram === programName);
+    const programStudents = allUsers.filter(
+      (u) =>
+        u.roles.includes(UserRole.STUDENT) && u.selectedProgram === programName,
+    );
 
-    const batchClasses = await this.classRepository.find({ where: { batchId: activeBatch.id, programId: program.id } });
-    const batchClassIds = batchClasses.map(c => c.id);
+    const batchClasses = await this.classRepository.find({
+      where: { batchId: activeBatch.id, programId: program.id },
+    });
+    const batchClassIds = batchClasses.map((c) => c.id);
     const enrollments = await this.enrollmentRepository.find({
-      where: { classId: In(batchClassIds) }
+      where: { classId: In(batchClassIds) },
     });
 
-    const studentsInBatch = programStudents.filter(s => enrollments.some(e => e.studentId === s.id));
+    const studentsInBatch = programStudents.filter((s) =>
+      enrollments.some((e) => e.studentId === s.id),
+    );
 
     const pNameLower = programName.toLowerCase();
-    const isWebOrMobile = pNameLower.includes('web') || pNameLower.includes('mobile');
+    const isWebOrMobile =
+      pNameLower.includes('web') || pNameLower.includes('mobile');
 
     // ⚖️ Equal Student Distribution:
     // All mentors (regular, professional, UI/UX) assigned to or eligible for this program get an equal share of students.
-    const targetMentors = allUsers.filter(u => {
+    const targetMentors = allUsers.filter((u) => {
       if (!u.roles.includes(UserRole.MENTOR)) return false;
       if (u.status === UserStatus.SUSPENDED) return false;
 
@@ -1236,7 +1679,8 @@ export class ClassesService {
       const isProf = specStr.includes('prof');
       const isUiUx = specStr.includes('ui') || specStr.includes('ux');
 
-      if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) return true;
+      if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower)
+        return true;
       if (u.programId === program.id) return true;
       if (isProf) return true;
       if (isUiUx && isWebOrMobile) return true;
@@ -1245,22 +1689,28 @@ export class ClassesService {
     });
 
     if (targetMentors.length === 0) {
-      throw new BadRequestException('Tidak ada mentor aktif yang terdaftar untuk program ini.');
+      throw new BadRequestException(
+        'Tidak ada mentor aktif yang terdaftar untuk program ini.',
+      );
     }
 
     const totalStudents = studentsInBatch.length;
     if (totalStudents === 0) {
-      throw new BadRequestException('Tidak ada siswa aktif yang terdaftar di batch berjalan pada program ini.');
+      throw new BadRequestException(
+        'Tidak ada siswa aktif yang terdaftar di batch berjalan pada program ini.',
+      );
     }
 
     const getOrCreateClass = async (mentorId: string) => {
-      let cls = batchClasses.find(c => c.mentorId === mentorId);
+      let cls = batchClasses.find((c) => c.mentorId === mentorId);
       if (!cls) {
-        cls = await this.classRepository.save(this.classRepository.create({
-          batchId: activeBatch.id,
-          programId: program.id,
-          mentorId,
-        }));
+        cls = await this.classRepository.save(
+          this.classRepository.create({
+            batchId: activeBatch.id,
+            programId: program.id,
+            mentorId,
+          }),
+        );
         batchClasses.push(cls);
       }
       return cls;
@@ -1275,7 +1725,7 @@ export class ClassesService {
     for (let i = 0; i < studentsInBatch.length; i++) {
       const student = studentsInBatch[i];
       const targetClass = mentorClasses[i % mentorClasses.length];
-      const enroll = enrollments.find(e => e.studentId === student.id);
+      const enroll = enrollments.find((e) => e.studentId === student.id);
       if (enroll) {
         enroll.classId = targetClass.id;
         await this.enrollmentRepository.save(enroll);
@@ -1291,21 +1741,32 @@ export class ClassesService {
       numTargetMentors: targetMentors.length,
       baseAllocationPerMentor: baseAllocation,
       remainder,
-      message: `Berhasil membagi ${totalStudents} murid secara setara kepada ${targetMentors.length} mentor pengampu program. Setiap mentor menerima ${baseAllocation}${remainder > 0 ? ` s/d ${baseAllocation + 1}` : ''} murid.`
+      message: `Berhasil membagi ${totalStudents} murid secara setara kepada ${targetMentors.length} mentor pengampu program. Setiap mentor menerima ${baseAllocation}${remainder > 0 ? ` s/d ${baseAllocation + 1}` : ''} murid.`,
     };
   }
 
   async getCompetencies(programId?: string) {
-    const whereClause = (programId && programId !== 'all') ? [{ programId }, { isGlobal: true }] : {};
+    const whereClause =
+      programId && programId !== 'all'
+        ? [{ programId }, { isGlobal: true }]
+        : {};
     const competencies = await this.competencyRepository.find({
       where: whereClause,
-      relations: { program: true, creatorMentor: true, programCompetency: true },
+      relations: {
+        program: true,
+        creatorMentor: true,
+        programCompetency: true,
+      },
     });
 
     return competencies;
   }
 
-  private validateCompetencyAuthor(programName: string, specialization: string | null, category: string) {
+  private validateCompetencyAuthor(
+    programName: string,
+    specialization: string | null,
+    category: string,
+  ) {
     if (!specialization) return false;
 
     // Rule 9: Soft Skills (CCA) -> Mentor Professional
@@ -1319,7 +1780,12 @@ export class ClassesService {
     }
 
     if (category === 'Design') {
-      return specialization.includes('UI/UX') || specialization.includes('Web') || specialization.includes('Mobile') || specialization.includes('Professional');
+      return (
+        specialization.includes('UI/UX') ||
+        specialization.includes('Web') ||
+        specialization.includes('Mobile') ||
+        specialization.includes('Professional')
+      );
     }
 
     // Category Technical
@@ -1331,20 +1797,41 @@ export class ClassesService {
     if (progLower.includes('game')) return specLower.includes('game');
 
     // Rule 7 & 8: Web and Mobile can be Mentor Web/Mobile or Mentor UI/UX (UI/UX handles Capstone usually, but Rule 7/8 says dipegang bersama untuk Web/Mobile)
-    if (progLower.includes('web')) return specLower.includes('web') || specLower.includes('ui/ux');
-    if (progLower.includes('mobile')) return specLower.includes('mobile') || specLower.includes('ui/ux');
+    if (progLower.includes('web'))
+      return specLower.includes('web') || specLower.includes('ui/ux');
+    if (progLower.includes('mobile'))
+      return specLower.includes('mobile') || specLower.includes('ui/ux');
 
     return false;
   }
 
-  async createCompetency(mentorId: string, payload: { name: string; category: string; programId?: string; isGlobal?: boolean; programCompetencyId?: string }) {
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Hanya mentor yang dapat membuat kompetensi.');
+  async createCompetency(
+    mentorId: string,
+    payload: {
+      name: string;
+      category: string;
+      programId?: string;
+      isGlobal?: boolean;
+      programCompetencyId?: string;
+    },
+  ) {
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException(
+        'Hanya mentor yang dapat membuat kompetensi.',
+      );
 
     let program: any = null;
     if (!payload.isGlobal) {
-      if (!payload.programId) throw new BadRequestException('Program ID diperlukan untuk kompetensi spesifik.');
-      program = await this.programRepository.findOne({ where: { id: payload.programId } });
+      if (!payload.programId)
+        throw new BadRequestException(
+          'Program ID diperlukan untuk kompetensi spesifik.',
+        );
+      program = await this.programRepository.findOne({
+        where: { id: payload.programId },
+      });
       if (!program) throw new NotFoundException('Program tidak ditemukan.');
       // Otoritas ditiadakan sementara agar semua mentor program bisa edit
     }
@@ -1355,19 +1842,30 @@ export class ClassesService {
       programId: payload.isGlobal ? null : payload.programId,
       isGlobal: payload.isGlobal || false,
       creatorMentorId: mentor.id,
-      programCompetency: payload.programCompetencyId ? { id: payload.programCompetencyId } as any : null,
+      programCompetency: payload.programCompetencyId
+        ? { id: payload.programCompetencyId }
+        : undefined,
       programCompetencyId: payload.programCompetencyId || null,
     });
     return await this.competencyRepository.save(competency);
   }
 
-  async updateCompetency(mentorId: string, id: string, payload: { name?: string; category?: string; programCompetencyId?: string }) {
-    const competency = await this.competencyRepository.findOne({ where: { id } });
+  async updateCompetency(
+    mentorId: string,
+    id: string,
+    payload: { name?: string; category?: string; programCompetencyId?: string },
+  ) {
+    const competency = await this.competencyRepository.findOne({
+      where: { id },
+    });
     if (!competency) throw new NotFoundException('Kompetensi tidak ditemukan.');
 
     // Only creators or admins can edit (simplified rule for mentor)
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     const updateData: any = {};
     if (payload.name) updateData.name = payload.name;
@@ -1380,23 +1878,32 @@ export class ClassesService {
       await this.competencyRepository.update(id, updateData);
     }
 
-    return await this.competencyRepository.findOne({ 
+    return await this.competencyRepository.findOne({
       where: { id },
-      relations: { programCompetency: true } 
+      relations: { programCompetency: true },
     });
   }
 
   async deleteCompetency(mentorId: string, id: string) {
-    const competency = await this.competencyRepository.findOne({ where: { id } });
+    const competency = await this.competencyRepository.findOne({
+      where: { id },
+    });
     if (!competency) throw new NotFoundException('Kompetensi tidak ditemukan.');
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     // Check if there are assignments using this competency
-    const assignmentsUsingIt = await this.assignmentRepository.count({ where: { competency: id } });
+    const assignmentsUsingIt = await this.assignmentRepository.count({
+      where: { competency: id },
+    });
     if (assignmentsUsingIt > 0) {
-      throw new ForbiddenException('Tidak dapat menghapus kompetensi karena masih ada tugas yang tertaut.');
+      throw new ForbiddenException(
+        'Tidak dapat menghapus kompetensi karena masih ada tugas yang tertaut.',
+      );
     }
 
     await this.competencyRepository.remove(competency);
@@ -1407,19 +1914,25 @@ export class ClassesService {
 
   async getProgramCompetencies(programId?: string) {
     const whereClause = programId ? [{ programId }, { isGlobal: true }] : {};
-    return await this.programCompetencyRepository.find({ 
+    return await this.programCompetencyRepository.find({
       where: whereClause,
-      relations: { syllabuses: true } 
+      relations: { syllabuses: true },
     });
   }
 
-  async createProgramCompetency(payload: { name: string; category: string; programId?: string; isGlobal?: boolean; syllabuses?: { name: string }[] }) {
+  async createProgramCompetency(payload: {
+    name: string;
+    category: string;
+    programId?: string;
+    isGlobal?: boolean;
+    syllabuses?: { name: string }[];
+  }) {
     const isGlobal = payload.isGlobal ?? !payload.programId;
-    
+
     const pc = this.programCompetencyRepository.create({
       name: payload.name,
       category: payload.category,
-      programId: isGlobal ? null : (payload.programId || null),
+      programId: isGlobal ? null : payload.programId || null,
       isGlobal,
     });
     const savedPc = await this.programCompetencyRepository.save(pc);
@@ -1428,20 +1941,20 @@ export class ClassesService {
     const initialRA = this.rubrikAssessmentRepository.create({
       name: savedPc.name,
       phase: 'Micro', // Micro is used for Initial internally
-      programId: isGlobal ? null : (payload.programId || null),
+      programId: isGlobal ? null : payload.programId || null,
       programCompetency: savedPc,
       isGlobal: isGlobal,
       competencies: [],
-      subAssessments: []
+      subAssessments: [],
     });
     const finalRA = this.rubrikAssessmentRepository.create({
       name: savedPc.name,
       phase: 'Massive', // Massive is used for Final internally
-      programId: isGlobal ? null : (payload.programId || null),
+      programId: isGlobal ? null : payload.programId || null,
       programCompetency: savedPc,
       isGlobal: isGlobal,
       competencies: [],
-      subAssessments: []
+      subAssessments: [],
     });
 
     await this.rubrikAssessmentRepository.save([initialRA, finalRA]);
@@ -1454,8 +1967,8 @@ export class ClassesService {
           programId: savedPc.programId,
           isGlobal: savedPc.isGlobal,
           programCompetency: savedPc,
-          programCompetencyId: savedPc.id
-        })
+          programCompetencyId: savedPc.id,
+        }),
       );
       await this.competencyRepository.save(syllabusEntities);
     }
@@ -1464,11 +1977,15 @@ export class ClassesService {
   }
 
   async deleteProgramCompetency(id: string) {
-    const pc = await this.programCompetencyRepository.findOne({ where: { id } });
+    const pc = await this.programCompetencyRepository.findOne({
+      where: { id },
+    });
     if (!pc) throw new NotFoundException('Program Competency tidak ditemukan.');
-    
+
     // Hapus Kolom Penilaian otomatis yang terhubung
-    const associatedRAs = await this.rubrikAssessmentRepository.find({ where: { programCompetencyId: id } });
+    const associatedRAs = await this.rubrikAssessmentRepository.find({
+      where: { programCompetencyId: id },
+    });
     if (associatedRAs.length > 0) {
       await this.rubrikAssessmentRepository.remove(associatedRAs);
     }
@@ -1476,12 +1993,25 @@ export class ClassesService {
     await this.programCompetencyRepository.remove(pc);
     return { success: true };
   }
-  
+
   // --- Rubrik Assessment Methods ---
 
-  async createRubrikAssessment(mentorId: string, payload: { name: string; programId?: string; phase?: string; competencies?: any[]; subAssessments?: any[]; isGlobal?: boolean }) {
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+  async createRubrikAssessment(
+    mentorId: string,
+    payload: {
+      name: string;
+      programId?: string;
+      phase?: string;
+      competencies?: any[];
+      subAssessments?: any[];
+      isGlobal?: boolean;
+    },
+  ) {
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     const rubrik = this.rubrikAssessmentRepository.create({
       name: payload.name,
@@ -1490,26 +2020,43 @@ export class ClassesService {
       isGlobal: payload.isGlobal || false,
       creatorMentorId: mentor.id,
       competencies: payload.competencies || [],
-      subAssessments: payload.subAssessments || []
+      subAssessments: payload.subAssessments || [],
     });
     return await this.rubrikAssessmentRepository.save(rubrik);
   }
 
   async getRubrikAssessmentsByProgram(programId?: string) {
-    const whereClause = programId ? [{ programId }, { isGlobal: true }] : [{ isGlobal: true }];
+    const whereClause = programId
+      ? [{ programId }, { isGlobal: true }]
+      : [{ isGlobal: true }];
     return await this.rubrikAssessmentRepository.find({
       where: whereClause,
       relations: { programCompetency: true },
-      order: { createdAt: 'ASC' }
+      order: { createdAt: 'ASC' },
     });
   }
 
-  async updateRubrikAssessment(mentorId: string, id: string, payload: { name?: string; phase?: string; competencies?: any[]; subAssessments?: any[] }) {
-    const rubrik = await this.rubrikAssessmentRepository.findOne({ where: { id } });
-    if (!rubrik) throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
+  async updateRubrikAssessment(
+    mentorId: string,
+    id: string,
+    payload: {
+      name?: string;
+      phase?: string;
+      competencies?: any[];
+      subAssessments?: any[];
+    },
+  ) {
+    const rubrik = await this.rubrikAssessmentRepository.findOne({
+      where: { id },
+    });
+    if (!rubrik)
+      throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     if (payload.name) rubrik.name = payload.name;
     if (payload.phase) rubrik.phase = payload.phase;
@@ -1520,11 +2067,17 @@ export class ClassesService {
   }
 
   async deleteRubrikAssessment(mentorId: string, id: string) {
-    const rubrik = await this.rubrikAssessmentRepository.findOne({ where: { id } });
-    if (!rubrik) throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
+    const rubrik = await this.rubrikAssessmentRepository.findOne({
+      where: { id },
+    });
+    if (!rubrik)
+      throw new NotFoundException('Rubrik Assessment tidak ditemukan.');
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     await this.rubrikAssessmentRepository.remove(rubrik);
     return { success: true };
@@ -1532,10 +2085,14 @@ export class ClassesService {
 
   async deleteMaterial(mentorId: string, id: string) {
     const mat = await this.materialRepository.findOne({ where: { id } });
-    if (!mat) throw new NotFoundException('Materi pembelajaran tidak ditemukan.');
+    if (!mat)
+      throw new NotFoundException('Materi pembelajaran tidak ditemukan.');
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     await this.materialRepository.remove(mat);
     return { success: true };
@@ -1545,8 +2102,11 @@ export class ClassesService {
     const ass = await this.assignmentRepository.findOne({ where: { id } });
     if (!ass) throw new NotFoundException('Tugas praktik tidak ditemukan.');
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     await this.submissionRepository.delete({ assignmentId: id });
     await this.assignmentRepository.remove(ass);
@@ -1554,23 +2114,43 @@ export class ClassesService {
   }
 
   async getAssessmentScores(programId: string) {
-    const rubriks = await this.rubrikAssessmentRepository.find({ where: { programId } });
+    const rubriks = await this.rubrikAssessmentRepository.find({
+      where: { programId },
+    });
     if (rubriks.length === 0) return [];
 
     return await this.rubrikAssessmentScoreRepository.find({
-      where: { rubrikAssessmentId: In(rubriks.map(r => r.id)) }
+      where: { rubrikAssessmentId: In(rubriks.map((r) => r.id)) },
     });
   }
 
-  async importAssessmentScores(mentorId: string, programId: string, scores: Array<{ email?: string, name?: string, rubrikAssessmentId: string, score: number }>) {
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
-    if (!mentor || !mentor.roles.includes(UserRole.MENTOR)) throw new ForbiddenException('Akses ditolak.');
+  async importAssessmentScores(
+    mentorId: string,
+    programId: string,
+    scores: Array<{
+      email?: string;
+      name?: string;
+      rubrikAssessmentId: string;
+      score: number;
+    }>,
+  ) {
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
+    if (!mentor || !mentor.roles.includes(UserRole.MENTOR))
+      throw new ForbiddenException('Akses ditolak.');
 
     const allUsers = await this.userRepository.find();
-    const students = allUsers.filter(u => u.roles && u.roles.includes(UserRole.STUDENT));
+    const students = allUsers.filter(
+      (u) => u.roles && u.roles.includes(UserRole.STUDENT),
+    );
 
-    const studentsByEmail = new Map(students.map(s => [s.email.toLowerCase(), s]));
-    const studentsByName = new Map(students.map(s => [s.name.toLowerCase(), s]));
+    const studentsByEmail = new Map(
+      students.map((s) => [s.email.toLowerCase(), s]),
+    );
+    const studentsByName = new Map(
+      students.map((s) => [s.name.toLowerCase(), s]),
+    );
 
     let importedCount = 0;
 
@@ -1587,7 +2167,10 @@ export class ClassesService {
       if (!student) continue;
 
       let record = await this.rubrikAssessmentScoreRepository.findOne({
-        where: { studentId: student.id, rubrikAssessmentId: item.rubrikAssessmentId }
+        where: {
+          studentId: student.id,
+          rubrikAssessmentId: item.rubrikAssessmentId,
+        },
       });
 
       if (!record) {
@@ -1604,18 +2187,37 @@ export class ClassesService {
     return { success: true, importedCount };
   }
 
-  async createMaterial(mentorId: string, classId: string, payload: { title: string; type: string; competency: string; url: string; content?: string }) {
-    const cls = await this.classRepository.findOne({ where: { id: classId }, relations: { batch: true, program: true } });
+  async createMaterial(
+    mentorId: string,
+    classId: string,
+    payload: {
+      title: string;
+      type: string;
+      competency: string;
+      url: string;
+      content?: string;
+    },
+  ) {
+    const cls = await this.classRepository.findOne({
+      where: { id: classId },
+      relations: { batch: true, program: true },
+    });
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
 
     // Rule 23: Batch Read Only
-    if (cls.batch?.status === 'completed') throw new ForbiddenException('Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.');
+    if (cls.batch?.status === 'completed')
+      throw new ForbiddenException(
+        'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
+      );
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
 
     // Validate if mentor is assigned to this class
-    if (cls.mentorId !== mentorId) throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+    if (cls.mentorId !== mentorId)
+      throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     // We skip deep competency validation here assuming the UI filters it properly, but we could re-validate based on category if needed.
 
@@ -1630,17 +2232,36 @@ export class ClassesService {
     return await this.materialRepository.save(material);
   }
 
-  async createAssignment(mentorId: string, classId: string, payload: { title: string; description: string; competency: string; selectedRubrics?: any; dueDate: string }) {
-    const cls = await this.classRepository.findOne({ where: { id: classId }, relations: { batch: true, program: true } });
+  async createAssignment(
+    mentorId: string,
+    classId: string,
+    payload: {
+      title: string;
+      description: string;
+      competency: string;
+      selectedRubrics?: any;
+      dueDate: string;
+    },
+  ) {
+    const cls = await this.classRepository.findOne({
+      where: { id: classId },
+      relations: { batch: true, program: true },
+    });
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
 
     // Rule 23: Batch Read Only
-    if (cls.batch?.status === 'completed') throw new ForbiddenException('Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.');
+    if (cls.batch?.status === 'completed')
+      throw new ForbiddenException(
+        'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
+      );
 
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
 
-    if (cls.mentorId !== mentorId) throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+    if (cls.mentorId !== mentorId)
+      throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     const assignment = this.assignmentRepository.create({
       classId: cls.id,
@@ -1653,12 +2274,12 @@ export class ClassesService {
     return await this.assignmentRepository.save(assignment);
   }
 
-
   async getClassDetails(classId: string) {
     let classEntity: Class | null = null;
 
     // Check if classId is a valid UUID format before querying to prevent Postgres error
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (uuidRegex.test(classId)) {
       classEntity = await this.classRepository.findOne({
         where: { id: classId },
@@ -1675,33 +2296,36 @@ export class ClassesService {
     }
 
     const relatedClasses = await this.classRepository.find({
-      where: { programId: classEntity.programId, batchId: classEntity.batchId }
+      where: { programId: classEntity.programId, batchId: classEntity.batchId },
     });
-    const relatedClassIds = relatedClasses.map(c => c.id);
+    const relatedClassIds = relatedClasses.map((c) => c.id);
 
     classEntity.materials = await this.materialRepository.find({
       where: { classId: In(relatedClassIds) },
-      order: { createdAt: 'ASC' }
+      order: { createdAt: 'ASC' },
     });
     classEntity.assignments = await this.assignmentRepository.find({
       where: { classId: In(relatedClassIds) },
-      order: { createdAt: 'ASC' }
+      order: { createdAt: 'ASC' },
     });
 
     return classEntity;
   }
 
   async getMaterialDetails(classId: string, materialId: string) {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let materialEntity: Material | null = null;
 
     if (uuidRegex.test(materialId) && uuidRegex.test(classId)) {
-      const cls = await this.classRepository.findOne({ where: { id: classId } });
+      const cls = await this.classRepository.findOne({
+        where: { id: classId },
+      });
       if (cls) {
         const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId }
+          where: { programId: cls.programId, batchId: cls.batchId },
         });
-        const relatedClassIds = relatedClasses.map(c => c.id);
+        const relatedClassIds = relatedClasses.map((c) => c.id);
 
         materialEntity = await this.materialRepository.findOne({
           where: { id: materialId, classId: In(relatedClassIds) },
@@ -1717,16 +2341,19 @@ export class ClassesService {
   }
 
   async getAssignmentDetails(classId: string, assignmentId: string) {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let assignmentEntity: Assignment | null = null;
 
     if (uuidRegex.test(assignmentId) && uuidRegex.test(classId)) {
-      const cls = await this.classRepository.findOne({ where: { id: classId } });
+      const cls = await this.classRepository.findOne({
+        where: { id: classId },
+      });
       if (cls) {
         const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId }
+          where: { programId: cls.programId, batchId: cls.batchId },
         });
-        const relatedClassIds = relatedClasses.map(c => c.id);
+        const relatedClassIds = relatedClasses.map((c) => c.id);
 
         assignmentEntity = await this.assignmentRepository.findOne({
           where: { id: assignmentId, classId: In(relatedClassIds) },
@@ -1741,47 +2368,77 @@ export class ClassesService {
     return assignmentEntity;
   }
 
-  async handoverMentor(oldMentorId: string, newMentorId: string, programId: string) {
-    const oldMentor = await this.userRepository.findOne({ where: { id: oldMentorId } });
-    const newMentor = await this.userRepository.findOne({ where: { id: newMentorId } });
+  async handoverMentor(
+    oldMentorId: string,
+    newMentorId: string,
+    programId: string,
+  ) {
+    const oldMentor = await this.userRepository.findOne({
+      where: { id: oldMentorId },
+    });
+    const newMentor = await this.userRepository.findOne({
+      where: { id: newMentorId },
+    });
     if (!oldMentor || !newMentor) {
-      throw new NotFoundException('Mentor lama atau mentor baru tidak ditemukan');
+      throw new NotFoundException(
+        'Mentor lama atau mentor baru tidak ditemukan',
+      );
     }
-    const program = await this.programRepository.findOne({ where: { id: programId } });
+    const program = await this.programRepository.findOne({
+      where: { id: programId },
+    });
     if (!program) {
       throw new NotFoundException('Program studi tidak ditemukan');
     }
 
-    if (!this.validateCompetencyAuthor(program.name, newMentor.specialization, 'Technical')) {
-      throw new BadRequestException(`Mentor baru dengan spesialisasi ${newMentor.specialization || 'Umum'} tidak kompatibel dengan program ${program.name}`);
+    if (
+      !this.validateCompetencyAuthor(
+        program.name,
+        newMentor.specialization,
+        'Technical',
+      )
+    ) {
+      throw new BadRequestException(
+        `Mentor baru dengan spesialisasi ${newMentor.specialization || 'Umum'} tidak kompatibel dengan program ${program.name}`,
+      );
     }
 
-    const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    const activeBatch = await this.batchRepository.findOne({
+      where: { status: BatchStatus.ACTIVE },
+    });
     if (!activeBatch) {
-      throw new BadRequestException('Tidak ada Batch/Cohort yang sedang aktif.');
+      throw new BadRequestException(
+        'Tidak ada Batch/Cohort yang sedang aktif.',
+      );
     }
 
     const oldClasses = await this.classRepository.find({
-      where: { mentorId: oldMentorId, programId, batchId: activeBatch.id }
+      where: { mentorId: oldMentorId, programId, batchId: activeBatch.id },
     });
 
     if (oldClasses.length === 0) {
-      throw new BadRequestException('Mentor lama tidak memiliki kelas aktif pada program ini di Batch berjalan.');
+      throw new BadRequestException(
+        'Mentor lama tidak memiliki kelas aktif pada program ini di Batch berjalan.',
+      );
     }
 
     let transferCount = 0;
     for (const cls of oldClasses) {
-      let newCls = await this.classRepository.findOne({
-        where: { mentorId: newMentorId, programId, batchId: activeBatch.id }
+      const newCls = await this.classRepository.findOne({
+        where: { mentorId: newMentorId, programId, batchId: activeBatch.id },
       });
       if (!newCls) {
         cls.mentorId = newMentorId;
         await this.classRepository.save(cls);
         transferCount++;
       } else {
-        const enrolls = await this.enrollmentRepository.find({ where: { classId: cls.id } });
+        const enrolls = await this.enrollmentRepository.find({
+          where: { classId: cls.id },
+        });
         for (const e of enrolls) {
-          const exist = await this.enrollmentRepository.findOne({ where: { studentId: e.studentId, classId: newCls.id } });
+          const exist = await this.enrollmentRepository.findOne({
+            where: { studentId: e.studentId, classId: newCls.id },
+          });
           if (!exist) {
             e.classId = newCls.id;
             await this.enrollmentRepository.save(e);
@@ -1796,7 +2453,7 @@ export class ClassesService {
 
     return {
       success: true,
-      message: `Berhasil melakukan handover tugas bimbingan dari ${oldMentor.name} ke ${newMentor.name} untuk program ${program.name}. Sebanyak ${transferCount} kelas dialihkan.`
+      message: `Berhasil melakukan handover tugas bimbingan dari ${oldMentor.name} ke ${newMentor.name} untuk program ${program.name}. Sebanyak ${transferCount} kelas dialihkan.`,
     };
   }
 
@@ -1810,22 +2467,30 @@ export class ClassesService {
     const isMentor = user.roles.includes(UserRole.MENTOR);
 
     if (!isStudent && !isMentor) {
-      throw new BadRequestException('Hanya Student dan Mentor yang dapat dikaitkan dengan Cohort/Batch.');
+      throw new BadRequestException(
+        'Hanya Student dan Mentor yang dapat dikaitkan dengan Cohort/Batch.',
+      );
     }
 
     if (isStudent) {
       if (!user.selectedProgram) {
-        throw new BadRequestException('Siswa wajib memiliki program studi sebelum dikaitkan dengan Batch.');
+        throw new BadRequestException(
+          'Siswa wajib memiliki program studi sebelum dikaitkan dengan Batch.',
+        );
       }
-      const program = await this.programRepository.findOne({ where: { name: user.selectedProgram } });
+      const program = await this.programRepository.findOne({
+        where: { name: user.selectedProgram },
+      });
       if (!program) {
-        throw new BadRequestException(`Program studi "${user.selectedProgram}" tidak ditemukan.`);
+        throw new BadRequestException(
+          `Program studi "${user.selectedProgram}" tidak ditemukan.`,
+        );
       }
 
       // Get current enrollments
       const currentEnrollments = await this.enrollmentRepository.find({
         where: { studentId: userId },
-        relations: { class: true }
+        relations: { class: true },
       });
 
       // 1. Remove enrollments that are NOT in the list of batchIds
@@ -1837,41 +2502,61 @@ export class ClassesService {
 
       // 2. Add new enrollments for target batches
       for (const bId of batchIds) {
-        const hasEnroll = currentEnrollments.some(e => e.class.batchId === bId);
+        const hasEnroll = currentEnrollments.some(
+          (e) => e.class.batchId === bId,
+        );
         if (!hasEnroll) {
           // Find or create class for this program and batch
-          let cls = await this.classRepository.findOne({ where: { programId: program.id, batchId: bId } });
+          let cls = await this.classRepository.findOne({
+            where: { programId: program.id, batchId: bId },
+          });
           if (!cls) {
             // Find an active mentor for this program to set as initial mentor, if any
-            const activeMentors = await this.userRepository.find({ where: { status: UserStatus.ACTIVE } });
-            const anyMentor = activeMentors.find(u => u.roles.includes(UserRole.MENTOR) && u.selectedProgram === user.selectedProgram);
-            cls = await this.classRepository.save(this.classRepository.create({
-              programId: program.id,
-              batchId: bId,
-              mentorId: anyMentor?.id || null,
-            }));
+            const activeMentors = await this.userRepository.find({
+              where: { status: UserStatus.ACTIVE },
+            });
+            const anyMentor = activeMentors.find(
+              (u) =>
+                u.roles.includes(UserRole.MENTOR) &&
+                u.selectedProgram === user.selectedProgram,
+            );
+            cls = await this.classRepository.save(
+              this.classRepository.create({
+                programId: program.id,
+                batchId: bId,
+                mentorId: anyMentor?.id || null,
+              }),
+            );
           }
 
-          await this.enrollmentRepository.save(this.enrollmentRepository.create({
-            studentId: userId,
-            classId: cls.id,
-          }));
+          await this.enrollmentRepository.save(
+            this.enrollmentRepository.create({
+              studentId: userId,
+              classId: cls.id,
+            }),
+          );
         }
       }
     }
 
     if (isMentor) {
       if (!user.selectedProgram) {
-        throw new BadRequestException('Mentor wajib memiliki program studi sebelum dikaitkan dengan Batch.');
+        throw new BadRequestException(
+          'Mentor wajib memiliki program studi sebelum dikaitkan dengan Batch.',
+        );
       }
-      const program = await this.programRepository.findOne({ where: { name: user.selectedProgram } });
+      const program = await this.programRepository.findOne({
+        where: { name: user.selectedProgram },
+      });
       if (!program) {
-        throw new BadRequestException(`Program studi "${user.selectedProgram}" tidak ditemukan.`);
+        throw new BadRequestException(
+          `Program studi "${user.selectedProgram}" tidak ditemukan.`,
+        );
       }
 
       // Find all classes assigned to this mentor
       const currentClasses = await this.classRepository.find({
-        where: { mentorId: userId }
+        where: { mentorId: userId },
       });
 
       // 1. Unassign from classes that are NOT in batchIds
@@ -1884,18 +2569,22 @@ export class ClassesService {
 
       // 2. Assign to classes in target batchIds
       for (const bId of batchIds) {
-        const isAssigned = currentClasses.some(c => c.batchId === bId);
+        const isAssigned = currentClasses.some((c) => c.batchId === bId);
         if (!isAssigned) {
-          let cls = await this.classRepository.findOne({ where: { programId: program.id, batchId: bId } });
+          const cls = await this.classRepository.findOne({
+            where: { programId: program.id, batchId: bId },
+          });
           if (cls) {
             cls.mentorId = userId;
             await this.classRepository.save(cls);
           } else {
-            await this.classRepository.save(this.classRepository.create({
-              programId: program.id,
-              batchId: bId,
-              mentorId: userId
-            }));
+            await this.classRepository.save(
+              this.classRepository.create({
+                programId: program.id,
+                batchId: bId,
+                mentorId: userId,
+              }),
+            );
           }
         }
       }
@@ -1923,12 +2612,19 @@ export class ClassesService {
     };
   }
 
-  async submitAssignment(studentId: string, assignmentId: string, link: string) {
+  async submitAssignment(
+    studentId: string,
+    assignmentId: string,
+    link: string,
+  ) {
     let submission = await this.submissionRepository.findOne({
       where: { studentId, assignmentId },
     });
     if (!submission) {
-      submission = this.submissionRepository.create({ studentId, assignmentId });
+      submission = this.submissionRepository.create({
+        studentId,
+        assignmentId,
+      });
     }
     submission.link = link;
     submission.status = 'submitted';
@@ -1939,7 +2635,7 @@ export class ClassesService {
   async getStudentSubmission(studentId: string, assignmentId: string) {
     return this.submissionRepository.findOne({
       where: { studentId, assignmentId },
-      relations: { assignment: true }
+      relations: { assignment: true },
     });
   }
 
@@ -1950,10 +2646,15 @@ export class ClassesService {
     });
   }
 
-  async gradeSubmission(submissionId: string, mentorId: string, score: number, manualFeedback: string) {
+  async gradeSubmission(
+    submissionId: string,
+    mentorId: string,
+    score: number,
+    manualFeedback: string,
+  ) {
     const submission = await this.submissionRepository.findOne({
       where: { id: submissionId },
-      relations: { assignment: true }
+      relations: { assignment: true },
     });
     if (!submission) throw new NotFoundException('Submission not found');
 
@@ -1966,7 +2667,8 @@ export class ClassesService {
       const submittedAt = new Date(submission.createdAt);
       if (submittedAt > dueDate) {
         finalScore = Math.max(0, finalScore - 2);
-        const lateMsg = '[Sistem] Mentee mengumpulkan terlambat. Nilai dikurangi 2 poin secara otomatis.';
+        const lateMsg =
+          '[Sistem] Mentee mengumpulkan terlambat. Nilai dikurangi 2 poin secara otomatis.';
         feedback = feedback ? feedback + '\n\n' + lateMsg : lateMsg;
       }
     }
@@ -1991,7 +2693,12 @@ export class ClassesService {
 
     let rubric = null;
     if (assignment.competency) {
-      const competencyObj = await this.competencyRepository.findOne({ where: { name: assignment.competency, program: { id: assignment.class.program.id } } });
+      const competencyObj = await this.competencyRepository.findOne({
+        where: {
+          name: assignment.competency,
+          program: { id: assignment.class.program.id },
+        },
+      });
       if (competencyObj) rubric = competencyObj.rubric;
     }
 
@@ -2028,7 +2735,8 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       console.error('AI evaluation failed', e);
       // Fallback draft if ollama is not reachable or fails
       submission.score = 75;
-      submission.aiFeedback = "Evaluasi AI gagal atau server AI tidak aktif. Ini adalah nilai draft fallback.";
+      submission.aiFeedback =
+        'Evaluasi AI gagal atau server AI tidak aktif. Ini adalah nilai draft fallback.';
       submission.status = 'ai_draft';
       await this.submissionRepository.save(submission);
       return { success: true, submission, message: 'AI fallback used' };
@@ -2052,39 +2760,79 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     };
   }
 
-  async saveMentorAiConfig(userId: string, dto: {
-    githubToken?: string;
-    figmaToken?: string;
-    googleAiStudioKey?: string;
-    groqApiKey?: string;
-    aiProvider?: string;
-    ollamaHost?: string;
-    selectedModel?: string;
-    selectedOllamaModel?: string;
-    selectedGroqModel?: string;
-    selectedGeminiModel?: string;
-  }) {
+  async saveMentorAiConfig(
+    userId: string,
+    dto: {
+      githubToken?: string;
+      figmaToken?: string;
+      googleAiStudioKey?: string;
+      groqApiKey?: string;
+      aiProvider?: string;
+      ollamaHost?: string;
+      selectedModel?: string;
+      selectedOllamaModel?: string;
+      selectedGroqModel?: string;
+      selectedGeminiModel?: string;
+    },
+  ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User tidak ditemukan.');
 
-    if (dto.githubToken !== undefined) user.githubToken = dto.githubToken || null;
+    if (dto.githubToken !== undefined)
+      user.githubToken = dto.githubToken || null;
     if (dto.figmaToken !== undefined) user.figmaToken = dto.figmaToken || null;
-    if (dto.googleAiStudioKey !== undefined) user.googleAiStudioKey = dto.googleAiStudioKey || null;
+    if (dto.googleAiStudioKey !== undefined)
+      user.googleAiStudioKey = dto.googleAiStudioKey || null;
     if (dto.groqApiKey !== undefined) user.groqApiKey = dto.groqApiKey || null;
     if (dto.aiProvider) user.aiProvider = dto.aiProvider;
-    if (dto.ollamaHost) user.ollamaHost = dto.ollamaHost;
-    if (dto.selectedModel !== undefined) user.selectedModel = dto.selectedModel || null;
-    if (dto.selectedOllamaModel !== undefined) user.selectedOllamaModel = dto.selectedOllamaModel || null;
-    if (dto.selectedGroqModel !== undefined) user.selectedGroqModel = dto.selectedGroqModel || null;
-    if (dto.selectedGeminiModel !== undefined) user.selectedGeminiModel = dto.selectedGeminiModel || null;
+    if (dto.ollamaHost) {
+      try {
+        const parsed = new URL(dto.ollamaHost);
+        // Only allow http/https, reject file://, ftp://, etc.
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          throw new BadRequestException('ollamaHost hanya boleh menggunakan http atau https.');
+        }
+        // Block internal network IPs (SSRF prevention)
+        const blockedPatterns = [
+          /^169\.254\./,    // Link-local
+          /^10\./,          // Private Class A
+          /^172\.(1[6-9]|2\d|3[01])\./, // Private Class B
+          /^192\.168\./,    // Private Class C
+          /^127\./,         // Loopback
+          /^0\./,           // Current network
+          /^::1$/,          // IPv6 loopback
+          /^fd/,            // IPv6 ULA
+        ];
+        if (blockedPatterns.some(p => p.test(parsed.hostname))) {
+          throw new BadRequestException('ollamaHost tidak boleh mengarah ke jaringan internal.');
+        }
+        user.ollamaHost = dto.ollamaHost;
+      } catch (e) {
+        if (e instanceof BadRequestException) throw e;
+        throw new BadRequestException('Format ollamaHost tidak valid.');
+      }
+    }
+    if (dto.selectedModel !== undefined)
+      user.selectedModel = dto.selectedModel || null;
+    if (dto.selectedOllamaModel !== undefined)
+      user.selectedOllamaModel = dto.selectedOllamaModel || null;
+    if (dto.selectedGroqModel !== undefined)
+      user.selectedGroqModel = dto.selectedGroqModel || null;
+    if (dto.selectedGeminiModel !== undefined)
+      user.selectedGeminiModel = dto.selectedGeminiModel || null;
 
     // Automatically set default selectedModel matching active aiProvider
     if (user.aiProvider === 'groq') {
-      user.selectedModel = user.selectedGroqModel || user.selectedModel || 'llama-3.3-70b-versatile';
+      user.selectedModel =
+        user.selectedGroqModel ||
+        user.selectedModel ||
+        'llama-3.3-70b-versatile';
     } else if (user.aiProvider === 'gemini') {
-      user.selectedModel = user.selectedGeminiModel || user.selectedModel || 'gemini-2.5-flash';
+      user.selectedModel =
+        user.selectedGeminiModel || user.selectedModel || 'gemini-2.5-flash';
     } else {
-      user.selectedModel = user.selectedOllamaModel || user.selectedModel || 'gemma3:1b';
+      user.selectedModel =
+        user.selectedOllamaModel || user.selectedModel || 'gemma3:1b';
     }
 
     await this.userRepository.save(user);
@@ -2108,7 +2856,9 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       googleAiStudioKey?: string;
     },
   ) {
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     if (!mentor) throw new NotFoundException('Mentor tidak ditemukan.');
 
     const assignment = await this.assignmentRepository.findOne({
@@ -2120,14 +2870,18 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     let rubric: any = null;
     if (assignment.competency) {
       const competencyObj = await this.competencyRepository.findOne({
-        where: { name: assignment.competency, program: { id: assignment.class?.program?.id } },
+        where: {
+          name: assignment.competency,
+          program: { id: assignment.class?.program?.id },
+        },
       });
       if (competencyObj?.rubric) {
         const fullRubric = competencyObj.rubric;
         const selRubrics = assignment.selectedRubrics;
         if (selRubrics && Array.isArray(selRubrics) && selRubrics.length > 0) {
           const filteredCriteria = (fullRubric.criteria || []).filter(
-            (c: any) => selRubrics.includes(c.id) || selRubrics.includes(c.title)
+            (c: any) =>
+              selRubrics.includes(c.id) || selRubrics.includes(c.title),
           );
           const validCritIds = filteredCriteria.map((c: any) => c.id);
 
@@ -2135,7 +2889,11 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
           const filteredCells: Record<string, string> = {};
           if (fullRubric.cells) {
             Object.entries(fullRubric.cells).forEach(([key, val]) => {
-              if (validCritIds.some((critId: string) => key.startsWith(`${critId}-`))) {
+              if (
+                validCritIds.some((critId: string) =>
+                  key.startsWith(`${critId}-`),
+                )
+              ) {
                 filteredCells[key] = val as string;
               }
             });
@@ -2168,9 +2926,13 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     const figmaToken = mentor.figmaToken || undefined;
 
     let hostOrApiKey = '';
-    if (provider === 'ollama') hostOrApiKey = dto.ollamaHost || mentor.ollamaHost || 'http://localhost:11434';
-    else if (provider === 'groq') hostOrApiKey = dto.groqApiKey || mentor.groqApiKey || '';
-    else if (provider === 'gemini') hostOrApiKey = dto.googleAiStudioKey || mentor.googleAiStudioKey || '';
+    if (provider === 'ollama')
+      hostOrApiKey =
+        dto.ollamaHost || mentor.ollamaHost || 'http://localhost:11434';
+    else if (provider === 'groq')
+      hostOrApiKey = dto.groqApiKey || mentor.groqApiKey || '';
+    else if (provider === 'gemini')
+      hostOrApiKey = dto.googleAiStudioKey || mentor.googleAiStudioKey || '';
 
     const results: Array<{
       submissionId: string;
@@ -2181,7 +2943,10 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       status: string;
     }> = [];
 
-    const batchSize = Math.max(1, dto.batchSize || (provider === 'ollama' ? submissions.length : 5));
+    const batchSize = Math.max(
+      1,
+      dto.batchSize || (provider === 'ollama' ? submissions.length : 5),
+    );
 
     let rateLimitErrorMessage: string | null = null;
 
@@ -2193,18 +2958,19 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
       const chunkPromises = chunk.map(async (sub) => {
         try {
-          const evalResult = await this.aiEvaluatorService.evaluateSubmissionWithAi({
-            link: sub.link,
-            competencyName: assignment.competency,
-            rubric,
-            assignmentTitle: assignment.title,
-            assignmentInstruction: assignment.description,
-            provider,
-            hostOrApiKey,
-            model,
-            githubToken,
-            figmaToken,
-          });
+          const evalResult =
+            await this.aiEvaluatorService.evaluateSubmissionWithAi({
+              link: sub.link,
+              competencyName: assignment.competency,
+              rubric,
+              assignmentTitle: assignment.title,
+              assignmentInstruction: assignment.description,
+              provider,
+              hostOrApiKey,
+              model,
+              githubToken,
+              figmaToken,
+            });
 
           if (!evalResult.isVideo) {
             sub.score = evalResult.score;
@@ -2226,9 +2992,14 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
             status: sub.status,
           };
         } catch (err: any) {
-          if (err.isRateLimit || err.isOffline || err instanceof BadRequestException) {
+          if (
+            err.isRateLimit ||
+            err.isOffline ||
+            err instanceof BadRequestException
+          ) {
             stopLoop = true;
-            rateLimitErrorMessage = err.message || 'Terjadi kesalahan pada Provider AI.';
+            rateLimitErrorMessage =
+              err.message || 'Terjadi kesalahan pada Provider AI.';
           }
           return null;
         }
@@ -2250,15 +3021,22 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     };
   }
 
-  async updateAssignmentWeights(updates: Array<{ id: string; weight: number }>) {
+  async updateAssignmentWeights(
+    updates: Array<{ id: string; weight: number }>,
+  ) {
     for (const update of updates) {
-      await this.assignmentRepository.update({ id: update.id }, { weight: update.weight });
+      await this.assignmentRepository.update(
+        { id: update.id },
+        { weight: update.weight },
+      );
     }
     return { success: true, message: 'Weights updated' };
   }
   // ================= LOGBOOK BULANAN =================
   async getStudentLogbooks(studentId: string, batchId: string) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch not found');
 
     // Auto-calculate total months from batch startDate and endDate
@@ -2266,14 +3044,17 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     if (batch.startDate && batch.endDate) {
       const start = new Date(batch.startDate);
       const end = new Date(batch.endDate);
-      totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+      totalMonths =
+        (end.getFullYear() - start.getFullYear()) * 12 +
+        (end.getMonth() - start.getMonth()) +
+        1;
     }
 
     if (totalMonths <= 0) totalMonths = 1; // Fallback to at least 1 month if misconfigured
 
     const logbooks = await this.logbookRepository.find({
       where: { studentId, batchId },
-      order: { monthIndex: 'ASC' }
+      order: { monthIndex: 'ASC' },
     });
 
     return { totalMonths, startDate: batch.startDate, logbooks };
@@ -2281,19 +3062,32 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
   async submitLogbook(studentId: string, batchId: string, payload: any) {
     // Validate word count (min 200 words total)
-    const totalWords = (payload.q1_experience + ' ' + payload.q2_progress + ' ' + payload.q3_challenges + ' ' + payload.q4_competencies)
-      .trim().split(/\s+/).length;
+    const totalWords = (
+      payload.q1_experience +
+      ' ' +
+      payload.q2_progress +
+      ' ' +
+      payload.q3_challenges +
+      ' ' +
+      payload.q4_competencies
+    )
+      .trim()
+      .split(/\s+/).length;
 
     if (totalWords < 200) {
-      throw new BadRequestException('Logbook harus berisi minimal 200 kata secara keseluruhan.');
+      throw new BadRequestException(
+        'Logbook harus berisi minimal 200 kata secara keseluruhan.',
+      );
     }
 
     let logbook = await this.logbookRepository.findOne({
-      where: { studentId, batchId, monthIndex: payload.monthIndex }
+      where: { studentId, batchId, monthIndex: payload.monthIndex },
     });
 
     if (logbook && logbook.status === LogbookStatus.ACCEPTED) {
-      throw new ForbiddenException('Logbook yang sudah diterima tidak dapat diubah lagi.');
+      throw new ForbiddenException(
+        'Logbook yang sudah diterima tidak dapat diubah lagi.',
+      );
     }
 
     if (!logbook) {
@@ -2317,38 +3111,45 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     // 1. Get all classes mentored by this mentor in this batch
     const mentoredClasses = await this.classRepository.find({
       where: { mentorId, batchId },
-      relations: { program: true }
+      relations: { program: true },
     });
 
     if (!mentoredClasses.length) return [];
 
-    const classIds = mentoredClasses.map(c => c.id);
+    const classIds = mentoredClasses.map((c) => c.id);
 
     // 2. Get all students enrolled in these classes
     const enrollments = await this.enrollmentRepository.find({
       where: { classId: In(classIds) },
-      relations: { student: true }
+      relations: { student: true },
     });
 
     if (!enrollments.length) return { totalMonths: 1, students: [] };
 
     // Ensure uniqueness if a student is in multiple classes mentored by same mentor (unlikely but safe)
-    const uniqueStudentIds = Array.from(new Set(enrollments.map(e => e.studentId)));
+    const uniqueStudentIds = Array.from(
+      new Set(enrollments.map((e) => e.studentId)),
+    );
 
     // 3. Get all logbooks for these students in this batch
     const logbooks = await this.logbookRepository.find({
       where: { batchId, studentId: In(uniqueStudentIds) },
       relations: { student: true },
-      order: { monthIndex: 'ASC' }
+      order: { monthIndex: 'ASC' },
     });
 
     // We also need the batch total months to render UI properly per student
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     let totalMonths = 0;
     if (batch?.startDate && batch?.endDate) {
       const start = new Date(batch.startDate);
       const end = new Date(batch.endDate);
-      totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+      totalMonths =
+        (end.getFullYear() - start.getFullYear()) * 12 +
+        (end.getMonth() - start.getMonth()) +
+        1;
     }
     if (totalMonths <= 0) totalMonths = 1;
 
@@ -2358,8 +3159,8 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       if (!studentsMap.has(enrollment.studentId)) {
         studentsMap.set(enrollment.studentId, {
           student: enrollment.student,
-          class: mentoredClasses.find(c => c.id === enrollment.classId),
-          logbooks: []
+          class: mentoredClasses.find((c) => c.id === enrollment.classId),
+          logbooks: [],
         });
       }
     }
@@ -2372,29 +3173,36 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     return {
       totalMonths,
-      students: Array.from(studentsMap.values())
+      students: Array.from(studentsMap.values()),
     };
   }
 
-  async reviewLogbook(mentorId: string, logbookId: string, status: LogbookStatus, feedback?: string) {
+  async reviewLogbook(
+    mentorId: string,
+    logbookId: string,
+    status: LogbookStatus,
+    feedback?: string,
+  ) {
     const logbook = await this.logbookRepository.findOne({
       where: { id: logbookId },
-      relations: { batch: true }
+      relations: { batch: true },
     });
 
     if (!logbook) throw new NotFoundException('Logbook not found');
 
     // Verify if mentor has rights to this student's logbook
     const mentoredClasses = await this.classRepository.find({
-      where: { mentorId, batchId: logbook.batchId }
+      where: { mentorId, batchId: logbook.batchId },
     });
-    const classIds = mentoredClasses.map(c => c.id);
+    const classIds = mentoredClasses.map((c) => c.id);
     const enrollment = await this.enrollmentRepository.findOne({
-      where: { studentId: logbook.studentId, classId: In(classIds) }
+      where: { studentId: logbook.studentId, classId: In(classIds) },
     });
 
     if (!enrollment) {
-      throw new ForbiddenException('You are not the mentor of this student in this batch');
+      throw new ForbiddenException(
+        'You are not the mentor of this student in this batch',
+      );
     }
 
     logbook.status = status;
@@ -2406,7 +3214,9 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
   }
 
   async assignMentorToProgramById(programId: string, mentorId: string) {
-    const program = await this.programRepository.findOne({ where: { id: programId } });
+    const program = await this.programRepository.findOne({
+      where: { id: programId },
+    });
     if (!program) {
       throw new BadRequestException('Program studi tidak ditemukan');
     }
@@ -2415,9 +3225,16 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
   async enrollStudentToProgramById(
     programId: string,
-    body: { studentId: string; mentorId?: string; cleanTransfer?: boolean; isCase3Transfer?: boolean },
+    body: {
+      studentId: string;
+      mentorId?: string;
+      cleanTransfer?: boolean;
+      isCase3Transfer?: boolean;
+    },
   ) {
-    const program = await this.programRepository.findOne({ where: { id: programId } });
+    const program = await this.programRepository.findOne({
+      where: { id: programId },
+    });
     if (!program) {
       throw new BadRequestException('Program studi tidak ditemukan');
     }
@@ -2429,21 +3246,35 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     });
   }
 
-  async cloneClassData(mentorId: string, targetClassId: string, sourceClassId: string) {
+  async cloneClassData(
+    mentorId: string,
+    targetClassId: string,
+    sourceClassId: string,
+  ) {
     // Verifikasi bahwa user adalah admin atau mentor dari target class
-    const targetClass = await this.classRepository.findOne({ where: { id: targetClassId } });
-    if (!targetClass) throw new NotFoundException('Kelas target tidak ditemukan');
+    const targetClass = await this.classRepository.findOne({
+      where: { id: targetClassId },
+    });
+    if (!targetClass)
+      throw new NotFoundException('Kelas target tidak ditemukan');
 
-    const sourceClass = await this.classRepository.findOne({ where: { id: sourceClassId } });
-    if (!sourceClass) throw new NotFoundException('Kelas sumber tidak ditemukan');
+    const sourceClass = await this.classRepository.findOne({
+      where: { id: sourceClassId },
+    });
+    if (!sourceClass)
+      throw new NotFoundException('Kelas sumber tidak ditemukan');
 
     // Pastikan programId-nya sama (agar syllabus dan competency ID tetap valid)
     if (targetClass.programId !== sourceClass.programId) {
-      throw new BadRequestException('Tidak bisa melakukan clone dari program studi yang berbeda.');
+      throw new BadRequestException(
+        'Tidak bisa melakukan clone dari program studi yang berbeda.',
+      );
     }
 
     // 1. Clone Materials
-    const sourceMaterials = await this.materialRepository.find({ where: { classId: sourceClassId } });
+    const sourceMaterials = await this.materialRepository.find({
+      where: { classId: sourceClassId },
+    });
     for (const mat of sourceMaterials) {
       const newMat = this.materialRepository.create({
         classId: targetClassId,
@@ -2457,7 +3288,9 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
 
     // 2. Clone Assignments
-    const sourceAssignments = await this.assignmentRepository.find({ where: { classId: sourceClassId } });
+    const sourceAssignments = await this.assignmentRepository.find({
+      where: { classId: sourceClassId },
+    });
     for (const assignment of sourceAssignments) {
       const newAssignment = this.assignmentRepository.create({
         classId: targetClassId,
@@ -2474,13 +3307,25 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     return { success: true, message: 'Data kelas berhasil diduplikasi' };
   }
 
-  async remapClassCompetencies(mentorId: string, classId: string, remappingData: { type: 'material' | 'assignment', id: string, newCompetencyName: string }[]) {
-    const classEntity = await this.classRepository.findOne({ where: { id: classId } });
+  async remapClassCompetencies(
+    mentorId: string,
+    classId: string,
+    remappingData: {
+      type: 'material' | 'assignment';
+      id: string;
+      newCompetencyName: string;
+    }[],
+  ) {
+    const classEntity = await this.classRepository.findOne({
+      where: { id: classId },
+    });
     if (!classEntity) throw new NotFoundException('Kelas tidak ditemukan');
-    
+
     // Verifikasi kepemilikan mentor atau admin
     if (classEntity.mentorId !== mentorId) {
-      const user = await this.userRepository.findOne({ where: { id: mentorId } });
+      const user = await this.userRepository.findOne({
+        where: { id: mentorId },
+      });
       if (!user || !user.roles.includes(UserRole.ADMIN)) {
         throw new ForbiddenException('Akses ditolak');
       }
@@ -2488,13 +3333,17 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     for (const item of remappingData) {
       if (item.type === 'material') {
-        const mat = await this.materialRepository.findOne({ where: { id: item.id, classId: classId } });
+        const mat = await this.materialRepository.findOne({
+          where: { id: item.id, classId: classId },
+        });
         if (mat) {
           mat.competency = item.newCompetencyName;
           await this.materialRepository.save(mat);
         }
       } else if (item.type === 'assignment') {
-        const assignment = await this.assignmentRepository.findOne({ where: { id: item.id, classId: classId } });
+        const assignment = await this.assignmentRepository.findOne({
+          where: { id: item.id, classId: classId },
+        });
         if (assignment) {
           assignment.competency = item.newCompetencyName;
           await this.assignmentRepository.save(assignment);
@@ -2502,14 +3351,19 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       }
     }
 
-    return { success: true, message: 'Pemetaan kompetensi berhasil diperbarui' };
+    return {
+      success: true,
+      message: 'Pemetaan kompetensi berhasil diperbarui',
+    };
   }
 
   async saveMentorMatrix(batchId: string, matrix: Record<string, any>) {
     if (!matrix) return { success: true };
     for (const [programId, mentors] of Object.entries(matrix)) {
       const mentorIds = Array.isArray(mentors)
-        ? mentors.map((m: any) => (typeof m === 'string' ? m : m.id)).filter(Boolean)
+        ? mentors
+            .map((m: any) => (typeof m === 'string' ? m : m.id))
+            .filter(Boolean)
         : typeof mentors === 'string'
           ? [mentors]
           : mentors && mentors.id
@@ -2535,7 +3389,9 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     // 1. Hari Jumat secara otomatis adalah Hari Asynchronous Wajib Global
     if (dayOfWeek === 5) {
-      throw new BadRequestException('Hari Jumat secara otomatis merupakan Hari Asynchronous Wajib.');
+      throw new BadRequestException(
+        'Hari Jumat secara otomatis merupakan Hari Asynchronous Wajib.',
+      );
     }
 
     const existing = await this.mentorAsyncDayRepository.findOne({
@@ -2544,7 +3400,11 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     if (existing) {
       await this.mentorAsyncDayRepository.remove(existing);
-      return { success: true, isAsync: false, message: 'Hari Asynchronous tambahan dibatalkan.' };
+      return {
+        success: true,
+        isAsync: false,
+        message: 'Hari Asynchronous tambahan dibatalkan.',
+      };
     } else {
       // 2. Aturan Kuota: Maksimal +1 Hari Asynchronous Tambahan per minggu kalender (Senin - Kamis)
       const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -2567,17 +3427,22 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
       if (existingInWeek.length >= 1) {
         throw new BadRequestException(
-          `Batas Kuota Terlampaui: Selain hari Jumat (Asynchronous Wajib), Anda hanya diperbolehkan menambah maksimal +1 Hari Asynchronous Tambahan per minggu.`
+          `Batas Kuota Terlampaui: Selain hari Jumat (Asynchronous Wajib), Anda hanya diperbolehkan menambah maksimal +1 Hari Asynchronous Tambahan per minggu.`,
         );
       }
 
       const asyncDay = this.mentorAsyncDayRepository.create({
         mentorId,
         date,
-        note: note || 'Hari Asynchronous Pembelajaran Mandiri (Tambahan Mentor)',
+        note:
+          note || 'Hari Asynchronous Pembelajaran Mandiri (Tambahan Mentor)',
       });
       await this.mentorAsyncDayRepository.save(asyncDay);
-      return { success: true, isAsync: true, message: 'Hari Asynchronous tambahan berhasil ditetapkan.' };
+      return {
+        success: true,
+        isAsync: true,
+        message: 'Hari Asynchronous tambahan berhasil ditetapkan.',
+      };
     }
   }
 
@@ -2596,14 +3461,36 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     });
   }
 
-  async updateBatchPhaseDates(batchId: string, payload: { microStartDate?: string; microEndDate?: string; massiveStartDate?: string; massiveEndDate?: string }) {
-    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+  async updateBatchPhaseDates(
+    batchId: string,
+    payload: {
+      microStartDate?: string;
+      microEndDate?: string;
+      massiveStartDate?: string;
+      massiveEndDate?: string;
+    },
+  ) {
+    const batch = await this.batchRepository.findOne({
+      where: { id: batchId },
+    });
     if (!batch) throw new NotFoundException('Batch tidak ditemukan.');
 
-    if (payload.microStartDate !== undefined) batch.microStartDate = payload.microStartDate ? new Date(payload.microStartDate) : null;
-    if (payload.microEndDate !== undefined) batch.microEndDate = payload.microEndDate ? new Date(payload.microEndDate) : null;
-    if (payload.massiveStartDate !== undefined) batch.massiveStartDate = payload.massiveStartDate ? new Date(payload.massiveStartDate) : null;
-    if (payload.massiveEndDate !== undefined) batch.massiveEndDate = payload.massiveEndDate ? new Date(payload.massiveEndDate) : null;
+    if (payload.microStartDate !== undefined)
+      batch.microStartDate = payload.microStartDate
+        ? new Date(payload.microStartDate)
+        : null;
+    if (payload.microEndDate !== undefined)
+      batch.microEndDate = payload.microEndDate
+        ? new Date(payload.microEndDate)
+        : null;
+    if (payload.massiveStartDate !== undefined)
+      batch.massiveStartDate = payload.massiveStartDate
+        ? new Date(payload.massiveStartDate)
+        : null;
+    if (payload.massiveEndDate !== undefined)
+      batch.massiveEndDate = payload.massiveEndDate
+        ? new Date(payload.massiveEndDate)
+        : null;
 
     await this.batchRepository.save(batch);
     return { success: true, batch };
@@ -2611,25 +3498,33 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
   async getCompetencyScores(programId?: string) {
     const scores = await this.competencyScoreRepository.find({
-      relations: { competency: true }
+      relations: { competency: true },
     });
 
     if (programId && programId !== 'all') {
-      return scores.filter(s => s.competency && (s.competency.programId === programId || s.competency.isGlobal));
+      return scores.filter(
+        (s) =>
+          s.competency &&
+          (s.competency.programId === programId || s.competency.isGlobal),
+      );
     }
     return scores;
   }
 
-  async upsertCompetencyScore(studentId: string, competencyId: string, score: number) {
+  async upsertCompetencyScore(
+    studentId: string,
+    competencyId: string,
+    score: number,
+  ) {
     let record = await this.competencyScoreRepository.findOne({
-      where: { studentId, competencyId }
+      where: { studentId, competencyId },
     });
 
     if (!record) {
       record = this.competencyScoreRepository.create({
         studentId,
         competencyId,
-        score
+        score,
       });
     } else {
       record.score = score;
@@ -2638,11 +3533,24 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     return await this.competencyScoreRepository.save(record);
   }
 
-  async smartImportScores(mentorId: string, programId: string, payload: {
-    newColumns?: Array<{ name: string; category?: string }>;
-    scores: Array<{ email?: string; name?: string; targetType?: 'competency' | 'rubrik'; targetId?: string; columnName?: string; score: number }>;
-  }) {
-    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+  async smartImportScores(
+    mentorId: string,
+    programId: string,
+    payload: {
+      newColumns?: Array<{ name: string; category?: string }>;
+      scores: Array<{
+        email?: string;
+        name?: string;
+        targetType?: 'competency' | 'rubrik';
+        targetId?: string;
+        columnName?: string;
+        score: number;
+      }>;
+    },
+  ) {
+    const mentor = await this.userRepository.findOne({
+      where: { id: mentorId },
+    });
     if (!mentor) throw new ForbiddenException('Akses ditolak.');
 
     const nameToCompMap = new Map<string, Competency>();
@@ -2658,8 +3566,8 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
         if (!nameToCompMap.has(key)) {
           const newComp = this.competencyRepository.create({
             name: col.name.trim(),
-            programId: (programId && programId !== 'all') ? programId : null,
-            isGlobal: (!programId || programId === 'all'),
+            programId: programId && programId !== 'all' ? programId : null,
+            isGlobal: !programId || programId === 'all',
             category: col.category || 'Technical',
             creatorMentorId: mentorId,
           });
@@ -2670,12 +3578,20 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
 
     const allUsers = await this.userRepository.find();
-    const students = allUsers.filter(u => u.roles && u.roles.includes(UserRole.STUDENT));
-    const studentsByEmail = new Map(students.map(s => [s.email.toLowerCase(), s]));
-    const studentsByName = new Map(students.map(s => [s.name.toLowerCase(), s]));
+    const students = allUsers.filter(
+      (u) => u.roles && u.roles.includes(UserRole.STUDENT),
+    );
+    const studentsByEmail = new Map(
+      students.map((s) => [s.email.toLowerCase(), s]),
+    );
+    const studentsByName = new Map(
+      students.map((s) => [s.name.toLowerCase(), s]),
+    );
 
     const existingRAs = await this.rubrikAssessmentRepository.find();
-    const nameToRaMap = new Map(existingRAs.map(r => [r.name.toLowerCase(), r]));
+    const nameToRaMap = new Map(
+      existingRAs.map((r) => [r.name.toLowerCase(), r]),
+    );
 
     let importedCount = 0;
 
@@ -2708,7 +3624,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
       if (targetType === 'rubrik') {
         let record = await this.rubrikAssessmentScoreRepository.findOne({
-          where: { studentId: student.id, rubrikAssessmentId: compId }
+          where: { studentId: student.id, rubrikAssessmentId: compId },
         });
         if (!record) {
           record = this.rubrikAssessmentScoreRepository.create({
@@ -2729,13 +3645,15 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
   }
 
   async updateProgramLinks(programId: string, links: any[]) {
-    const activeBatch = await this.batchRepository.findOne({ where: { status: BatchStatus.ACTIVE } });
+    const activeBatch = await this.batchRepository.findOne({
+      where: { status: BatchStatus.ACTIVE },
+    });
     if (!activeBatch) {
       throw new BadRequestException('Tidak ada Batch/Cohort aktif.');
     }
 
     const classes = await this.classRepository.find({
-      where: { programId, batchId: activeBatch.id }
+      where: { programId, batchId: activeBatch.id },
     });
 
     if (classes.length === 0) {
@@ -2744,7 +3662,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
           programId,
           batchId: activeBatch.id,
           importantLinks: links,
-        })
+        }),
       );
       return { success: true, updatedCount: 1, links };
     }

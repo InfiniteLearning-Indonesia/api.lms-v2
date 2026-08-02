@@ -15,13 +15,20 @@ import { MentorAsyncDay } from '../classes/entities/mentor-async-day.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Attendance, Holiday, PermissionRequest, Batch, User, MentorAsyncDay]),
+    TypeOrmModule.forFeature([
+      Attendance,
+      Holiday,
+      PermissionRequest,
+      Batch,
+      User,
+      MentorAsyncDay,
+    ]),
     AuthModule,
     UsersModule,
     StorageModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
-  exports: [AttendanceService]
+  exports: [AttendanceService],
 })
 export class AttendanceModule {}

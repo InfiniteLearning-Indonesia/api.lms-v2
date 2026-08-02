@@ -23,12 +23,27 @@ import { AiEvaluatorService } from './services/ai-evaluator.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Program, Batch, Class, Enrollment, Material, Assignment, Competency, ProgramCompetency, RubrikAssessment, RubrikAssessmentScore, CompetencyScore, Submission, Logbook, MentorAsyncDay, User]),
+    TypeOrmModule.forFeature([
+      Program,
+      Batch,
+      Class,
+      Enrollment,
+      Material,
+      Assignment,
+      Competency,
+      ProgramCompetency,
+      RubrikAssessment,
+      RubrikAssessmentScore,
+      CompetencyScore,
+      Submission,
+      Logbook,
+      MentorAsyncDay,
+      User,
+    ]),
     UsersModule,
   ],
   controllers: [ClassesController],
   providers: [ClassesService, AiEvaluatorService],
   exports: [ClassesService, AiEvaluatorService],
 })
-export class ClassesModule { }
-
+export class ClassesModule {}

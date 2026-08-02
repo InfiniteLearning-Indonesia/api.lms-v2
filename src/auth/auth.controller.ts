@@ -6,6 +6,8 @@ import {
   Req,
   Res,
   UseGuards,
+  UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
@@ -14,9 +16,14 @@ import { SessionAuthGuard } from './guards/session-auth.guard.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { User } from '../users/entities/user.entity.js';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
+import * as crypto from 'crypto';
 
 @Controller('auth')
 export class AuthController {
+  private static exchangeCodes = new Map<string, { sessionID: string; userId: string; expiresAt: number }>();
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
@@ -24,24 +31,22 @@ export class AuthController {
 
   @Get('google')
   @UseGuards(GoogleAuthGuard)
-  async googleLogin() {
-    console.log('[AUTH DIAGNOSTIC] Initiating Google OAuth Login redirect...');
-  }
+  async googleLogin() {}
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req: any, @Res() res: Response) {
     try {
-      console.log('[OAUTH DIAGNOSTIC] Google callback received. req.user:', req.user);
       const user = await this.authService.validateUser(req.user);
-      console.log('[OAUTH DIAGNOSTIC] Validated DB User:', user.email, 'ID:', user.id);
 
       req.session.userId = user.id;
       req.session.userEmail = user.email;
 
       const envFrontendUrl = (
-        this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') ||
-        'http://localhost:3000'
+        this.configService.get<string>(
+          'FRONTEND_URL',
+          'http://localhost:3000',
+        ) || 'http://localhost:3000'
       ).replace(/\/$/, '');
 
       let frontendUrl = envFrontendUrl;
@@ -52,38 +57,68 @@ export class AuthController {
         frontendUrl = 'https://lms-v2.infinitelearningstudent.id';
       }
 
-      const token = req.sessionID;
-      const dashboardUrl = `${frontendUrl}/dashboard?token=${token}`;
-      console.log('[OAUTH DIAGNOSTIC] Session ID before save:', token);
-      console.log('[OAUTH DIAGNOSTIC] Saving session & redirecting to:', dashboardUrl);
+      // Generate a short-lived exchange code that maps to the session
+      const exchangeCode = crypto.randomBytes(32).toString('hex');
+      AuthController.exchangeCodes.set(exchangeCode, {
+        sessionID: req.sessionID,
+        userId: user.id,
+        expiresAt: Date.now() + 30000, // 30 seconds
+      });
+      const dashboardUrl = `${frontendUrl}/dashboard?code=${exchangeCode}`;
 
       return req.session.save((err: any) => {
         if (err) {
-          console.error('[OAUTH DIAGNOSTIC ERROR] Session save error:', err);
-        } else {
-          console.log('[OAUTH DIAGNOSTIC SUCCESS] Session saved successfully for user:', user.email);
+          this.logger.error('Session save error:', err);
         }
         return res.redirect(dashboardUrl);
       });
     } catch (error: any) {
-      console.error('[OAUTH DIAGNOSTIC ERROR] Callback failed:', error);
+      this.logger.error('Callback failed:', error);
       const envFrontendUrl = (
-        this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') ||
-        'http://localhost:3000'
+        this.configService.get<string>(
+          'FRONTEND_URL',
+          'http://localhost:3000',
+        ) || 'http://localhost:3000'
       ).replace(/\/$/, '');
       const errorMessage = encodeURIComponent(error.message || 'Login failed');
       return res.redirect(`${envFrontendUrl}/login?error=${errorMessage}`);
     }
   }
 
+  @Post('exchange-code')
+  async exchangeCode(@Body() body: { code: string }, @Req() req: any) {
+    const entry = AuthController.exchangeCodes.get(body.code);
+    if (!entry || entry.expiresAt < Date.now()) {
+      throw new UnauthorizedException('Kode tidak valid atau kedaluwarsa.');
+    }
+    AuthController.exchangeCodes.delete(body.code);
+    
+    // Bind this session to the user
+    req.session.userId = entry.userId;
+    return new Promise((resolve, reject) => {
+      req.session.save((err: any) => {
+        if (err) return reject(err);
+        resolve({ token: req.sessionID });
+      });
+    });
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('check-status')
   async checkStatus(@Body() body: { email: string }) {
     return this.authService.checkEmailStatus(body.email);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login-local')
-  async loginLocal(@Body() body: { email: string; password?: string }, @Req() req: any) {
-    const user = await this.authService.validateLocalUser(body.email, body.password || '');
+  async loginLocal(
+    @Body() body: { email: string; password?: string },
+    @Req() req: any,
+  ) {
+    const user = await this.authService.validateLocalUser(
+      body.email,
+      body.password || '',
+    );
     req.session.userId = user.id;
     req.session.userEmail = user.email;
 
@@ -104,9 +139,16 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('setup-password')
-  async setupPassword(@Body() body: { email: string; password?: string }, @Req() req: any) {
-    const user = await this.authService.setupInitialPassword(body.email, body.password || '');
+  async setupPassword(
+    @Body() body: { email: string; password?: string },
+    @Req() req: any,
+  ) {
+    const user = await this.authService.setupInitialPassword(
+      body.email,
+      body.password || '',
+    );
     req.session.userId = user.id;
     req.session.userEmail = user.email;
 
@@ -147,14 +189,14 @@ export class AuthController {
   @Get('me')
   @UseGuards(SessionAuthGuard)
   getCurrentUser(@CurrentUser() user: User) {
-    console.log('[AUTH DIAGNOSTIC /auth/me SUCCESS] Returned profile for:', user.email);
+    this.logger.log(`Returned profile for: ${user.email}`);
     return user;
   }
 
   @Post('logout')
   @UseGuards(SessionAuthGuard)
   async logout(@Req() req: any, @Res() res: Response) {
-    console.log('[AUTH DIAGNOSTIC] Logout requested for user:', req.session?.userEmail);
+    this.logger.log(`Logout requested for user: ${req.session?.userEmail}`);
     req.session.destroy((err: any) => {
       if (err) {
         return res.status(500).json({ message: 'Failed to log out' });

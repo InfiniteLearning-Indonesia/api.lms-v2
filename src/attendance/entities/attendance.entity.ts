@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Batch } from '../../classes/entities/batch.entity';
 
@@ -6,7 +14,7 @@ export enum AttendanceStatus {
   HADIR_ON_CAM = 'Hadir On-Cam',
   HADIR_OFF_CAM = 'Hadir Off-cam',
   IZIN_SAKIT = 'Izin/Sakit',
-  ALPHA = 'Alpha'
+  ALPHA = 'Alpha',
 }
 
 @Entity('attendances')

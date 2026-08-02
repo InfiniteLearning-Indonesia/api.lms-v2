@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsDateString, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsEnum,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { AttendanceStatus } from '../entities/attendance.entity';
 

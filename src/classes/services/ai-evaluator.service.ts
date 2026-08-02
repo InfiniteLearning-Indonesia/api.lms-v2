@@ -18,10 +18,16 @@ export class AiEvaluatorService {
   private readonly logger = new Logger(AiEvaluatorService.name);
 
   // 1. Dynamic Models Fetcher
-  async fetchModels(provider: string, hostOrApiKey?: string): Promise<ModelOption[]> {
+  async fetchModels(
+    provider: string,
+    hostOrApiKey?: string,
+  ): Promise<ModelOption[]> {
     try {
       if (provider === 'ollama') {
-        const host = (hostOrApiKey || 'http://localhost:11434').replace(/\/$/, '');
+        const host = (hostOrApiKey || 'http://localhost:11434').replace(
+          /\/$/,
+          '',
+        );
         const res = await fetch(`${host}/api/tags`);
         if (!res.ok) throw new Error(`Ollama returned status ${res.status}`);
         const data = await res.json();
@@ -29,11 +35,14 @@ export class AiEvaluatorService {
           id: m.name || m.model,
           name: m.name || m.model,
         }));
-        return models.length > 0 ? models : [{ id: 'llama3', name: 'llama3 (Default)' }];
+        return models.length > 0
+          ? models
+          : [{ id: 'llama3', name: 'llama3 (Default)' }];
       }
 
       if (provider === 'groq') {
-        if (!hostOrApiKey) throw new BadRequestException('Groq API Key is required');
+        if (!hostOrApiKey)
+          throw new BadRequestException('Groq API Key is required');
         const res = await fetch('https://api.groq.com/openai/v1/models', {
           headers: { Authorization: `Bearer ${hostOrApiKey}` },
         });
@@ -45,18 +54,27 @@ export class AiEvaluatorService {
         }));
         return models.length > 0
           ? models
-          : [{ id: 'llama-3.3-70b-versatile', name: 'llama-3.3-70b-versatile' }];
+          : [
+              {
+                id: 'llama-3.3-70b-versatile',
+                name: 'llama-3.3-70b-versatile',
+              },
+            ];
       }
 
       if (provider === 'gemini') {
-        if (!hostOrApiKey) throw new BadRequestException('Google AI Studio Key is required');
+        if (!hostOrApiKey)
+          throw new BadRequestException('Google AI Studio Key is required');
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models?key=${hostOrApiKey}`,
         );
-        if (!res.ok) throw new Error(`Gemini API returned status ${res.status}`);
+        if (!res.ok)
+          throw new Error(`Gemini API returned status ${res.status}`);
         const data = await res.json();
         const models = (data.models || [])
-          .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+          .filter((m: any) =>
+            m.supportedGenerationMethods?.includes('generateContent'),
+          )
           .map((m: any) => ({
             id: m.name.replace(/^models\//, ''),
             name: m.displayName || m.name.replace(/^models\//, ''),
@@ -68,7 +86,9 @@ export class AiEvaluatorService {
 
       throw new BadRequestException(`Provider '${provider}' is not supported.`);
     } catch (err: any) {
-      this.logger.error(`Error fetching models for ${provider}: ${err.message}`);
+      this.logger.error(
+        `Error fetching models for ${provider}: ${err.message}`,
+      );
       if (err instanceof BadRequestException) {
         throw err;
       }
@@ -81,13 +101,33 @@ export class AiEvaluatorService {
     if (!link) return { isVideo: false };
 
     const lower = link.toLowerCase();
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v'];
+    const videoExtensions = [
+      '.mp4',
+      '.mov',
+      '.avi',
+      '.mkv',
+      '.webm',
+      '.flv',
+      '.wmv',
+      '.m4v',
+    ];
     if (videoExtensions.some((ext) => lower.includes(ext))) {
-      return { isVideo: true, reason: 'File format video (.mp4, .mov, dll) tidak didukung AI.' };
+      return {
+        isVideo: true,
+        reason: 'File format video (.mp4, .mov, dll) tidak didukung AI.',
+      };
     }
 
-    if (lower.includes('youtube.com') || lower.includes('youtu.be') || lower.includes('vimeo.com')) {
-      return { isVideo: true, reason: 'Link platform video (YouTube / Vimeo) tidak dapat dievaluasi otomatis oleh AI.' };
+    if (
+      lower.includes('youtube.com') ||
+      lower.includes('youtu.be') ||
+      lower.includes('vimeo.com')
+    ) {
+      return {
+        isVideo: true,
+        reason:
+          'Link platform video (YouTube / Vimeo) tidak dapat dievaluasi otomatis oleh AI.',
+      };
     }
 
     return { isVideo: false };
@@ -114,7 +154,10 @@ export class AiEvaluatorService {
       }
 
       // C. Google Docs / Sheets
-      if (lower.includes('docs.google.com') || lower.includes('drive.google.com')) {
+      if (
+        lower.includes('docs.google.com') ||
+        lower.includes('drive.google.com')
+      ) {
         return await this.inspectGoogleDocOrDrive(link);
       }
 
@@ -131,7 +174,10 @@ export class AiEvaluatorService {
     return `Tautan pengumpulan: ${link}`;
   }
 
-  private async inspectGitHubRepo(url: string, githubToken?: string | null): Promise<string> {
+  private async inspectGitHubRepo(
+    url: string,
+    githubToken?: string | null,
+  ): Promise<string> {
     try {
       const cleanToken = githubToken ? githubToken.trim() : null;
       const headers: Record<string, string> = {
@@ -139,11 +185,15 @@ export class AiEvaluatorService {
         'User-Agent': 'LMS-AI-Evaluator',
       };
       if (cleanToken) {
-        headers['Authorization'] = cleanToken.startsWith('github_pat_') ? `Bearer ${cleanToken}` : `token ${cleanToken}`;
+        headers['Authorization'] = cleanToken.startsWith('github_pat_')
+          ? `Bearer ${cleanToken}`
+          : `token ${cleanToken}`;
       }
 
       // Check if direct file link (e.g. github.com/owner/repo/blob/main/app.py)
-      const blobMatch = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)/);
+      const blobMatch = url.match(
+        /github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)/,
+      );
       if (blobMatch) {
         const [, owner, repo, branch, filePath] = blobMatch;
         const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
@@ -162,15 +212,25 @@ ${codeText.substring(0, 6000)}`;
       const repo = repoRaw.replace(/\.git$/, '');
 
       // Fetch repo tree
-      let contentsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`, { headers });
+      let contentsRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents`,
+        { headers },
+      );
 
       // Retry without token if authenticated call returned 401/403 (for public repo resiliency)
-      if (!contentsRes.ok && cleanToken && (contentsRes.status === 401 || contentsRes.status === 403)) {
+      if (
+        !contentsRes.ok &&
+        cleanToken &&
+        (contentsRes.status === 401 || contentsRes.status === 403)
+      ) {
         const publicHeaders = {
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'LMS-AI-Evaluator',
         };
-        contentsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`, { headers: publicHeaders });
+        contentsRes = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents`,
+          { headers: publicHeaders },
+        );
       }
 
       if (!contentsRes.ok) {
@@ -180,11 +240,15 @@ ${codeText.substring(0, 6000)}`;
       const files = await contentsRes.json();
       if (!Array.isArray(files)) return `GitHub Repo: ${owner}/${repo}`;
 
-      const fileNames = files.map((f: any) => `${f.name}${f.type === 'dir' ? '/' : ''}`).join(', ');
+      const fileNames = files
+        .map((f: any) => `${f.name}${f.type === 'dir' ? '/' : ''}`)
+        .join(', ');
 
       // Try fetching README
       let readmeText = '';
-      const readmeFile = files.find((f: any) => f.name.toLowerCase() === 'readme.md');
+      const readmeFile = files.find(
+        (f: any) => f.name.toLowerCase() === 'readme.md',
+      );
       if (readmeFile && readmeFile.download_url) {
         try {
           const rRes = await fetch(readmeFile.download_url);
@@ -193,21 +257,49 @@ ${codeText.substring(0, 6000)}`;
       }
 
       // Collect code files to inspect
-      const codeExtensions = ['.py', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.json', '.sql', '.java', '.cpp', '.c', '.php', '.ipynb', '.txt'];
+      const codeExtensions = [
+        '.py',
+        '.js',
+        '.ts',
+        '.jsx',
+        '.tsx',
+        '.html',
+        '.css',
+        '.json',
+        '.sql',
+        '.java',
+        '.cpp',
+        '.c',
+        '.php',
+        '.ipynb',
+        '.txt',
+      ];
       let candidateFiles: any[] = files.filter((f: any) => {
         if (f.type !== 'file') return false;
         const name = f.name.toLowerCase();
-        if (name === 'readme.md' || name.endsWith('.lock') || name.startsWith('.')) return false;
+        if (
+          name === 'readme.md' ||
+          name.endsWith('.lock') ||
+          name.startsWith('.')
+        )
+          return false;
         return codeExtensions.some((ext) => name.endsWith(ext));
       });
 
       // If top level has subdirectories like src/ or app/, inspect subdirectories for code files
-      const dirFiles = files.filter((f: any) => f.type === 'dir' && !f.name.startsWith('.'));
+      const dirFiles = files.filter(
+        (f: any) => f.type === 'dir' && !f.name.startsWith('.'),
+      );
       for (const dir of dirFiles.slice(0, 2)) {
         try {
-          let subRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${dir.path}`, { headers });
+          let subRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${dir.path}`,
+            { headers },
+          );
           if (!subRes.ok && cleanToken) {
-            subRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${dir.path}`);
+            subRes = await fetch(
+              `https://api.github.com/repos/${owner}/${repo}/contents/${dir.path}`,
+            );
           }
           if (subRes.ok) {
             const subItems = await subRes.json();
@@ -248,7 +340,10 @@ ${sourceCodeSnippets || '(Tidak ada file kode teks utama yang dapat dibaca)'}`;
     }
   }
 
-  private async inspectFigmaDesign(url: string, figmaToken?: string | null): Promise<string> {
+  private async inspectFigmaDesign(
+    url: string,
+    figmaToken?: string | null,
+  ): Promise<string> {
     try {
       const match = url.match(/figma\.com\/(file|design)\/([a-zA-Z0-9]+)/);
       if (!match) return `Figma Link: ${url}`;
@@ -351,14 +446,19 @@ ${csv.substring(0, 3000)}`;
     if (mediaCheck.isVideo) {
       return {
         score: 0,
-        feedback: mediaCheck.reason || 'File video tidak didukung untuk evaluasi otomatis AI.',
+        feedback:
+          mediaCheck.reason ||
+          'File video tidak didukung untuk evaluasi otomatis AI.',
         analysis: 'Penilaian dilewati karena format berupa video.',
         isVideo: true,
       };
     }
 
     // B. Inspect link contents
-    const inspectedContent = await this.inspectLinkContent(link, { githubToken, figmaToken });
+    const inspectedContent = await this.inspectLinkContent(link, {
+      githubToken,
+      figmaToken,
+    });
 
     // C. Construct Rubric & Prompt
     const prompt = `Anda adalah penilai tugas akademis otomatis yang profesional & objektif di LMS Infinite Learning.
@@ -385,7 +485,10 @@ Tugas Anda:
       let rawResponse = '';
 
       if (provider === 'ollama') {
-        const host = (hostOrApiKey || 'http://localhost:11434').replace(/\/$/, '');
+        const host = (hostOrApiKey || 'http://localhost:11434').replace(
+          /\/$/,
+          '',
+        );
         const targetModel = model || 'llama3';
         try {
           const res = await fetch(`${host}/api/generate`, {
@@ -401,53 +504,82 @@ Tugas Anda:
 
           if (!res.ok) {
             const errText = await res.text().catch(() => '');
-            if (res.status === 429 || errText.toLowerCase().includes('rate limit') || errText.toLowerCase().includes('memory')) {
-              const rateErr: any = new Error(`⚠️ Server Ollama lokal kehabisan memori / terbatasi (${res.statusText}).`);
+            if (
+              res.status === 429 ||
+              errText.toLowerCase().includes('rate limit') ||
+              errText.toLowerCase().includes('memory')
+            ) {
+              const rateErr: any = new Error(
+                `⚠️ Server Ollama lokal kehabisan memori / terbatasi (${res.statusText}).`,
+              );
               rateErr.isRateLimit = true;
               throw rateErr;
             }
-            throw new Error(`Server Ollama merespons error (${res.status}): ${errText || res.statusText}`);
+            throw new Error(
+              `Server Ollama merespons error (${res.status}): ${errText || res.statusText}`,
+            );
           }
           const data = await res.json();
           rawResponse = data.response;
         } catch (fetchErr: any) {
           if (fetchErr.isRateLimit) throw fetchErr;
-          const offlineErr: any = new Error(`⚠️ Server Ollama tidak aktif di ${host}. Pastikan Ollama sudah berjalan.`);
+          const offlineErr: any = new Error(
+            `⚠️ Server Ollama tidak aktif di ${host}. Pastikan Ollama sudah berjalan.`,
+          );
           offlineErr.isOffline = true;
           throw offlineErr;
         }
       } else if (provider === 'groq') {
-        if (!hostOrApiKey) throw new BadRequestException('Groq API Key tidak ditemukan.');
+        if (!hostOrApiKey)
+          throw new BadRequestException('Groq API Key tidak ditemukan.');
         const targetModel = model || 'llama-3.3-70b-versatile';
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${hostOrApiKey}`,
+        const res = await fetch(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${hostOrApiKey}`,
+            },
+            body: JSON.stringify({
+              model: targetModel,
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    'You are an LMS AI Grader. Return pure JSON object with score and feedback.',
+                },
+                { role: 'user', content: prompt },
+              ],
+              response_format: { type: 'json_object' },
+            }),
           },
-          body: JSON.stringify({
-            model: targetModel,
-            messages: [
-              { role: 'system', content: 'You are an LMS AI Grader. Return pure JSON object with score and feedback.' },
-              { role: 'user', content: prompt },
-            ],
-            response_format: { type: 'json_object' },
-          }),
-        });
+        );
 
         if (!res.ok) {
           const errBody = await res.text().catch(() => '');
-          if (res.status === 429 || errBody.toLowerCase().includes('rate_limit') || errBody.toLowerCase().includes('quota')) {
-            const rateErr: any = new Error('⚠️ Batas Rate Limit / Kuota Provider Groq Terlampaui (HTTP 429). Silakan tunggu beberapa saat atau ganti Provider AI.');
+          if (
+            res.status === 429 ||
+            errBody.toLowerCase().includes('rate_limit') ||
+            errBody.toLowerCase().includes('quota')
+          ) {
+            const rateErr: any = new Error(
+              '⚠️ Batas Rate Limit / Kuota Provider Groq Terlampaui (HTTP 429). Silakan tunggu beberapa saat atau ganti Provider AI.',
+            );
             rateErr.isRateLimit = true;
             throw rateErr;
           }
-          throw new Error(`Groq API Error (${res.status}): ${errBody || res.statusText}`);
+          throw new Error(
+            `Groq API Error (${res.status}): ${errBody || res.statusText}`,
+          );
         }
         const data = await res.json();
         rawResponse = data.choices?.[0]?.message?.content || '';
       } else if (provider === 'gemini') {
-        if (!hostOrApiKey) throw new BadRequestException('Google AI Studio Key tidak ditemukan.');
+        if (!hostOrApiKey)
+          throw new BadRequestException(
+            'Google AI Studio Key tidak ditemukan.',
+          );
         const targetModel = model || 'gemini-1.5-flash';
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${hostOrApiKey}`,
@@ -463,12 +595,20 @@ Tugas Anda:
 
         if (!res.ok) {
           const errBody = await res.text().catch(() => '');
-          if (res.status === 429 || errBody.includes('RESOURCE_EXHAUSTED') || errBody.toLowerCase().includes('quota')) {
-            const rateErr: any = new Error('⚠️ Batas Kuota Google AI Studio (Gemini) Terlampaui (HTTP 429 / RESOURCE_EXHAUSTED). Silakan ganti API Key atau tunggu reset kuota harian.');
+          if (
+            res.status === 429 ||
+            errBody.includes('RESOURCE_EXHAUSTED') ||
+            errBody.toLowerCase().includes('quota')
+          ) {
+            const rateErr: any = new Error(
+              '⚠️ Batas Kuota Google AI Studio (Gemini) Terlampaui (HTTP 429 / RESOURCE_EXHAUSTED). Silakan ganti API Key atau tunggu reset kuota harian.',
+            );
             rateErr.isRateLimit = true;
             throw rateErr;
           }
-          throw new Error(`Google AI Studio Error (${res.status}): ${errBody || res.statusText}`);
+          throw new Error(
+            `Google AI Studio Error (${res.status}): ${errBody || res.statusText}`,
+          );
         }
         const data = await res.json();
         rawResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -477,7 +617,10 @@ Tugas Anda:
       }
 
       // Parse JSON
-      const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanJson = rawResponse
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
       const parsed = JSON.parse(cleanJson);
       const score = Math.max(0, Math.min(100, Number(parsed.score) || 75));
       const feedback = parsed.feedback || 'Evaluasi selesai.';

@@ -1,4 +1,11 @@
-import { IsArray, IsString, IsOptional, ValidateNested, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsArray,
+  IsString,
+  IsOptional,
+  ValidateNested,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateUserDto } from './create-user.dto.js';
 import { UserRole } from '../entities/user.entity.js';

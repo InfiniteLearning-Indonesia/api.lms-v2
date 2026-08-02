@@ -12,7 +12,10 @@ export class SessionSerializer extends PassportSerializer {
   serializeUser(user: any, done: (err: Error | null, key: string) => void) {
     const key = user.id || user.email;
     if (!key) {
-      return done(new Error('Failed to find serializable key in user object'), '');
+      return done(
+        new Error('Failed to find serializable key in user object'),
+        '',
+      );
     }
     done(null, key);
   }

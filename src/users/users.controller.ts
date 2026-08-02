@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   ParseUUIDPipe,
+  Req,
 } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -25,13 +26,19 @@ export class UsersController {
 
   @Post()
   invite(@Body() dto: CreateUserDto) {
-    console.log('[USERS CONTROLLER] POST /users called with:', JSON.stringify(dto));
+    console.log(
+      '[USERS CONTROLLER] POST /users called with:',
+      JSON.stringify(dto),
+    );
     return this.usersService.invite(dto);
   }
 
   @Post('invite')
   inviteAlias(@Body() dto: CreateUserDto) {
-    console.log('[USERS CONTROLLER] POST /users/invite called with:', JSON.stringify(dto));
+    console.log(
+      '[USERS CONTROLLER] POST /users/invite called with:',
+      JSON.stringify(dto),
+    );
     return this.usersService.invite(dto);
   }
 
@@ -62,7 +69,9 @@ export class UsersController {
     console.log('[USERS DIAGNOSTIC] GET /users called by admin');
     try {
       const result = await this.usersService.findAll();
-      console.log(`[USERS DIAGNOSTIC SUCCESS] GET /users returned ${result?.length || 0} user records.`);
+      console.log(
+        `[USERS DIAGNOSTIC SUCCESS] GET /users returned ${result?.length || 0} user records.`,
+      );
       return result;
     } catch (err: any) {
       console.error('[USERS DIAGNOSTIC ERROR] GET /users error:', err);
@@ -77,33 +86,41 @@ export class UsersController {
 
   @Patch(':id/suspend')
   @Roles('admin', 'mentor')
-  suspend(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.suspend(id);
+  suspend(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.suspend(id, req.user);
   }
 
   @Patch(':id/unsuspend')
   @Roles('admin', 'mentor')
-  unsuspend(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.unsuspend(id);
+  unsuspend(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.unsuspend(id, req.user);
   }
 
   @Patch(':id/email')
   updateEmail(
+    @Req() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body('email') newEmail: string,
   ) {
-    return this.usersService.updateEmail(id, newEmail);
+    return this.usersService.updateEmail(id, newEmail, req.user);
   }
 
   @Patch(':id')
   async update(
+    @Req() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
-    console.log(`[USERS CONTROLLER] PATCH /users/${id} received! Payload:`, JSON.stringify(dto));
+    console.log(
+      `[USERS CONTROLLER] PATCH /users/${id} received! Payload:`,
+      JSON.stringify(dto),
+    );
     try {
-      const res = await this.usersService.update(id, dto);
-      console.log(`[USERS CONTROLLER SUCCESS] PATCH /users/${id} completed! User assignedBatchIds:`, res.assignedBatchIds);
+      const res = await this.usersService.update(id, dto, req.user);
+      console.log(
+        `[USERS CONTROLLER SUCCESS] PATCH /users/${id} completed! User assignedBatchIds:`,
+        res.assignedBatchIds,
+      );
       return res;
     } catch (err) {
       console.error(`[USERS CONTROLLER ERROR] PATCH /users/${id} failed:`, err);
@@ -117,7 +134,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    return this.usersService.remove(id, req.user);
   }
 }

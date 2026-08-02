@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from '../../users/users.service.js';
+import { UserStatus } from '../../users/entities/user.entity.js';
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
@@ -12,10 +13,13 @@ export class SessionAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    
+
     console.log('================ [AUTH DIAGNOSTIC START] ================');
     console.log('[AUTH DIAGNOSTIC] Path:', request.method, request.url);
-    console.log('[AUTH DIAGNOSTIC] Cookie Header:', request.headers.cookie || 'NO COOKIE RECEIVED');
+    console.log(
+      '[AUTH DIAGNOSTIC] Cookie Header:',
+      request.headers.cookie || 'NO COOKIE RECEIVED',
+    );
     console.log('[AUTH DIAGNOSTIC] Current Session ID:', request.sessionID);
 
     let userId = request.session?.userId;
@@ -28,7 +32,9 @@ export class SessionAuthGuard implements CanActivate {
     }
 
     if (!userId && token && request.sessionStore) {
-      console.log(`[AUTH DIAGNOSTIC FALLBACK] Looking up token/sessionID "${token}" in sessionStore...`);
+      console.log(
+        `[AUTH DIAGNOSTIC FALLBACK] Looking up token/sessionID "${token}" in sessionStore...`,
+      );
       const storeSession: any = await new Promise((resolve) => {
         request.sessionStore.get(token, (err: any, sess: any) => {
           if (err || !sess) resolve(null);
@@ -43,32 +49,48 @@ export class SessionAuthGuard implements CanActivate {
         if (typeof request.session.save === 'function') {
           request.session.save();
         }
-        console.log(`[AUTH DIAGNOSTIC FALLBACK SUCCESS] Found userId "${userId}" from Session Store using token!`);
+        console.log(
+          `[AUTH DIAGNOSTIC FALLBACK SUCCESS] Found userId "${userId}" from Session Store using token!`,
+        );
       } else {
-        console.warn(`[AUTH DIAGNOSTIC FALLBACK FAIL] Token "${token}" not found in sessionStore.`);
+        console.warn(
+          `[AUTH DIAGNOSTIC FALLBACK FAIL] Token "${token}" not found in sessionStore.`,
+        );
       }
     }
 
     if (!userId) {
       console.error(
-        `[AUTH DIAGNOSTIC REJECT 401] No userId in session or token! URL: ${request.url}. Cookies received: "${request.headers.cookie || 'none'}"`
+        `[AUTH DIAGNOSTIC REJECT 401] No userId in session or token! URL: ${request.url}. Cookies received: "${request.headers.cookie || 'none'}"`,
       );
       console.log('================ [AUTH DIAGNOSTIC END] ================');
-      throw new UnauthorizedException('Sesi login berakhir atau belum terautentikasi.');
+      throw new UnauthorizedException(
+        'Sesi login berakhir atau belum terautentikasi.',
+      );
     }
 
     try {
       const user = await this.usersService.findById(userId);
       if (!user) {
         console.error(
-          `[AUTH DIAGNOSTIC REJECT 401] User ID ${userId} not found in DB!`
+          `[AUTH DIAGNOSTIC REJECT 401] User ID ${userId} not found in DB!`,
         );
         console.log('================ [AUTH DIAGNOSTIC END] ================');
-        throw new UnauthorizedException('User session is invalid or user not found in DB.');
+        throw new UnauthorizedException(
+          'User session is invalid or user not found in DB.',
+        );
+      }
+
+      if (user.status === UserStatus.SUSPENDED) {
+        console.error(`[AUTH DIAGNOSTIC REJECT 403] User ID ${userId} is suspended!`);
+        console.log('================ [AUTH DIAGNOSTIC END] ================');
+        throw new UnauthorizedException(
+          'Akun kamu telah di-suspend oleh Admin. Akses ditolak.',
+        );
       }
 
       console.log(
-        `[AUTH DIAGNOSTIC PASS] Authorized user: ${user.email} (${user.id}), roles: ${JSON.stringify(user.roles)}`
+        `[AUTH DIAGNOSTIC PASS] Authorized user: ${user.email} (${user.id}), roles: ${JSON.stringify(user.roles)}`,
       );
       console.log('================ [AUTH DIAGNOSTIC END] ================');
       request.user = user;
