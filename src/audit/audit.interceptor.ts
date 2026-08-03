@@ -16,7 +16,15 @@ export class AuditInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
     const res = context.switchToHttp().getResponse();
-    const { method, url, ip } = req;
+    const { method, url } = req;
+    
+    // Extract real client IP behind Nginx reverse proxy
+    const clientIp = 
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (req.headers['x-real-ip'] as string) ||
+      req.ip ||
+      req.socket?.remoteAddress ||
+      '127.0.0.1';
     
     // Skip GET requests to save DB resources, unless it's a critical endpoint
     if (method === 'GET') {
@@ -37,7 +45,7 @@ export class AuditInterceptor implements NestInterceptor {
           userId,
           userEmail,
           userRole,
-          ipAddress: ip,
+          ipAddress: clientIp,
           action: `SUCCESS_${method}`,
           method,
           path: url,
@@ -64,7 +72,7 @@ export class AuditInterceptor implements NestInterceptor {
           userId,
           userEmail,
           userRole,
-          ipAddress: ip,
+          ipAddress: clientIp,
           action: `FAILED_${method}`,
           method,
           path: url,
