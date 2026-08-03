@@ -1723,14 +1723,15 @@ export class ClassesService {
       supportingClasses.push(await getOrCreateClass(m.id));
     }
 
-    const baseAllocation = Math.floor(totalStudents / primaryMentors.length);
-    const remainder = totalStudents % primaryMentors.length;
-
+    const totalMentors = primaryMentors.length + supportingMentors.length;
+    const baseAllocation = Math.floor(totalStudents / totalMentors);
+    
     let studentIndex = 0;
 
     // 1. Distribute baseAllocation to primary mentors
     for (const pClass of primaryClasses) {
       for (let j = 0; j < baseAllocation; j++) {
+        if (studentIndex >= totalStudents) break;
         const student = studentsInBatch[studentIndex++];
         const enroll = enrollments.find((e) => e.studentId === student.id);
         if (enroll) {
@@ -1754,13 +1755,15 @@ export class ClassesService {
       }
     } else {
       // For AI/Game, remainder goes back to primary mentors
-      for (let i = 0; i < remainingStudents.length; i++) {
-        const student = remainingStudents[i];
-        const targetClass = primaryClasses[i % primaryClasses.length];
-        const enroll = enrollments.find((e) => e.studentId === student.id);
-        if (enroll) {
-          enroll.classId = targetClass.id;
-          await this.enrollmentRepository.save(enroll);
+      if (primaryClasses.length > 0) {
+        for (let i = 0; i < remainingStudents.length; i++) {
+          const student = remainingStudents[i];
+          const targetClass = primaryClasses[i % primaryClasses.length];
+          const enroll = enrollments.find((e) => e.studentId === student.id);
+          if (enroll) {
+            enroll.classId = targetClass.id;
+            await this.enrollmentRepository.save(enroll);
+          }
         }
       }
     }
@@ -1771,8 +1774,8 @@ export class ClassesService {
       numPrimaryMentors: primaryMentors.length,
       numSupportingMentors: supportingMentors.length,
       baseAllocationPerPrimary: baseAllocation,
-      remainder,
-      message: `Berhasil membagi ${totalStudents} murid. ${baseAllocation * primaryMentors.length} murid dialokasikan ke mentor utama, ${remainder} murid sisa dialokasikan ke mentor ${isWebOrMobile && supportingClasses.length > 0 ? 'pendukung (UI/UX & Professional)' : 'utama'}.`,
+      remainder: remainingStudents.length,
+      message: `Berhasil membagi ${totalStudents} murid. ${baseAllocation * primaryMentors.length} murid dialokasikan ke mentor utama, ${remainingStudents.length} murid sisa dialokasikan ke mentor ${isWebOrMobile && supportingClasses.length > 0 ? 'pendukung (UI/UX & Professional)' : 'utama'}.`,
     };
   }
 

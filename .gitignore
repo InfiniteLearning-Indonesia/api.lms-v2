@@ -63,3 +63,4 @@ fix_ai_users.sql
 
 # Status history runtime file
 status-history.json
+test_db.js
