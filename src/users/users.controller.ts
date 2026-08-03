@@ -9,6 +9,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -20,11 +21,11 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 
 @Controller('users')
 @UseGuards(SessionAuthGuard, RolesGuard)
-@Roles('admin')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @Roles('admin')
   invite(@Body() dto: CreateUserDto) {
     console.log(
       '[USERS CONTROLLER] POST /users called with:',
@@ -34,6 +35,7 @@ export class UsersController {
   }
 
   @Post('invite')
+  @Roles('admin')
   inviteAlias(@Body() dto: CreateUserDto) {
     console.log(
       '[USERS CONTROLLER] POST /users/invite called with:',
@@ -43,28 +45,33 @@ export class UsersController {
   }
 
   @Post('bulk')
+  @Roles('admin')
   bulkInvite(@Body() dto: BulkInviteDto) {
     return this.usersService.bulkInvite(dto);
   }
 
   @Post('bulk-import-csv')
+  @Roles('admin')
   bulkInviteAlias(@Body() dto: BulkInviteDto) {
     return this.usersService.bulkInvite(dto);
   }
 
   @Delete('bulk-delete')
+  @Roles('admin')
   bulkDeleteDelete(@Body() body: { ids?: string[]; userIds?: string[] }) {
     const ids = body?.ids || body?.userIds || [];
     return this.usersService.bulkDelete(ids);
   }
 
   @Post('bulk-delete')
+  @Roles('admin')
   bulkDeletePost(@Body() body: { ids?: string[]; userIds?: string[] }) {
     const ids = body?.ids || body?.userIds || [];
     return this.usersService.bulkDelete(ids);
   }
 
   @Get()
+  @Roles('admin')
   async findAll() {
     console.log('[USERS DIAGNOSTIC] GET /users called by admin');
     try {
@@ -80,18 +87,22 @@ export class UsersController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    const isAdmin = req.user?.roles?.includes('admin');
+    if (!isAdmin && req.user?.id !== id) {
+      throw new ForbiddenException('Anda hanya dapat mengakses profil Anda sendiri.');
+    }
     return this.usersService.findById(id);
   }
 
   @Patch(':id/suspend')
-  @Roles('admin', 'mentor')
+  @Roles('admin')
   suspend(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.suspend(id, req.user);
   }
 
   @Patch(':id/unsuspend')
-  @Roles('admin', 'mentor')
+  @Roles('admin')
   unsuspend(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.unsuspend(id, req.user);
   }
@@ -102,6 +113,10 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body('email') newEmail: string,
   ) {
+    const isAdmin = req.user?.roles?.includes('admin');
+    if (!isAdmin && req.user?.id !== id) {
+      throw new ForbiddenException('Anda hanya dapat memperbarui email Anda sendiri.');
+    }
     return this.usersService.updateEmail(id, newEmail, req.user);
   }
 
@@ -111,6 +126,10 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ) {
+    const isAdmin = req.user?.roles?.includes('admin');
+    if (!isAdmin && req.user?.id !== id) {
+      throw new ForbiddenException('Anda hanya dapat memperbarui profil Anda sendiri.');
+    }
     console.log(
       `[USERS CONTROLLER] PATCH /users/${id} received! Payload:`,
       JSON.stringify(dto),
@@ -129,11 +148,13 @@ export class UsersController {
   }
 
   @Post(':id/send-warning-email')
+  @Roles('admin')
   sendWarningEmail(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.sendWarningEmail(id);
   }
 
   @Delete(':id')
+  @Roles('admin')
   remove(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id, req.user);
   }
