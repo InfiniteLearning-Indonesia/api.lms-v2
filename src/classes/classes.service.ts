@@ -1669,29 +1669,26 @@ export class ClassesService {
     const isWebOrMobile =
       pNameLower.includes('web') || pNameLower.includes('mobile');
 
-    // ⚖️ Equal Student Distribution:
-    // All mentors (regular, professional, UI/UX) assigned to or eligible for this program get an equal share of students.
-    const targetMentors = allUsers.filter((u) => {
-      if (!u.roles.includes(UserRole.MENTOR)) return false;
-      if (u.status === UserStatus.SUSPENDED) return false;
+    // ⚖️ Student Distribution according to Rule 16
+    const primaryMentors = allUsers.filter((u) => {
+      if (!u.roles.includes(UserRole.MENTOR) || u.status === UserStatus.SUSPENDED) return false;
+      const specStr = String(u.specialization || '').toLowerCase();
+      if (specStr.includes('prof') || specStr.includes('ui') || specStr.includes('ux')) return false;
 
+      return (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) || (u.programId === program.id);
+    });
+
+    const supportingMentors = allUsers.filter((u) => {
+      if (!u.roles.includes(UserRole.MENTOR) || u.status === UserStatus.SUSPENDED) return false;
       const specStr = String(u.specialization || '').toLowerCase();
       const isProf = specStr.includes('prof');
       const isUiUx = specStr.includes('ui') || specStr.includes('ux');
-
-      if (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower)
-        return true;
-      if (u.programId === program.id) return true;
-      if (isProf) return true;
-      if (isUiUx && isWebOrMobile) return true;
-
-      return false;
+      
+      return isProf || (isUiUx && isWebOrMobile);
     });
 
-    if (targetMentors.length === 0) {
-      throw new BadRequestException(
-        'Tidak ada mentor aktif yang terdaftar untuk program ini.',
-      );
+    if (primaryMentors.length === 0) {
+      throw new BadRequestException('Tidak ada mentor utama aktif yang terdaftar untuk program ini.');
     }
 
     const totalStudents = studentsInBatch.length;
@@ -1716,32 +1713,66 @@ export class ClassesService {
       return cls;
     };
 
-    const mentorClasses: Class[] = [];
-    for (const m of targetMentors) {
-      mentorClasses.push(await getOrCreateClass(m.id));
+    const primaryClasses: Class[] = [];
+    for (const m of primaryMentors) {
+      primaryClasses.push(await getOrCreateClass(m.id));
     }
 
-    // Distribute students evenly across mentorClasses using Round-Robin (difference max 1 student)
-    for (let i = 0; i < studentsInBatch.length; i++) {
-      const student = studentsInBatch[i];
-      const targetClass = mentorClasses[i % mentorClasses.length];
-      const enroll = enrollments.find((e) => e.studentId === student.id);
-      if (enroll) {
-        enroll.classId = targetClass.id;
-        await this.enrollmentRepository.save(enroll);
+    const supportingClasses: Class[] = [];
+    for (const m of supportingMentors) {
+      supportingClasses.push(await getOrCreateClass(m.id));
+    }
+
+    const baseAllocation = Math.floor(totalStudents / primaryMentors.length);
+    const remainder = totalStudents % primaryMentors.length;
+
+    let studentIndex = 0;
+
+    // 1. Distribute baseAllocation to primary mentors
+    for (const pClass of primaryClasses) {
+      for (let j = 0; j < baseAllocation; j++) {
+        const student = studentsInBatch[studentIndex++];
+        const enroll = enrollments.find((e) => e.studentId === student.id);
+        if (enroll) {
+          enroll.classId = pClass.id;
+          await this.enrollmentRepository.save(enroll);
+        }
       }
     }
 
-    const baseAllocation = Math.floor(totalStudents / mentorClasses.length);
-    const remainder = totalStudents % mentorClasses.length;
+    // 2. Distribute remainder
+    const remainingStudents = studentsInBatch.slice(studentIndex);
+    if (isWebOrMobile && supportingClasses.length > 0) {
+      for (let i = 0; i < remainingStudents.length; i++) {
+        const student = remainingStudents[i];
+        const targetClass = supportingClasses[i % supportingClasses.length];
+        const enroll = enrollments.find((e) => e.studentId === student.id);
+        if (enroll) {
+          enroll.classId = targetClass.id;
+          await this.enrollmentRepository.save(enroll);
+        }
+      }
+    } else {
+      // For AI/Game, remainder goes back to primary mentors
+      for (let i = 0; i < remainingStudents.length; i++) {
+        const student = remainingStudents[i];
+        const targetClass = primaryClasses[i % primaryClasses.length];
+        const enroll = enrollments.find((e) => e.studentId === student.id);
+        if (enroll) {
+          enroll.classId = targetClass.id;
+          await this.enrollmentRepository.save(enroll);
+        }
+      }
+    }
 
     return {
       programName,
       totalStudents,
-      numTargetMentors: targetMentors.length,
-      baseAllocationPerMentor: baseAllocation,
+      numPrimaryMentors: primaryMentors.length,
+      numSupportingMentors: supportingMentors.length,
+      baseAllocationPerPrimary: baseAllocation,
       remainder,
-      message: `Berhasil membagi ${totalStudents} murid secara setara kepada ${targetMentors.length} mentor pengampu program. Setiap mentor menerima ${baseAllocation}${remainder > 0 ? ` s/d ${baseAllocation + 1}` : ''} murid.`,
+      message: `Berhasil membagi ${totalStudents} murid. ${baseAllocation * primaryMentors.length} murid dialokasikan ke mentor utama, ${remainder} murid sisa dialokasikan ke mentor ${isWebOrMobile && supportingClasses.length > 0 ? 'pendukung (UI/UX & Professional)' : 'utama'}.`,
     };
   }
 
