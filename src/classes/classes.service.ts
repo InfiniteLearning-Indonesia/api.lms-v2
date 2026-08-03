@@ -415,22 +415,7 @@ export class ClassesService {
             return isStudent || !isStaff;
           });
 
-        // 🛡️ Fallback: If 0 explicit enrollments found, fetch all students in User repository matching programId or selectedProgram
-        if (enrolledStudents.length === 0) {
-          const allProgramStudents = await this.userRepository.find({
-            where: [
-              { programId: cls.programId },
-              { selectedProgram: cls.program?.name },
-            ],
-          });
-          enrolledStudents = allProgramStudents.filter((s) => {
-            if (!s) return false;
-            const roles = (s.roles || []).map((r) => String(r).toLowerCase());
-            const roleStr = String(s.role || '').toLowerCase();
-            const isStudentRole = (roles.includes('student') || roleStr === 'student') && !roles.includes('facilitator') && roleStr !== 'facilitator' && !roles.includes('mentor') && roleStr !== 'mentor' && !roles.includes('admin') && roleStr !== 'admin';
-            return isStudentRole && (!s.status || s.status.toLowerCase() !== 'graduated');
-          });
-        }
+
 
         const materials = await this.materialRepository.find({
           where: { classId: In(relatedClassIds) },
@@ -1648,11 +1633,7 @@ export class ClassesService {
     }
 
     const allUsers = await this.userRepository.find();
-    const programStudents = allUsers.filter(
-      (u) =>
-        u.roles.includes(UserRole.STUDENT) && u.selectedProgram === programName,
-    );
-
+    
     const batchClasses = await this.classRepository.find({
       where: { batchId: activeBatch.id, programId: program.id },
     });
@@ -1661,9 +1642,10 @@ export class ClassesService {
       where: { classId: In(batchClassIds) },
     });
 
-    const studentsInBatch = programStudents.filter((s) =>
-      enrollments.some((e) => e.studentId === s.id),
-    );
+    const studentsInBatch = allUsers.filter((u) => {
+      const isStudent = (u.roles || []).includes(UserRole.STUDENT);
+      return isStudent && enrollments.some((e) => e.studentId === u.id);
+    });
 
     const pNameLower = programName.toLowerCase();
     const isWebOrMobile =
