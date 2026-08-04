@@ -2881,7 +2881,87 @@ export class ClassesService {
     submission.gradedByMentorId = mentorId;
     submission.status = 'graded';
     await this.submissionRepository.save(submission);
+
+    // Automate sync to Competency Score
+    if (submission.assignment && submission.assignment.competency) {
+      await this.syncCompetencyScore(
+        submission.studentId,
+        submission.assignment.competency,
+        submission.assignment.classId,
+      );
+    }
+
     return { success: true, submission };
+  }
+
+  async syncCompetencyScore(
+    studentId: string,
+    competencyName: string,
+    originClassId: string,
+  ) {
+    const cls = await this.classRepository.findOne({
+      where: { id: originClassId },
+    });
+    if (!cls) return;
+
+    // Find the student's program for this batch (handling cross-class assignment visibility)
+    const enrollments = await this.enrollmentRepository.find({
+      where: { studentId },
+      relations: { class: true },
+    });
+    const batchEnrollment = enrollments.find(
+      (e) => e.class.batchId === cls.batchId && e.class.programId,
+    );
+    if (!batchEnrollment) return;
+
+    const studentProgramId = batchEnrollment.class.programId;
+
+    const competencyObj = await this.competencyRepository.findOne({
+      where: [
+        { name: competencyName, programId: studentProgramId },
+        { name: competencyName, isGlobal: true },
+      ],
+    });
+
+    if (!competencyObj) return;
+
+    const batchClasses = await this.classRepository.find({
+      where: { batchId: cls.batchId },
+    });
+    const allBatchClassIds = batchClasses.map((c) => c.id);
+
+    const relatedAssignments = await this.assignmentRepository.find({
+      where: { classId: In(allBatchClassIds), competency: competencyName },
+    });
+
+    const assignmentIds = relatedAssignments.map((a) => a.id);
+    if (assignmentIds.length === 0) return;
+
+    const submissions = await this.submissionRepository.find({
+      where: { studentId, assignmentId: In(assignmentIds), status: 'graded' },
+      relations: { assignment: true },
+    });
+
+    if (submissions.length === 0) return;
+
+    let totalScoreWeight = 0;
+    let totalWeight = 0;
+
+    for (const sub of submissions) {
+      if (sub.assignment && sub.score !== null && sub.score !== undefined) {
+        const weight = sub.assignment.weight || 0.1;
+        totalScoreWeight += sub.score * weight;
+        totalWeight += weight;
+      }
+    }
+
+    const finalScore = totalWeight > 0 ? totalScoreWeight / totalWeight : 0;
+
+    await this.upsertCompetencyScore(
+      studentId,
+      competencyObj.id,
+      parseFloat(finalScore.toFixed(2)),
+    );
   }
 
   async aiEvaluateSubmission(submissionId: string) {
