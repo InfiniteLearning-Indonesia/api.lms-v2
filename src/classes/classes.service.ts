@@ -401,7 +401,7 @@ export class ClassesService {
         const relatedClassIds = relatedClasses.map((c) => c.id);
 
         const enrollments = await this.enrollmentRepository.find({
-          where: { classId: cls.id },
+          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
           relations: { student: true },
         });
         let enrolledStudents = enrollments

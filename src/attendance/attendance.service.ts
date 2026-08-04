@@ -331,10 +331,15 @@ export class AttendanceService {
       const user = await this.userRepository.findOne({
         where: { id: mentorId },
       });
+      const specStr = String(user?.specialization || '').toLowerCase();
+      const isDualScope =
+        specStr.includes('prof') ||
+        specStr.includes('ui') ||
+        specStr.includes('ux');
       const isFacilitator =
         user?.roles?.includes(UserRole.FACILITATOR) ||
         user?.role === UserRole.FACILITATOR;
-      if (!isFacilitator && user?.role !== UserRole.ADMIN) {
+      if (!isFacilitator && user?.role !== UserRole.ADMIN && !isDualScope) {
         query
           .leftJoin(
             'enrollments',
