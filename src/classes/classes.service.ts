@@ -84,6 +84,11 @@ export class ClassesService {
       },
     });
 
+    const globalCompetencies = await this.competencyRepository.find({
+      where: { isGlobal: true },
+    });
+    const globalCompNames = globalCompetencies.map((c) => c.name);
+
     const enrichedClasses = await Promise.all(
       enrollments.map(async (e) => {
         const cls = e.class;
@@ -91,6 +96,7 @@ export class ClassesService {
           where: { batchId: cls.batchId },
           relations: { program: true },
         });
+        const allBatchClassIds = batchClasses.map((c) => c.id);
         const relatedClassIds = batchClasses
           .filter(
             (c) =>
@@ -99,10 +105,16 @@ export class ClassesService {
           )
           .map((c) => c.id);
 
-        const assignments = await this.assignmentRepository.find({
-          where: { classId: In(relatedClassIds) },
+        const allAssignments = await this.assignmentRepository.find({
+          where: { classId: In(allBatchClassIds) },
           order: { createdAt: 'ASC' },
         });
+
+        const assignments = allAssignments.filter(
+          (a) =>
+            relatedClassIds.includes(a.classId) ||
+            globalCompNames.includes(a.competency),
+        );
 
         return {
           ...cls,
@@ -399,13 +411,26 @@ export class ClassesService {
       }
     }
 
+    const globalCompetencies = await this.competencyRepository.find({
+      where: { isGlobal: true },
+    });
+    const globalCompNames = globalCompetencies.map((c) => c.name);
+
     // For each class, fetch enrollments to get student list
     const enrichedClasses = await Promise.all(
       classes.map(async (cls) => {
-        const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId },
+        const batchClasses = await this.classRepository.find({
+          where: { batchId: cls.batchId },
+          relations: { program: true },
         });
-        const relatedClassIds = relatedClasses.map((c) => c.id);
+        const allBatchClassIds = batchClasses.map((c) => c.id);
+        const relatedClassIds = batchClasses
+          .filter(
+            (c) =>
+              c.programId === cls.programId ||
+              c.program?.name?.toLowerCase().includes('professional'),
+          )
+          .map((c) => c.id);
 
         let enrollments = await this.enrollmentRepository.find({
           where: { classId: cls.id },
@@ -432,13 +457,24 @@ export class ClassesService {
             return isStudent || !isStaff;
           });
 
-        const materials = await this.materialRepository.find({
-          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
+        const allMaterials = await this.materialRepository.find({
+          where: { classId: In(allBatchClassIds) },
         });
-        const assignments = await this.assignmentRepository.find({
-          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
+        const materials = allMaterials.filter(
+          (m) =>
+            relatedClassIds.includes(m.classId) ||
+            globalCompNames.includes(m.competency),
+        );
+
+        const allAssignments = await this.assignmentRepository.find({
+          where: { classId: In(allBatchClassIds) },
           relations: { submissions: true },
         });
+        const assignments = allAssignments.filter(
+          (a) =>
+            relatedClassIds.includes(a.classId) ||
+            globalCompNames.includes(a.competency),
+        );
 
         // Fetch facilitators assigned to this program
         const allUsersForFac = await this.userRepository.find();
@@ -2400,6 +2436,7 @@ export class ClassesService {
       where: { batchId: classEntity.batchId },
       relations: { program: true },
     });
+    const allBatchClassIds = batchClasses.map((c) => c.id);
     const relatedClassIds = batchClasses
       .filter(
         (c) =>
@@ -2408,14 +2445,30 @@ export class ClassesService {
       )
       .map((c) => c.id);
 
-    classEntity.materials = await this.materialRepository.find({
-      where: { classId: In(relatedClassIds) },
+    const globalCompetencies = await this.competencyRepository.find({
+      where: { isGlobal: true },
+    });
+    const globalCompNames = globalCompetencies.map((c) => c.name);
+
+    const allMaterials = await this.materialRepository.find({
+      where: { classId: In(allBatchClassIds) },
       order: { createdAt: 'ASC' },
     });
-    classEntity.assignments = await this.assignmentRepository.find({
-      where: { classId: In(relatedClassIds) },
+    classEntity.materials = allMaterials.filter(
+      (m) =>
+        relatedClassIds.includes(m.classId) ||
+        globalCompNames.includes(m.competency),
+    );
+
+    const allAssignments = await this.assignmentRepository.find({
+      where: { classId: In(allBatchClassIds) },
       order: { createdAt: 'ASC' },
     });
+    classEntity.assignments = allAssignments.filter(
+      (a) =>
+        relatedClassIds.includes(a.classId) ||
+        globalCompNames.includes(a.competency),
+    );
 
     return classEntity;
   }
