@@ -87,10 +87,17 @@ export class ClassesService {
     const enrichedClasses = await Promise.all(
       enrollments.map(async (e) => {
         const cls = e.class;
-        const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId },
+        const batchClasses = await this.classRepository.find({
+          where: { batchId: cls.batchId },
+          relations: { program: true },
         });
-        const relatedClassIds = relatedClasses.map((c) => c.id);
+        const relatedClassIds = batchClasses
+          .filter(
+            (c) =>
+              c.programId === cls.programId ||
+              c.program?.name?.toLowerCase().includes('professional'),
+          )
+          .map((c) => c.id);
 
         const assignments = await this.assignmentRepository.find({
           where: { classId: In(relatedClassIds) },
@@ -2389,10 +2396,17 @@ export class ClassesService {
       throw new NotFoundException('Kelas tidak ditemukan');
     }
 
-    const relatedClasses = await this.classRepository.find({
-      where: { programId: classEntity.programId, batchId: classEntity.batchId },
+    const batchClasses = await this.classRepository.find({
+      where: { batchId: classEntity.batchId },
+      relations: { program: true },
     });
-    const relatedClassIds = relatedClasses.map((c) => c.id);
+    const relatedClassIds = batchClasses
+      .filter(
+        (c) =>
+          c.programId === classEntity.programId ||
+          c.program?.name?.toLowerCase().includes('professional'),
+      )
+      .map((c) => c.id);
 
     classEntity.materials = await this.materialRepository.find({
       where: { classId: In(relatedClassIds) },
