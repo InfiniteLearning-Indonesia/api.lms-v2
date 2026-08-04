@@ -400,10 +400,20 @@ export class ClassesService {
         });
         const relatedClassIds = relatedClasses.map((c) => c.id);
 
-        const enrollments = await this.enrollmentRepository.find({
-          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
+        let enrollments = await this.enrollmentRepository.find({
+          where: { classId: cls.id },
           relations: { student: true },
         });
+
+        // Fallback for secondary program classes if direct classId has 0 enrollments
+        if (enrollments.length === 0 && cls.mentorId !== mentorId) {
+          if (relatedClassIds.length > 0) {
+            enrollments = await this.enrollmentRepository.find({
+              where: { classId: In(relatedClassIds) },
+              relations: { student: true },
+            });
+          }
+        }
         let enrolledStudents = enrollments
           .map((e) => e.student)
           .filter((s) => {
@@ -415,13 +425,11 @@ export class ClassesService {
             return isStudent || !isStaff;
           });
 
-
-
         const materials = await this.materialRepository.find({
-          where: { classId: In(relatedClassIds) },
+          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
         });
         const assignments = await this.assignmentRepository.find({
-          where: { classId: In(relatedClassIds) },
+          where: { classId: In(relatedClassIds.length > 0 ? relatedClassIds : [cls.id]) },
           relations: { submissions: true },
         });
 
