@@ -2483,14 +2483,35 @@ export class ClassesService {
         where: { id: classId },
       });
       if (cls) {
-        const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId },
-        });
-        const relatedClassIds = relatedClasses.map((c) => c.id);
-
         materialEntity = await this.materialRepository.findOne({
-          where: { id: materialId, classId: In(relatedClassIds) },
+          where: { id: materialId },
         });
+
+        if (materialEntity) {
+          const batchClasses = await this.classRepository.find({
+            where: { batchId: cls.batchId },
+            relations: { program: true },
+          });
+          const relatedClassIds = batchClasses
+            .filter(
+              (c) =>
+                c.programId === cls.programId ||
+                c.program?.name?.toLowerCase().includes('professional'),
+            )
+            .map((c) => c.id);
+
+          const globalCompetencies = await this.competencyRepository.find({
+            where: { isGlobal: true },
+          });
+          const globalCompNames = globalCompetencies.map((c) => c.name);
+
+          if (
+            !relatedClassIds.includes(materialEntity.classId) &&
+            !globalCompNames.includes(materialEntity.competency)
+          ) {
+            materialEntity = null;
+          }
+        }
       }
     }
 
@@ -2511,14 +2532,35 @@ export class ClassesService {
         where: { id: classId },
       });
       if (cls) {
-        const relatedClasses = await this.classRepository.find({
-          where: { programId: cls.programId, batchId: cls.batchId },
-        });
-        const relatedClassIds = relatedClasses.map((c) => c.id);
-
         assignmentEntity = await this.assignmentRepository.findOne({
-          where: { id: assignmentId, classId: In(relatedClassIds) },
+          where: { id: assignmentId },
         });
+
+        if (assignmentEntity) {
+          const batchClasses = await this.classRepository.find({
+            where: { batchId: cls.batchId },
+            relations: { program: true },
+          });
+          const relatedClassIds = batchClasses
+            .filter(
+              (c) =>
+                c.programId === cls.programId ||
+                c.program?.name?.toLowerCase().includes('professional'),
+            )
+            .map((c) => c.id);
+
+          const globalCompetencies = await this.competencyRepository.find({
+            where: { isGlobal: true },
+          });
+          const globalCompNames = globalCompetencies.map((c) => c.name);
+
+          if (
+            !relatedClassIds.includes(assignmentEntity.classId) &&
+            !globalCompNames.includes(assignmentEntity.competency)
+          ) {
+            assignmentEntity = null;
+          }
+        }
       }
     }
 
