@@ -61,13 +61,13 @@ export class AttendanceController {
   }
 
   @Post()
-  @Roles('admin', 'mentor')
+  @Roles('admin', 'mentor', 'facilitator')
   async upsertAttendance(@Body() dto: CreateAttendanceDto) {
     return this.attendanceService.upsertAttendance(dto);
   }
 
   @Post('bulk')
-  @Roles('admin', 'mentor')
+  @Roles('admin', 'mentor', 'facilitator')
   async bulkUpsertAttendance(@Body() dto: BulkCreateAttendanceDto) {
     return this.attendanceService.bulkUpsertAttendance(dto);
   }
