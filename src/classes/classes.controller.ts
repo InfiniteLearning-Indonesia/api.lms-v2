@@ -514,6 +514,17 @@ export class ClassesController {
   }
 
   @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put('material/:id')
+  async updateMaterial(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.classesService.updateMaterial(req.user.id, id, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
   @Get(':classId/material/:materialId')
   async getMaterialDetails(@Req() req: any) {
     return this.classesService.getMaterialDetails(
@@ -531,6 +542,17 @@ export class ClassesController {
     @Body() body: any,
   ) {
     return this.classesService.createAssignment(req.user.id, classId, body);
+  }
+
+  @UseGuards(SessionAuthGuard)
+  @Roles('mentor', 'admin')
+  @Put('assignment/:id')
+  async updateAssignment(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.classesService.updateAssignment(req.user.id, id, body);
   }
 
   @UseGuards(SessionAuthGuard)

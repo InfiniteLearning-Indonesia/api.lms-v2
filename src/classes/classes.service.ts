@@ -2298,6 +2298,76 @@ export class ClassesService {
     return await this.assignmentRepository.save(assignment);
   }
 
+  async updateMaterial(
+    mentorId: string,
+    materialId: string,
+    payload: {
+      title?: string;
+      type?: string;
+      competency?: string;
+      url?: string;
+      content?: string;
+    },
+  ) {
+    const material = await this.materialRepository.findOne({
+      where: { id: materialId },
+      relations: { class: { batch: true } },
+    });
+    if (!material) throw new NotFoundException('Materi tidak ditemukan.');
+
+    const cls = material.class;
+    if (cls?.batch?.status === 'completed')
+      throw new ForbiddenException(
+        'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
+      );
+
+    if (cls?.mentorId !== mentorId)
+      throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+
+    if (payload.title !== undefined) material.title = payload.title;
+    if (payload.type !== undefined) material.type = payload.type;
+    if (payload.competency !== undefined) material.competency = payload.competency;
+    if (payload.url !== undefined) material.url = payload.url;
+    if (payload.content !== undefined) material.content = payload.content;
+
+    return await this.materialRepository.save(material);
+  }
+
+  async updateAssignment(
+    mentorId: string,
+    assignmentId: string,
+    payload: {
+      title?: string;
+      description?: string;
+      competency?: string;
+      selectedRubrics?: any;
+      dueDate?: string;
+    },
+  ) {
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId },
+      relations: { class: { batch: true } },
+    });
+    if (!assignment) throw new NotFoundException('Tugas tidak ditemukan.');
+
+    const cls = assignment.class;
+    if (cls?.batch?.status === 'completed')
+      throw new ForbiddenException(
+        'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
+      );
+
+    if (cls?.mentorId !== mentorId)
+      throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
+
+    if (payload.title !== undefined) assignment.title = payload.title;
+    if (payload.description !== undefined) assignment.description = payload.description;
+    if (payload.competency !== undefined) assignment.competency = payload.competency;
+    if (payload.selectedRubrics !== undefined) assignment.selectedRubrics = payload.selectedRubrics;
+    if (payload.dueDate !== undefined) assignment.dueDate = new Date(payload.dueDate);
+
+    return await this.assignmentRepository.save(assignment);
+  }
+
   async getClassDetails(classId: string) {
     let classEntity: Class | null = null;
 

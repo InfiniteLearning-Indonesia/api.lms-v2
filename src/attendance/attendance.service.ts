@@ -145,7 +145,7 @@ export class AttendanceService {
 
     const activeDays: Date[] = [];
     const current = new Date(queryStart);
-    current.setHours(0, 0, 0, 0);
+    current.setHours(12, 0, 0, 0);
     const endLimit = new Date(queryEnd);
     endLimit.setHours(23, 59, 59, 999);
 
@@ -461,7 +461,7 @@ export class AttendanceService {
     const activeDateStrings: string[] = [];
 
     const current = new Date(start);
-    current.setHours(0, 0, 0, 0);
+    current.setHours(12, 0, 0, 0);
     const endLimit = new Date(end);
     endLimit.setHours(23, 59, 59, 999);
 
@@ -498,10 +498,13 @@ export class AttendanceService {
     oncamDays: number;
     oncamScore: number;
   }> {
+    const today = new Date();
+    const effectiveEndDate = endDate && new Date(endDate) < today ? endDate : today;
+
     const activeInfo = await this.getActiveDaysForDateRange(
       batchId,
       startDate,
-      endDate,
+      effectiveEndDate,
     );
     const totalSyncDays = activeInfo.total;
 
