@@ -348,7 +348,30 @@ export class AttendanceService {
     }
 
     query.orderBy('attendance.date', 'DESC');
-    return query.getMany();
+    const items = await query.getMany();
+
+    if (items.length > 0 && batchId) {
+      try {
+        const rawMapping = await this.attendanceRepository.manager.query(
+          `SELECT en."studentId", cls."mentorId" 
+           FROM enrollments en
+           JOIN classes cls ON cls.id = en."classId"
+           WHERE cls."batchId" = $1 AND cls."mentorId" IS NOT NULL`,
+          [batchId],
+        );
+        const studentMentorMap = new Map<string, string>();
+        rawMapping.forEach((r: any) => studentMentorMap.set(r.studentId, r.mentorId));
+
+        return items.map((att) => ({
+          ...att,
+          mentorId: studentMentorMap.get(att.studentId) || null,
+        }));
+      } catch (err) {
+        return items;
+      }
+    }
+
+    return items;
   }
 
   async getMyStudentsAttendance(mentorId: string, batchId: string) {

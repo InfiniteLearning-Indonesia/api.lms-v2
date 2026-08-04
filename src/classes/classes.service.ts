@@ -3691,9 +3691,21 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     return { success: true, updatedCount: classes.length, links };
   }
 
-  async updateClassLinks(classId: string, links: any[]) {
+  async updateClassLinks(classId: string, links: any[], caller?: User) {
     const cls = await this.classRepository.findOne({ where: { id: classId } });
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan');
+
+    if (caller) {
+      const isAdmin =
+        caller.roles?.includes(UserRole.ADMIN) ||
+        caller.role === UserRole.ADMIN;
+      if (!isAdmin && cls.mentorId !== caller.id) {
+        throw new ForbiddenException(
+          'Anda hanya dapat memperbarui Important Links untuk kelas utama Anda sendiri.',
+        );
+      }
+    }
+
     cls.importantLinks = links;
     await this.classRepository.save(cls);
     return { success: true, classId: cls.id, links };

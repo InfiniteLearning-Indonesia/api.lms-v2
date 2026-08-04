@@ -236,12 +236,13 @@ export class ClassesController {
   }
 
   @Patch(':classId/links')
-  @Roles('admin')
+  @Roles('admin', 'mentor')
   async updateClassLinks(
+    @Req() req: any,
     @Param('classId') classId: string,
     @Body() body: { links: any[] },
   ) {
-    return this.classesService.updateClassLinks(classId, body.links);
+    return this.classesService.updateClassLinks(classId, body.links, req.user);
   }
 
   @UseGuards(SessionAuthGuard)
