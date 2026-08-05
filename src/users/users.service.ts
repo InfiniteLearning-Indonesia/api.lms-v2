@@ -71,7 +71,7 @@ export class UsersService {
         SELECT u.id, u.email, u."programId", u."selectedProgram"
         FROM users u
         LEFT JOIN enrollments e ON u.id = e."studentId"
-        WHERE e.id IS NULL AND (u.role = 'student' OR u.roles::text LIKE '%student%')
+        WHERE e.id IS NULL AND (u.roles::text LIKE '%student%')
       `);
 
       if (!unassignedStudents || unassignedStudents.length === 0) return;
