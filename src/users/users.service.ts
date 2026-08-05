@@ -26,12 +26,16 @@ export class UsersService {
   ) {}
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { email } });
+    const cleanEmail = (email || '').trim().toLowerCase();
+    return this.usersRepository.findOne({
+      where: { email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, { email: cleanEmail }) },
+    });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
+    const cleanEmail = (email || '').trim().toLowerCase();
     return this.usersRepository.findOne({
-      where: { email },
+      where: { email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, { email: cleanEmail }) },
       select: {
         id: true,
         email: true,
