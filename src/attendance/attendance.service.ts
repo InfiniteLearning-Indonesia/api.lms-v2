@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Attendance, AttendanceStatus } from './entities/attendance.entity';
@@ -631,6 +631,13 @@ export class AttendanceService {
   }
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {
+    if (!dto.proofFiles || dto.proofFiles.length === 0) {
+      throw new BadRequestException('Bukti Dokumen / Surat Dokter wajib diunggah.');
+    }
+    if (!dto.mentorChatFiles || dto.mentorChatFiles.length === 0) {
+      throw new BadRequestException('Bukti Tangkapan Layar Chat Mentor wajib diunggah.');
+    }
+
     // Upload files to Cloudflare R2
     const uploadedProofFiles = await this.storageService.uploadMultipleBase64(
       dto.proofFiles || [],
