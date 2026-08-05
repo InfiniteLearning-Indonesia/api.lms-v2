@@ -18,10 +18,15 @@ export class AuditInterceptor implements NestInterceptor {
     const res = context.switchToHttp().getResponse();
     const { method, url } = req;
     
-    // Extract real client IP behind Nginx reverse proxy
+    // Extract real client IP behind Nginx / Cloudflare reverse proxy
+    const xForwardedFor = req.headers['x-forwarded-for'] as string;
+    const xRealIp = req.headers['x-real-ip'] as string;
+    const cfConnectingIp = req.headers['cf-connecting-ip'] as string;
+
     const clientIp = 
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      (req.headers['x-real-ip'] as string) ||
+      cfConnectingIp?.trim() ||
+      xForwardedFor?.split(',')[0]?.trim() ||
+      xRealIp?.trim() ||
       req.ip ||
       req.socket?.remoteAddress ||
       '127.0.0.1';
