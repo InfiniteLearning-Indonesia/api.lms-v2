@@ -21,7 +21,10 @@ import * as crypto from 'crypto';
 
 @Controller('auth')
 export class AuthController {
-  private static exchangeCodes = new Map<string, { sessionID: string; userId: string; expiresAt: number }>();
+  private static exchangeCodes = new Map<
+    string,
+    { sessionID: string; userId: string; expiresAt: number }
+  >();
   private readonly logger = new Logger(AuthController.name);
 
   constructor(
@@ -92,7 +95,7 @@ export class AuthController {
       throw new UnauthorizedException('Kode tidak valid atau kedaluwarsa.');
     }
     AuthController.exchangeCodes.delete(body.code);
-    
+
     // Bind this session to the user
     req.session.userId = entry.userId;
     return new Promise((resolve, reject) => {

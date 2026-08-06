@@ -28,14 +28,22 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     const cleanEmail = (email || '').trim().toLowerCase();
     return this.usersRepository.findOne({
-      where: { email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, { email: cleanEmail }) },
+      where: {
+        email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, {
+          email: cleanEmail,
+        }),
+      },
     });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     const cleanEmail = (email || '').trim().toLowerCase();
     return this.usersRepository.findOne({
-      where: { email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, { email: cleanEmail }) },
+      where: {
+        email: Raw((alias) => `LOWER(TRIM(${alias})) = :email`, {
+          email: cleanEmail,
+        }),
+      },
       select: {
         id: true,
         email: true,
@@ -703,7 +711,7 @@ export class UsersService {
           process.env.NODE_ENV === 'test'
             ? undefined
             : this.dataSource.driver.options.type === 'postgres'
-              ? Raw((alias) => `${alias}::jsonb @> '["admin"]'`) as any
+              ? (Raw((alias) => `${alias}::jsonb @> '["admin"]'`) as any)
               : undefined,
         status: UserStatus.ACTIVE,
       },

@@ -43,8 +43,10 @@ export class AuditService implements OnModuleInit {
     setImmediate(async () => {
       try {
         const now = new Date();
-        const timestampWib = now.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
-        
+        const timestampWib = now.toLocaleString('id-ID', {
+          timeZone: 'Asia/Jakarta',
+        });
+
         const log = this.auditRepository.create({
           ...dto,
           level: dto.level || 'INFO',
@@ -57,8 +59,14 @@ export class AuditService implements OnModuleInit {
     });
   }
 
-  async getLogs(page: number = 1, limit: number = 20, level?: string, category?: string) {
-    const query = this.auditRepository.createQueryBuilder('log')
+  async getLogs(
+    page: number = 1,
+    limit: number = 20,
+    level?: string,
+    category?: string,
+  ) {
+    const query = this.auditRepository
+      .createQueryBuilder('log')
       .orderBy('log.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -76,7 +84,7 @@ export class AuditService implements OnModuleInit {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -88,14 +96,14 @@ export class AuditService implements OnModuleInit {
 
       const oldLogs = await this.auditRepository.find({
         where: { createdAt: LessThan(thirtyDaysAgo) },
-        order: { createdAt: 'ASC' }
+        order: { createdAt: 'ASC' },
       });
 
       if (oldLogs.length === 0) return;
 
       const groupedByMonth: Record<string, AuditLog[]> = {};
-      
-      oldLogs.forEach(log => {
+
+      oldLogs.forEach((log) => {
         const date = new Date(log.createdAt);
         const yyyy = date.getFullYear();
         const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -106,20 +114,22 @@ export class AuditService implements OnModuleInit {
 
       for (const [monthKey, logs] of Object.entries(groupedByMonth)) {
         const filename = path.join(this.LOGS_DIR, `audit-${monthKey}.jsonl`);
-        const lines = logs.map(l => JSON.stringify(l)).join('\n') + '\n';
+        const lines = logs.map((l) => JSON.stringify(l)).join('\n') + '\n';
         fs.appendFileSync(filename, lines, 'utf8');
       }
 
       // After successful file appending, delete from DB
-      const idsToDelete = oldLogs.map(l => l.id);
-      
+      const idsToDelete = oldLogs.map((l) => l.id);
+
       // Delete in chunks of 500 to prevent locking
       for (let i = 0; i < idsToDelete.length; i += 500) {
         const chunk = idsToDelete.slice(i, i + 500);
         await this.auditRepository.delete(chunk);
       }
-      
-      this.logger.log(`Archived ${oldLogs.length} old audit logs to JSONL files.`);
+
+      this.logger.log(
+        `Archived ${oldLogs.length} old audit logs to JSONL files.`,
+      );
     } catch (err) {
       this.logger.error('Failed to archive old audit logs', err);
     }

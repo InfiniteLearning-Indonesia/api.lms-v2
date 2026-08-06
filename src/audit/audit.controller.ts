@@ -1,4 +1,10 @@
-import { Controller, Get, Query, UseGuards, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuditService } from './audit.service.js';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
@@ -19,7 +25,7 @@ export class AuditController {
   ) {
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 20;
-    
+
     return this.auditService.getLogs(pageNum, limitNum, level, category);
   }
 }

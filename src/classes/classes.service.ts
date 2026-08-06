@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
+/* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import {
   Injectable,
   NotFoundException,
@@ -68,7 +71,7 @@ export class ClassesService {
 
   async healEnrollments() {
     // Disabled automatic heal scan to prevent unwanted auto-enrollment of alumni students and mentors across batches
-    return;
+    return Promise.resolve();
   }
 
   async findMyClasses(studentId: string) {
@@ -230,6 +233,46 @@ export class ClassesService {
       else if (finalScore >= 80) predicate = 'Very Good';
       else if (finalScore >= 70) predicate = 'Good';
 
+      // 6. Calculate Logbook Completion Status
+      let totalMonths = 4;
+      if (batch?.startDate && batch?.endDate) {
+        const start = new Date(batch.startDate);
+        const end = new Date(batch.endDate);
+        totalMonths =
+          (end.getFullYear() - start.getFullYear()) * 12 +
+          (end.getMonth() - start.getMonth()) +
+          1;
+      }
+      if (totalMonths <= 0) totalMonths = 1;
+
+      const logbooks = await this.logbookRepository.find({
+        where: { studentId, batchId: batch.id },
+      });
+
+      let totalAccepted = 0;
+      let month1Accepted = false;
+      let firstIncompleteMonth: number | null = null;
+
+      for (let i = 1; i <= totalMonths; i++) {
+        const lb = logbooks.find((l) => l.monthIndex === i);
+        if (lb && lb.status === LogbookStatus.ACCEPTED) {
+          totalAccepted++;
+          if (i === 1) month1Accepted = true;
+        } else {
+          if (firstIncompleteMonth === null) {
+            firstIncompleteMonth = i;
+          }
+        }
+      }
+
+      const logbookCompletionStatus = {
+        allAccepted: totalAccepted >= totalMonths,
+        month1Accepted,
+        totalRequired: totalMonths,
+        totalAccepted,
+        firstIncompleteMonth,
+      };
+
       results.push({
         student: {
           id: student.id,
@@ -254,6 +297,7 @@ export class ClassesService {
         predicate,
         isTranscriptReleased: cls.isTranscriptReleased || false,
         isCertificateReleased: cls.isCertificateReleased || false,
+        logbookCompletionStatus,
       });
     }
 
@@ -446,14 +490,21 @@ export class ClassesService {
             });
           }
         }
-        let enrolledStudents = enrollments
+        const enrolledStudents = enrollments
           .map((e) => e.student)
           .filter((s) => {
             if (!s) return false;
             const roles = (s.roles || []).map((r) => String(r).toLowerCase());
             const roleStr = String(s.role || '').toLowerCase();
-            const isStudent = roles.includes('student') || roleStr === 'student';
-            const isStaff = roles.includes('mentor') || roleStr === 'mentor' || roles.includes('facilitator') || roleStr === 'facilitator' || roles.includes('admin') || roleStr === 'admin';
+            const isStudent =
+              roles.includes('student') || roleStr === 'student';
+            const isStaff =
+              roles.includes('mentor') ||
+              roleStr === 'mentor' ||
+              roles.includes('facilitator') ||
+              roleStr === 'facilitator' ||
+              roles.includes('admin') ||
+              roleStr === 'admin';
             return isStudent || !isStaff;
           });
 
@@ -719,7 +770,9 @@ export class ClassesService {
       }),
     );
 
-    const globalActive = allBatches.find((b) => b.status === 'active') || {
+    const globalActive = allBatches.find(
+      (b) => b.status === BatchStatus.ACTIVE,
+    ) || {
       id: 'no-batch',
       name: 'Belum Ada Batch Berjalan',
       status: 'completed',
@@ -757,7 +810,9 @@ export class ClassesService {
   ) {
     const rawStatus = typeof payload === 'string' ? payload : payload.status;
     const status =
-      rawStatus === 'active' ? BatchStatus.ACTIVE : BatchStatus.COMPLETED;
+      rawStatus === BatchStatus.ACTIVE
+        ? BatchStatus.ACTIVE
+        : BatchStatus.COMPLETED;
     const batchId = typeof payload === 'object' ? payload.batchId : undefined;
     const programId =
       typeof payload === 'object' ? payload.programId : undefined;
@@ -899,6 +954,7 @@ export class ClassesService {
     newProgramNames?: string[];
     startDate?: string | Date;
     endDate?: string | Date;
+    logbookSchedule?: any[];
   }) {
     const status = (payload.status as BatchStatus) || BatchStatus.DRAFT;
 
@@ -944,6 +1000,7 @@ export class ClassesService {
         includedProgramIds: programIds,
         startDate: payload.startDate ? new Date(payload.startDate) : null,
         endDate: payload.endDate ? new Date(payload.endDate) : null,
+        logbookSchedule: payload.logbookSchedule || undefined,
       }),
     );
 
@@ -979,6 +1036,7 @@ export class ClassesService {
       newProgramNames?: string[];
       startDate?: string | Date;
       endDate?: string | Date;
+      logbookSchedule?: any[];
     },
   ) {
     const batch = await this.batchRepository.findOne({
@@ -991,6 +1049,8 @@ export class ClassesService {
       batch.startDate = payload.startDate ? new Date(payload.startDate) : null;
     if (payload.endDate !== undefined)
       batch.endDate = payload.endDate ? new Date(payload.endDate) : null;
+    if (payload.logbookSchedule !== undefined)
+      batch.logbookSchedule = payload.logbookSchedule || null;
 
     if (payload.status) {
       const castStatus = payload.status as BatchStatus;
@@ -1045,7 +1105,7 @@ export class ClassesService {
 
     await this.batchRepository.save(batch);
 
-    if (batch.status === 'active') {
+    if (batch.status === BatchStatus.ACTIVE) {
       for (const progId of programIds) {
         const cls = await this.classRepository.findOne({
           where: { programId: progId, batchId: batch.id },
@@ -1089,7 +1149,10 @@ export class ClassesService {
       });
 
       if (enrolls > 0 || mats > 0 || ass > 0) {
-        if (batch.status === 'active' || batch.status === 'completed') {
+        if (
+          batch.status === BatchStatus.ACTIVE ||
+          batch.status === BatchStatus.COMPLETED
+        ) {
           throw new ForbiddenException(
             `Batch "${batch.name}" tidak dapat dihapus karena sudah memiliki data kelas/murid aktif. Silakan ubah status menjadi Read-Only (Selesai).`,
           );
@@ -1361,13 +1424,14 @@ export class ClassesService {
             mentorClasses.push(mCls);
           }
 
-          progEnrollments.forEach((enroll, idx) => {
+          for (let idx = 0; idx < progEnrollments.length; idx++) {
+            const enroll = progEnrollments[idx];
             const targetClass = mentorClasses[idx % mentorClasses.length];
             if (enroll.classId !== targetClass.id) {
               enroll.classId = targetClass.id;
-              this.enrollmentRepository.save(enroll);
+              await this.enrollmentRepository.save(enroll);
             }
-          });
+          }
         }
       }
     }
@@ -1684,7 +1748,7 @@ export class ClassesService {
     }
 
     const allUsers = await this.userRepository.find();
-    
+
     const batchClasses = await this.classRepository.find({
       where: { batchId: activeBatch.id, programId: program.id },
     });
@@ -1704,24 +1768,42 @@ export class ClassesService {
 
     // ⚖️ Student Distribution according to Rule 16
     const primaryMentors = allUsers.filter((u) => {
-      if (!u.roles.includes(UserRole.MENTOR) || u.status === UserStatus.SUSPENDED) return false;
+      if (
+        !u.roles.includes(UserRole.MENTOR) ||
+        u.status === UserStatus.SUSPENDED
+      )
+        return false;
       const specStr = String(u.specialization || '').toLowerCase();
-      if (specStr.includes('prof') || specStr.includes('ui') || specStr.includes('ux')) return false;
+      if (
+        specStr.includes('prof') ||
+        specStr.includes('ui') ||
+        specStr.includes('ux')
+      )
+        return false;
 
-      return (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) || (u.programId === program.id);
+      return (
+        (u.selectedProgram && u.selectedProgram.toLowerCase() === pNameLower) ||
+        u.programId === program.id
+      );
     });
 
     const supportingMentors = allUsers.filter((u) => {
-      if (!u.roles.includes(UserRole.MENTOR) || u.status === UserStatus.SUSPENDED) return false;
+      if (
+        !u.roles.includes(UserRole.MENTOR) ||
+        u.status === UserStatus.SUSPENDED
+      )
+        return false;
       const specStr = String(u.specialization || '').toLowerCase();
       const isProf = specStr.includes('prof');
       const isUiUx = specStr.includes('ui') || specStr.includes('ux');
-      
+
       return isProf || (isUiUx && isWebOrMobile);
     });
 
     if (primaryMentors.length === 0) {
-      throw new BadRequestException('Tidak ada mentor utama aktif yang terdaftar untuk program ini.');
+      throw new BadRequestException(
+        'Tidak ada mentor utama aktif yang terdaftar untuk program ini.',
+      );
     }
 
     const totalStudents = studentsInBatch.length;
@@ -1758,7 +1840,7 @@ export class ClassesService {
 
     const totalMentors = primaryMentors.length + supportingMentors.length;
     const baseAllocation = Math.floor(totalStudents / totalMentors);
-    
+
     let studentIndex = 0;
 
     // 1. Distribute baseAllocation to primary mentors
@@ -2272,7 +2354,7 @@ export class ClassesService {
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
 
     // Rule 23: Batch Read Only
-    if (cls.batch?.status === 'completed')
+    if (cls.batch?.status === BatchStatus.COMPLETED)
       throw new ForbiddenException(
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
@@ -2317,7 +2399,7 @@ export class ClassesService {
     if (!cls) throw new NotFoundException('Kelas tidak ditemukan.');
 
     // Rule 23: Batch Read Only
-    if (cls.batch?.status === 'completed')
+    if (cls.batch?.status === BatchStatus.COMPLETED)
       throw new ForbiddenException(
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
@@ -2359,7 +2441,7 @@ export class ClassesService {
     if (!material) throw new NotFoundException('Materi tidak ditemukan.');
 
     const cls = material.class;
-    if (cls?.batch?.status === 'completed')
+    if (cls?.batch?.status === BatchStatus.COMPLETED)
       throw new ForbiddenException(
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
@@ -2369,7 +2451,8 @@ export class ClassesService {
 
     if (payload.title !== undefined) material.title = payload.title;
     if (payload.type !== undefined) material.type = payload.type;
-    if (payload.competency !== undefined) material.competency = payload.competency;
+    if (payload.competency !== undefined)
+      material.competency = payload.competency;
     if (payload.url !== undefined) material.url = payload.url;
     if (payload.content !== undefined) material.content = payload.content;
 
@@ -2394,7 +2477,7 @@ export class ClassesService {
     if (!assignment) throw new NotFoundException('Tugas tidak ditemukan.');
 
     const cls = assignment.class;
-    if (cls?.batch?.status === 'completed')
+    if (cls?.batch?.status === BatchStatus.COMPLETED)
       throw new ForbiddenException(
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
@@ -2403,10 +2486,14 @@ export class ClassesService {
       throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     if (payload.title !== undefined) assignment.title = payload.title;
-    if (payload.description !== undefined) assignment.description = payload.description;
-    if (payload.competency !== undefined) assignment.competency = payload.competency;
-    if (payload.selectedRubrics !== undefined) assignment.selectedRubrics = payload.selectedRubrics;
-    if (payload.dueDate !== undefined) assignment.dueDate = new Date(payload.dueDate);
+    if (payload.description !== undefined)
+      assignment.description = payload.description;
+    if (payload.competency !== undefined)
+      assignment.competency = payload.competency;
+    if (payload.selectedRubrics !== undefined)
+      assignment.selectedRubrics = payload.selectedRubrics;
+    if (payload.dueDate !== undefined)
+      assignment.dueDate = new Date(payload.dueDate);
 
     return await this.assignmentRepository.save(assignment);
   }
@@ -3073,21 +3160,25 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
         const parsed = new URL(dto.ollamaHost);
         // Only allow http/https, reject file://, ftp://, etc.
         if (!['http:', 'https:'].includes(parsed.protocol)) {
-          throw new BadRequestException('ollamaHost hanya boleh menggunakan http atau https.');
+          throw new BadRequestException(
+            'ollamaHost hanya boleh menggunakan http atau https.',
+          );
         }
         // Block internal network IPs (SSRF prevention)
         const blockedPatterns = [
-          /^169\.254\./,    // Link-local
-          /^10\./,          // Private Class A
+          /^169\.254\./, // Link-local
+          /^10\./, // Private Class A
           /^172\.(1[6-9]|2\d|3[01])\./, // Private Class B
-          /^192\.168\./,    // Private Class C
-          /^127\./,         // Loopback
-          /^0\./,           // Current network
-          /^::1$/,          // IPv6 loopback
-          /^fd/,            // IPv6 ULA
+          /^192\.168\./, // Private Class C
+          /^127\./, // Loopback
+          /^0\./, // Current network
+          /^::1$/, // IPv6 loopback
+          /^fd/, // IPv6 ULA
         ];
-        if (blockedPatterns.some(p => p.test(parsed.hostname))) {
-          throw new BadRequestException('ollamaHost tidak boleh mengarah ke jaringan internal.');
+        if (blockedPatterns.some((p) => p.test(parsed.hostname))) {
+          throw new BadRequestException(
+            'ollamaHost tidak boleh mengarah ke jaringan internal.',
+          );
         }
         user.ollamaHost = dto.ollamaHost;
       } catch (e) {
@@ -3340,7 +3431,12 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       order: { monthIndex: 'ASC' },
     });
 
-    return { totalMonths, startDate: batch.startDate, logbooks };
+    return {
+      totalMonths,
+      startDate: batch.startDate,
+      logbooks,
+      logbookSchedule: batch.logbookSchedule || [],
+    };
   }
 
   async submitLogbook(studentId: string, batchId: string, payload: any) {
@@ -3927,6 +4023,16 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     return { success: true, importedCount };
   }
 
+  async syncMandatoryLinks(batchId: string, mandatoryLinks: any[]) {
+    const classes = await this.classRepository.find({ where: { batchId } });
+    for (const cls of classes) {
+      const currentLinks = cls.importantLinks || [];
+      const personalLinks = currentLinks.filter((l) => l.scope !== 'mandatory');
+      cls.importantLinks = [...mandatoryLinks, ...personalLinks];
+      await this.classRepository.save(cls);
+    }
+  }
+
   async updateProgramLinks(programId: string, links: any[]) {
     const activeBatch = await this.batchRepository.findOne({
       where: { status: BatchStatus.ACTIVE },
@@ -3934,6 +4040,11 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     if (!activeBatch) {
       throw new BadRequestException('Tidak ada Batch/Cohort aktif.');
     }
+
+    const mandatoryLinks = links.filter((l) => l.scope === 'mandatory');
+    const personalLinks = links.filter((l) => l.scope !== 'mandatory');
+
+    await this.syncMandatoryLinks(activeBatch.id, mandatoryLinks);
 
     const classes = await this.classRepository.find({
       where: { programId, batchId: activeBatch.id },
@@ -3951,7 +4062,11 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     }
 
     for (const cls of classes) {
-      cls.importantLinks = links;
+      const currentLinks = cls.importantLinks || [];
+      const currentMandatory = currentLinks.filter(
+        (l) => l.scope === 'mandatory',
+      );
+      cls.importantLinks = [...currentMandatory, ...personalLinks];
       await this.classRepository.save(cls);
     }
 
@@ -3973,8 +4088,23 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       }
     }
 
-    cls.importantLinks = links;
-    await this.classRepository.save(cls);
+    const mandatoryLinks = links.filter((l) => l.scope === 'mandatory');
+    const personalLinks = links.filter((l) => l.scope !== 'mandatory');
+
+    await this.syncMandatoryLinks(cls.batchId, mandatoryLinks);
+
+    // Refresh cls to get the synced mandatory links
+    const refreshedCls = await this.classRepository.findOne({
+      where: { id: classId },
+    });
+    if (refreshedCls) {
+      const currentMandatory = (refreshedCls.importantLinks || []).filter(
+        (l) => l.scope === 'mandatory',
+      );
+      refreshedCls.importantLinks = [...currentMandatory, ...personalLinks];
+      await this.classRepository.save(refreshedCls);
+    }
+
     return { success: true, classId: cls.id, links };
   }
 }

@@ -13,7 +13,7 @@ export class HealthController {
   async check() {
     let dbStatus = 'disconnected';
     let dbLatencyMs = 0;
-    
+
     if (this.dataSource.isInitialized) {
       const start = process.hrtime();
       try {
@@ -27,10 +27,13 @@ export class HealthController {
     }
 
     const memUsage = process.memoryUsage();
-    
+
     return {
-      status: dbStatus === 'connected' && dbLatencyMs < 1500 ? 'ok' : 'degraded',
-      timestamp: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+      status:
+        dbStatus === 'connected' && dbLatencyMs < 1500 ? 'ok' : 'degraded',
+      timestamp: new Date().toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+      }),
       uptimeSeconds: process.uptime(),
       database: {
         status: dbStatus,
@@ -40,7 +43,7 @@ export class HealthController {
         rssMb: Math.round(memUsage.rss / 1024 / 1024),
         heapTotalMb: Math.round(memUsage.heapTotal / 1024 / 1024),
         heapUsedMb: Math.round(memUsage.heapUsed / 1024 / 1024),
-      }
+      },
     };
   }
 
@@ -55,4 +58,3 @@ export class HealthController {
     return this.healthHistoryService.getDailyUptime(daysNum);
   }
 }
-

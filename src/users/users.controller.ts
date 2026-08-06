@@ -90,7 +90,9 @@ export class UsersController {
   findOne(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     const isAdmin = req.user?.roles?.includes('admin');
     if (!isAdmin && req.user?.id !== id) {
-      throw new ForbiddenException('Anda hanya dapat mengakses profil Anda sendiri.');
+      throw new ForbiddenException(
+        'Anda hanya dapat mengakses profil Anda sendiri.',
+      );
     }
     return this.usersService.findById(id);
   }
@@ -115,7 +117,9 @@ export class UsersController {
   ) {
     const isAdmin = req.user?.roles?.includes('admin');
     if (!isAdmin && req.user?.id !== id) {
-      throw new ForbiddenException('Anda hanya dapat memperbarui email Anda sendiri.');
+      throw new ForbiddenException(
+        'Anda hanya dapat memperbarui email Anda sendiri.',
+      );
     }
     return this.usersService.updateEmail(id, newEmail, req.user);
   }
@@ -128,7 +132,9 @@ export class UsersController {
   ) {
     const isAdmin = req.user?.roles?.includes('admin');
     if (!isAdmin && req.user?.id !== id) {
-      throw new ForbiddenException('Anda hanya dapat memperbarui profil Anda sendiri.');
+      throw new ForbiddenException(
+        'Anda hanya dapat memperbarui profil Anda sendiri.',
+      );
     }
     console.log(
       `[USERS CONTROLLER] PATCH /users/${id} received! Payload:`,

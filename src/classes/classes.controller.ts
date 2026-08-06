@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 import {
   Controller,
   Get,
@@ -73,6 +74,7 @@ export class ClassesController {
       newProgramNames?: string[];
       startDate?: string;
       endDate?: string;
+      logbookSchedule?: any[];
     },
   ) {
     return this.classesService.createGlobalBatch(body);
@@ -90,6 +92,7 @@ export class ClassesController {
       newProgramNames?: string[];
       startDate?: string;
       endDate?: string;
+      logbookSchedule?: any[];
     },
   ) {
     return this.classesService.updateGlobalBatch(req.params.batchId, body);

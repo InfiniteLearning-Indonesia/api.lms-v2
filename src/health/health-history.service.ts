@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -15,7 +20,10 @@ export interface HealthSnapshot {
 export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(HealthHistoryService.name);
   private intervalId: NodeJS.Timeout;
-  private readonly HISTORY_FILE = path.join(process.cwd(), 'status-history.json');
+  private readonly HISTORY_FILE = path.join(
+    process.cwd(),
+    'status-history.json',
+  );
   private readonly MAX_HISTORY_DAYS = 7;
 
   constructor(private readonly dataSource: DataSource) {}
@@ -40,7 +48,10 @@ export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async measureDbLatency(): Promise<{ isConnected: boolean; latencyMs: number }> {
+  private async measureDbLatency(): Promise<{
+    isConnected: boolean;
+    latencyMs: number;
+  }> {
     if (!this.dataSource.isInitialized) {
       return { isConnected: false, latencyMs: 0 };
     }
@@ -60,12 +71,19 @@ export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
       const dbStats = await this.measureDbLatency();
       const memUsage = process.memoryUsage();
       const memoryMb = Math.round(memUsage.rss / 1024 / 1024);
-      
-      const status = dbStats.isConnected && dbStats.latencyMs < 1500 ? 'ok' : (dbStats.isConnected ? 'degraded' : 'down');
-      
+
+      const status =
+        dbStats.isConnected && dbStats.latencyMs < 1500
+          ? 'ok'
+          : dbStats.isConnected
+            ? 'degraded'
+            : 'down';
+
       // Use WIB format for timestamp
       const now = new Date();
-      const timestampWib = now.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      const timestampWib = now.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+      });
 
       const snapshot: HealthSnapshot = {
         timestamp: timestampWib,
@@ -90,15 +108,20 @@ export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
       history.push(snapshot);
 
       // Calculate cutoff time (7 days ago in local time roughly)
-      const cutoffTime = now.getTime() - (this.MAX_HISTORY_DAYS * 24 * 60 * 60 * 1000);
-      
+      const cutoffTime =
+        now.getTime() - this.MAX_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
       // Keep max 96 snapshots (24 hours * 4 per hour) to keep the file tiny
       // Wait, 15m interval * 4 = 4/hr * 24 = 96/day. Let's keep 7 days = 672 items max.
       if (history.length > 700) {
         history = history.slice(history.length - 700);
       }
 
-      fs.writeFileSync(this.HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
+      fs.writeFileSync(
+        this.HISTORY_FILE,
+        JSON.stringify(history, null, 2),
+        'utf-8',
+      );
     } catch (err) {
       this.logger.error('Failed to record health snapshot', err);
     }
@@ -145,14 +168,22 @@ export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
       });
 
       if (daySnapshots.length === 0) {
-        result.push({ date: dateKey, uptimePercent: null, status: 'no-data', incident: null });
+        result.push({
+          date: dateKey,
+          uptimePercent: null,
+          status: 'no-data',
+          incident: null,
+        });
         continue;
       }
 
       const okCount = daySnapshots.filter((s) => s.status === 'ok').length;
-      const degradedSnapshots = daySnapshots.filter((s) => s.status === 'degraded');
+      const degradedSnapshots = daySnapshots.filter(
+        (s) => s.status === 'degraded',
+      );
       const downSnapshots = daySnapshots.filter((s) => s.status === 'down');
-      const uptimePercent = Math.round((okCount / daySnapshots.length) * 1000) / 10;
+      const uptimePercent =
+        Math.round((okCount / daySnapshots.length) * 1000) / 10;
 
       let status: 'operational' | 'degraded' | 'outage';
       if (uptimePercent >= 99) status = 'operational';
@@ -164,7 +195,9 @@ export class HealthHistoryService implements OnModuleInit, OnModuleDestroy {
         const maxLatency = Math.max(...daySnapshots.map((s) => s.dbLatencyMs));
         const incidentParts: string[] = [];
         if (downSnapshots.length > 0) {
-          incidentParts.push(`${downSnapshots.length} snapshot down (koneksi DB gagal)`);
+          incidentParts.push(
+            `${downSnapshots.length} snapshot down (koneksi DB gagal)`,
+          );
         }
         if (degradedSnapshots.length > 0) {
           incidentParts.push(`${degradedSnapshots.length} snapshot degraded`);

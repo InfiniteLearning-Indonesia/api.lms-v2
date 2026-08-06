@@ -15,7 +15,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Security Hardening: HTTP headers
-  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } })); // Adjust if CORS issues happen
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // Adjust if CORS issues happen
 
   app.use(json({ limit: '25mb' }));
   app.use(urlencoded({ limit: '25mb', extended: true }));

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { Attendance, AttendanceStatus } from './entities/attendance.entity';
@@ -317,7 +322,9 @@ export class AttendanceService {
     // Role-based data filtering
     if (caller && caller.roles && caller.roles.includes('student')) {
       // Students can only see their own attendance
-      query.andWhere('attendance.studentId = :callerId', { callerId: caller.id });
+      query.andWhere('attendance.studentId = :callerId', {
+        callerId: caller.id,
+      });
     } else if (studentId) {
       query.andWhere('attendance.studentId = :studentId', { studentId });
     }
@@ -365,7 +372,9 @@ export class AttendanceService {
           [batchId],
         );
         const studentMentorMap = new Map<string, string>();
-        rawMapping.forEach((r: any) => studentMentorMap.set(r.studentId, r.mentorId));
+        rawMapping.forEach((r: any) =>
+          studentMentorMap.set(r.studentId, r.mentorId),
+        );
 
         return items.map((att) => ({
           ...att,
@@ -499,7 +508,8 @@ export class AttendanceService {
     oncamScore: number;
   }> {
     const today = new Date();
-    const effectiveEndDate = endDate && new Date(endDate) < today ? endDate : today;
+    const effectiveEndDate =
+      endDate && new Date(endDate) < today ? endDate : today;
 
     const activeInfo = await this.getActiveDaysForDateRange(
       batchId,
@@ -632,10 +642,14 @@ export class AttendanceService {
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {
     if (!dto.proofFiles || dto.proofFiles.length === 0) {
-      throw new BadRequestException('Bukti Dokumen / Surat Dokter wajib diunggah.');
+      throw new BadRequestException(
+        'Bukti Dokumen / Surat Dokter wajib diunggah.',
+      );
     }
     if (!dto.mentorChatFiles || dto.mentorChatFiles.length === 0) {
-      throw new BadRequestException('Bukti Tangkapan Layar Chat Mentor wajib diunggah.');
+      throw new BadRequestException(
+        'Bukti Tangkapan Layar Chat Mentor wajib diunggah.',
+      );
     }
 
     // Upload files to Cloudflare R2

@@ -47,6 +47,14 @@ export class Batch {
   @Column({ type: 'timestamp', nullable: true })
   massiveEndDate?: Date | null;
 
+  @Column({ type: 'jsonb', nullable: true })
+  logbookSchedule?: {
+    monthIndex: number;
+    startDate: string; // ISO date string
+    endDate?: string; // ISO date string (optional)
+    label?: string; // e.g., "Spesial Closing"
+  }[];
+
   @CreateDateColumn()
   createdAt: Date;
 

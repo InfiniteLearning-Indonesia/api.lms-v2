@@ -82,7 +82,9 @@ export class SessionAuthGuard implements CanActivate {
       }
 
       if (user.status === UserStatus.SUSPENDED) {
-        console.error(`[AUTH DIAGNOSTIC REJECT 403] User ID ${userId} is suspended!`);
+        console.error(
+          `[AUTH DIAGNOSTIC REJECT 403] User ID ${userId} is suspended!`,
+        );
         console.log('================ [AUTH DIAGNOSTIC END] ================');
         throw new UnauthorizedException(
           'Akun kamu telah di-suspend oleh Admin. Akses ditolak.',

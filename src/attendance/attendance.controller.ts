@@ -79,7 +79,12 @@ export class AttendanceController {
     @Query('studentId') studentId?: string,
     @Query('mentorId') mentorId?: string,
   ) {
-    return this.attendanceService.getAttendances(req.user, batchId, studentId, mentorId);
+    return this.attendanceService.getAttendances(
+      req.user,
+      batchId,
+      studentId,
+      mentorId,
+    );
   }
 
   @Get('scores')
