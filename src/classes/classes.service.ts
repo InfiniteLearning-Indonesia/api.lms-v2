@@ -1351,7 +1351,7 @@ export class ClassesService {
         }
 
         let cls = await this.classRepository.findOne({
-          where: { programId: prog.id, batchId: batch.id },
+          where: { programId: prog.id, batchId: batch.id, mentorId: IsNull() },
         });
         if (!cls) {
           cls = await this.classRepository.save(
@@ -1759,7 +1759,11 @@ export class ClassesService {
 
     const studentsInBatch = allUsers.filter((u) => {
       const isStudent = (u.roles || []).includes(UserRole.STUDENT);
-      return isStudent && enrollments.some((e) => e.studentId === u.id);
+      if (!isStudent) return false;
+      const enroll = enrollments.find((e) => e.studentId === u.id);
+      if (!enroll) return false;
+      const cls = batchClasses.find((c) => c.id === enroll.classId);
+      return cls && cls.mentorId === null;
     });
 
     const pNameLower = programName.toLowerCase();
@@ -1809,7 +1813,7 @@ export class ClassesService {
     const totalStudents = studentsInBatch.length;
     if (totalStudents === 0) {
       throw new BadRequestException(
-        'Tidak ada siswa aktif yang terdaftar di batch berjalan pada program ini.',
+        'Tidak ada mentee baru yang perlu didistribusikan.',
       );
     }
 
