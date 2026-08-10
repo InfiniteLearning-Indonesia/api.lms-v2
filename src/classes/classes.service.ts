@@ -4027,12 +4027,54 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     return { success: true, importedCount };
   }
 
-  async syncMandatoryLinks(batchId: string, mandatoryLinks: any[]) {
-    const classes = await this.classRepository.find({ where: { batchId } });
+  async syncSharedLinks(batchId: string, sharedLinks: any[]) {
+    const mandatoryLinks = sharedLinks.filter(
+      (l) => l.scope === 'mandatory',
+    );
+    const restrictedLinks = sharedLinks.filter(
+      (l) => l.scope === 'restricted',
+    );
+
+    const classes = await this.classRepository.find({
+      where: { batchId },
+      relations: { program: true },
+    });
+
     for (const cls of classes) {
       const currentLinks = cls.importantLinks || [];
-      const personalLinks = currentLinks.filter((l) => l.scope !== 'mandatory');
-      cls.importantLinks = [...mandatoryLinks, ...personalLinks];
+      // Keep only personal links (owned by this class's mentor)
+      const personalLinks = currentLinks.filter(
+        (l) => l.scope !== 'mandatory' && l.scope !== 'restricted',
+      );
+
+      // Filter restricted links that apply to this class's program
+      const programName = cls.program?.name || '';
+      const applicableRestricted = restrictedLinks.filter(
+        (l) =>
+          Array.isArray(l.programs) &&
+          l.programs.some(
+            (p: string) =>
+              p.toLowerCase() === programName.toLowerCase(),
+          ),
+      );
+
+      const mergedLinks = [
+        ...mandatoryLinks,
+        ...applicableRestricted,
+        ...personalLinks,
+      ];
+
+      // Deduplicate by ID (shared links take precedence)
+      const uniqueLinks = [];
+      const seenIds = new Set();
+      for (const link of mergedLinks) {
+        if (!seenIds.has(link.id)) {
+          seenIds.add(link.id);
+          uniqueLinks.push(link);
+        }
+      }
+
+      cls.importantLinks = uniqueLinks;
       await this.classRepository.save(cls);
     }
   }
@@ -4045,10 +4087,14 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       throw new BadRequestException('Tidak ada Batch/Cohort aktif.');
     }
 
-    const mandatoryLinks = links.filter((l) => l.scope === 'mandatory');
-    const personalLinks = links.filter((l) => l.scope !== 'mandatory');
+    const sharedLinks = links.filter(
+      (l) => l.scope === 'mandatory' || l.scope === 'restricted',
+    );
+    const personalLinks = links.filter(
+      (l) => l.scope !== 'mandatory' && l.scope !== 'restricted',
+    );
 
-    await this.syncMandatoryLinks(activeBatch.id, mandatoryLinks);
+    await this.syncSharedLinks(activeBatch.id, sharedLinks);
 
     const classes = await this.classRepository.find({
       where: { programId, batchId: activeBatch.id },
@@ -4067,10 +4113,20 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
 
     for (const cls of classes) {
       const currentLinks = cls.importantLinks || [];
-      const currentMandatory = currentLinks.filter(
-        (l) => l.scope === 'mandatory',
+      const currentShared = currentLinks.filter(
+        (l) => l.scope === 'mandatory' || l.scope === 'restricted',
       );
-      cls.importantLinks = [...currentMandatory, ...personalLinks];
+      const mergedLinks = [...currentShared, ...personalLinks];
+      
+      const uniqueLinks = [];
+      const seenIds = new Set();
+      for (const link of mergedLinks) {
+        if (!seenIds.has(link.id)) {
+          seenIds.add(link.id);
+          uniqueLinks.push(link);
+        }
+      }
+      cls.importantLinks = uniqueLinks;
       await this.classRepository.save(cls);
     }
 
@@ -4092,20 +4148,34 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       }
     }
 
-    const mandatoryLinks = links.filter((l) => l.scope === 'mandatory');
-    const personalLinks = links.filter((l) => l.scope !== 'mandatory');
+    const sharedLinks = links.filter(
+      (l) => l.scope === 'mandatory' || l.scope === 'restricted',
+    );
+    const personalLinks = links.filter(
+      (l) => l.scope !== 'mandatory' && l.scope !== 'restricted',
+    );
 
-    await this.syncMandatoryLinks(cls.batchId, mandatoryLinks);
+    await this.syncSharedLinks(cls.batchId, sharedLinks);
 
-    // Refresh cls to get the synced mandatory links
+    // Refresh cls to get the synced shared links
     const refreshedCls = await this.classRepository.findOne({
       where: { id: classId },
     });
     if (refreshedCls) {
-      const currentMandatory = (refreshedCls.importantLinks || []).filter(
-        (l) => l.scope === 'mandatory',
+      const currentShared = (refreshedCls.importantLinks || []).filter(
+        (l) => l.scope === 'mandatory' || l.scope === 'restricted',
       );
-      refreshedCls.importantLinks = [...currentMandatory, ...personalLinks];
+      const mergedLinks = [...currentShared, ...personalLinks];
+      
+      const uniqueLinks = [];
+      const seenIds = new Set();
+      for (const link of mergedLinks) {
+        if (!seenIds.has(link.id)) {
+          seenIds.add(link.id);
+          uniqueLinks.push(link);
+        }
+      }
+      refreshedCls.importantLinks = uniqueLinks;
       await this.classRepository.save(refreshedCls);
     }
 

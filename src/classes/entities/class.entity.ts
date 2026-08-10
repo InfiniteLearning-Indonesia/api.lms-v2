@@ -40,7 +40,8 @@ export class Class {
     title: string;
     url: string;
     iconType?: string;
-    scope?: 'mandatory' | 'personal';
+    scope?: 'mandatory' | 'restricted' | 'personal';
+    programs?: string[];
   }[];
 
   @ManyToOne(() => Program)
