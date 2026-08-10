@@ -4065,7 +4065,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       ];
 
       // Deduplicate by ID (shared links take precedence)
-      const uniqueLinks = [];
+      const uniqueLinks: any[] = [];
       const seenIds = new Set();
       for (const link of mergedLinks) {
         if (!seenIds.has(link.id)) {
@@ -4118,7 +4118,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       );
       const mergedLinks = [...currentShared, ...personalLinks];
       
-      const uniqueLinks = [];
+      const uniqueLinks: any[] = [];
       const seenIds = new Set();
       for (const link of mergedLinks) {
         if (!seenIds.has(link.id)) {
@@ -4167,7 +4167,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       );
       const mergedLinks = [...currentShared, ...personalLinks];
       
-      const uniqueLinks = [];
+      const uniqueLinks: any[] = [];
       const seenIds = new Set();
       for (const link of mergedLinks) {
         if (!seenIds.has(link.id)) {
