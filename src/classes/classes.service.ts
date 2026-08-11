@@ -305,8 +305,15 @@ export class ClassesService {
   }
 
   async releaseTranscript(mentorId: string, programId: string) {
+    const activeBatches = await this.batchRepository.find({
+      where: { status: BatchStatus.ACTIVE },
+    });
+    const activeBatchIds = activeBatches.map((b) => b.id);
+
     let classes = await this.classRepository.find({
-      where: { programId, mentorId },
+      where: activeBatchIds.length > 0 
+        ? { programId, batchId: In(activeBatchIds) }
+        : { programId },
     });
     if (classes.length === 0) {
       classes = await this.classRepository.find({ where: { programId } });
@@ -333,8 +340,15 @@ export class ClassesService {
   }
 
   async releaseCertificate(mentorId: string, programId: string) {
+    const activeBatches = await this.batchRepository.find({
+      where: { status: BatchStatus.ACTIVE },
+    });
+    const activeBatchIds = activeBatches.map((b) => b.id);
+
     let classes = await this.classRepository.find({
-      where: { programId, mentorId },
+      where: activeBatchIds.length > 0 
+        ? { programId, batchId: In(activeBatchIds) }
+        : { programId },
     });
     if (classes.length === 0) {
       classes = await this.classRepository.find({ where: { programId } });
@@ -732,6 +746,8 @@ export class ClassesService {
                 name: 'Belum Ada Batch Berjalan',
                 status: 'completed',
               },
+          isTranscriptReleased: activeBatchClasses.some((c) => Boolean(c.isTranscriptReleased)),
+          isCertificateReleased: activeBatchClasses.some((c) => Boolean(c.isCertificateReleased)),
           batchHistory,
           importantLinks:
             activeBatchClasses.find(
