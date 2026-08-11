@@ -29,6 +29,12 @@ import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware
       },
     ]),
     ConfigModule.forRoot({
+      envFilePath: [
+        process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env.staging',
+        '.env.staging',
+        '.env.local',
+        '.env',
+      ],
       isGlobal: true,
     }),
     TypeOrmModule.forRootAsync({
