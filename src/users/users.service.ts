@@ -688,14 +688,82 @@ export class UsersService {
             avatarUrl: r2Url,
             lastLoginAt: new Date(),
           });
+          // 🛡️ Auto-repair mentor class linkage after updating avatar
+          if (user.roles?.includes(UserRole.MENTOR)) {
+            await this.autoRepairMentorClassLinkage(user);
+          }
           return;
         }
       } catch (e) {}
     }
 
+    // 🛡️ Auto-repair mentor class linkage
+    if (user.roles?.includes(UserRole.MENTOR)) {
+      await this.autoRepairMentorClassLinkage(user);
+    }
+
     await this.usersRepository.update(user.id, {
       lastLoginAt: new Date(),
     });
+  }
+
+  private async autoRepairMentorClassLinkage(user: User): Promise<void> {
+    try {
+      // Check if mentor has any active class assignments
+      const mentorClasses = await this.dataSource.query(
+        `SELECT c.id FROM classes c 
+         JOIN batches b ON c."batchId" = b.id 
+         WHERE c."mentorId" = $1 AND LOWER(b.status::text) = 'active'`,
+        [user.id],
+      );
+
+      if (mentorClasses.length > 0) return; // Already linked, no repair needed
+
+      // Resolve programId
+      let progId = user.programId;
+      if (!progId && user.selectedProgram) {
+        const pRes = await this.dataSource.query(
+          `SELECT id FROM programs WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
+          [user.selectedProgram],
+        );
+        if (pRes.length > 0) progId = pRes[0].id;
+      }
+      if (!progId) return;
+
+      // Find active batch
+      const activeBatch = await this.dataSource.query(
+        `SELECT id FROM batches WHERE LOWER(status::text) = 'active' LIMIT 1`,
+      );
+      if (activeBatch.length === 0) return;
+      const batchId = activeBatch[0].id;
+
+      // Find class, then assign mentor if it's orphan
+      const classRes = await this.dataSource.query(
+        `SELECT id, "mentorId" FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+        [progId, batchId],
+      );
+
+      if (classRes.length > 0 && !classRes[0].mentorId) {
+        await this.dataSource.query(
+          `UPDATE classes SET "mentorId" = $1 WHERE id = $2`,
+          [user.id, classRes[0].id],
+        );
+        console.log(`[AutoRepair] Linked mentor ${user.email} to class ${classRes[0].id}`);
+      }
+
+      // Ensure assignedBatchIds includes active batch
+      const batchIds = user.assignedBatchIds || [];
+      if (!batchIds.includes(batchId)) {
+        batchIds.push(batchId);
+        await this.dataSource.query(
+          `UPDATE users SET "assignedBatchIds" = $1 WHERE id = $2`,
+          [JSON.stringify(batchIds), user.id],
+        );
+        console.log(`[AutoRepair] Added batchId ${batchId} to mentor ${user.email}`);
+      }
+    } catch (err) {
+      console.error(`[AutoRepair Mentor Error] ${user.email}:`, err);
+    }
   }
 
   private async ensureNotLastAdmin(
@@ -975,14 +1043,16 @@ export class UsersService {
           }
           if (progId) {
             const classRes = await this.dataSource.query(
-              `SELECT id FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
+              `SELECT id, "mentorId" FROM classes WHERE "programId" = $1 AND "batchId" = $2 LIMIT 1`,
               [progId, targetBatchId],
             );
             if (classRes.length > 0) {
-              await this.dataSource.query(
-                `UPDATE classes SET "mentorId" = $1 WHERE id = $2`,
-                [id, classRes[0].id],
-              );
+              if (!classRes[0].mentorId) {
+                await this.dataSource.query(
+                  `UPDATE classes SET "mentorId" = $1 WHERE id = $2`,
+                  [id, classRes[0].id],
+                );
+              }
             } else {
               await this.dataSource.query(
                 `INSERT INTO classes (id, "programId", "batchId", "mentorId", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW())`,

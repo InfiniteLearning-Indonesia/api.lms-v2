@@ -407,9 +407,10 @@ export class ClassesService {
 
       let progId = mentor.programId;
       if (!progId && mentor.selectedProgram) {
-        const pRes = await this.programRepository.findOne({
-          where: { name: mentor.selectedProgram },
-        });
+        const pRes = await this.programRepository
+          .createQueryBuilder('p')
+          .where('LOWER(TRIM(p.name)) = LOWER(TRIM(:name))', { name: mentor.selectedProgram })
+          .getOne();
         if (pRes) progId = pRes.id;
       }
 
@@ -1930,6 +1931,30 @@ export class ClassesService {
 
     return competencies;
   }
+  private async isMentorAuthorizedForClass(mentorId: string, cls: Class): Promise<boolean> {
+    if (cls.mentorId === mentorId) return true;
+
+    const mentor = await this.userRepository.findOne({ where: { id: mentorId } });
+    if (!mentor) return false;
+
+    const specStr = String(mentor.specialization || '').toLowerCase();
+    const isProfessional = specStr.includes('prof');
+    const isUiUx = specStr.includes('ui') || specStr.includes('ux');
+
+    if (isProfessional) return true;
+
+    const program = await this.programRepository.findOne({ where: { id: cls.programId } });
+    if (program) {
+      if (isUiUx) {
+        const pName = (program.name || '').toLowerCase();
+        if (pName.includes('web') || pName.includes('mobile')) return true;
+      }
+      return this.validateCompetencyAuthor(program.name, mentor.specialization, 'Technical');
+    }
+
+    return false;
+  }
+
 
   private validateCompetencyAuthor(
     programName: string,
@@ -2385,7 +2410,7 @@ export class ClassesService {
     if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
 
     // Validate if mentor is assigned to this class
-    if (cls.mentorId !== mentorId)
+    if (!(await this.isMentorAuthorizedForClass(mentorId, cls)))
       throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     // We skip deep competency validation here assuming the UI filters it properly, but we could re-validate based on category if needed.
@@ -2429,7 +2454,7 @@ export class ClassesService {
     });
     if (!mentor) throw new ForbiddenException('Mentor tidak ditemukan.');
 
-    if (cls.mentorId !== mentorId)
+    if (!(await this.isMentorAuthorizedForClass(mentorId, cls)))
       throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     const assignment = this.assignmentRepository.create({
@@ -2466,7 +2491,7 @@ export class ClassesService {
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
 
-    if (cls?.mentorId !== mentorId)
+    if (!cls || !(await this.isMentorAuthorizedForClass(mentorId, cls)))
       throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     if (payload.title !== undefined) material.title = payload.title;
@@ -2502,7 +2527,7 @@ export class ClassesService {
         'Batch sudah selesai (Read-Only Mode). Modifikasi tidak diizinkan.',
       );
 
-    if (cls?.mentorId !== mentorId)
+    if (!cls || !(await this.isMentorAuthorizedForClass(mentorId, cls)))
       throw new ForbiddenException('Anda bukan mentor untuk kelas ini.');
 
     if (payload.title !== undefined) assignment.title = payload.title;
@@ -3721,7 +3746,7 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
     if (!classEntity) throw new NotFoundException('Kelas tidak ditemukan');
 
     // Verifikasi kepemilikan mentor atau admin
-    if (classEntity.mentorId !== mentorId) {
+    if (!(await this.isMentorAuthorizedForClass(mentorId, classEntity))) {
       const user = await this.userRepository.findOne({
         where: { id: mentorId },
       });
