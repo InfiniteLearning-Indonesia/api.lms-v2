@@ -164,6 +164,7 @@ export class ClassesService {
       // 2. Fetch rubrik assessments
       const rubrikAssessments = await this.rubrikAssessmentRepository.find({
         where: [{ programId: program.id }, { isGlobal: true }],
+        relations: { programCompetency: true },
         order: { createdAt: 'ASC' },
       });
 
@@ -173,10 +174,62 @@ export class ClassesService {
         relations: { rubrikAssessment: true },
       });
 
+      // 3.5 Fetch actual competency scores derived from assignments
+      const competencyScores = await this.competencyScoreRepository.find({
+        where: { studentId },
+      });
+
       // Helper for minimum score 65.0
       const ensureMin = (val: number) => {
         if (!val || isNaN(val) || val < 65) return 65.0;
         return Math.min(100, Math.round(val * 10) / 10);
+      };
+
+      // Helper to calculate RA score from competencies and subAssessments
+      const calculateRAScore = (ra: any): number => {
+        let total = 0;
+        let hasComponents = false;
+
+        if (ra.competencies && Array.isArray(ra.competencies) && ra.competencies.length > 0) {
+          hasComponents = true;
+          for (const item of ra.competencies) {
+            const match = competencyScores.find(cs => cs.competencyId === item.competencyId);
+            const compScore = match ? match.score : 65.0;
+            const weight = parseFloat(item.weight) || 0;
+            total += compScore * weight;
+          }
+        }
+
+        if (ra.subAssessments && Array.isArray(ra.subAssessments) && ra.subAssessments.length > 0) {
+          hasComponents = true;
+          for (const subItem of ra.subAssessments) {
+            const targetRa = rubrikAssessments.find(r => r.id === subItem.assessmentId);
+            if (targetRa) {
+              const subScore = calculateRAScore(targetRa);
+              const weight = parseFloat(subItem.weight) || 0;
+              total += subScore * weight;
+            }
+          }
+        }
+
+        return hasComponents ? total : 65.0;
+      };
+
+      const resolveCategory = (ra: any) => {
+        const cat = (ra.programCompetency?.category || '').toLowerCase();
+        const name = (ra.name || '').toLowerCase();
+        if (
+          cat.includes('soft') ||
+          name.includes('cca') ||
+          name.includes('communication') ||
+          name.includes('collaboration') ||
+          name.includes('adaptive') ||
+          name.includes('project management') ||
+          name.includes('leadership')
+        ) {
+          return 'Soft Skill';
+        }
+        return 'Hard Skill';
       };
 
       // 4. Calculate Micro Phase Items (for Transcript)
@@ -185,11 +238,11 @@ export class ClassesService {
       );
       const microItems = microRAs.map((ra) => {
         const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
-        const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
+        const rawScore = ext ? parseFloat(ext.score as any) : calculateRAScore(ra);
         return {
           id: ra.id,
           name: ra.name,
-          category: 'Rubrik Assessment',
+          category: resolveCategory(ra),
           phase: 'Micro',
           score: ensureMin(rawScore),
         };
@@ -207,11 +260,11 @@ export class ClassesService {
       const massiveRAs = rubrikAssessments.filter((r) => r.phase === 'Massive');
       const massiveItems = massiveRAs.map((ra) => {
         const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
-        const rawScore = ext ? parseFloat(ext.score as any) || 65 : 65;
+        const rawScore = ext ? parseFloat(ext.score as any) : calculateRAScore(ra);
         return {
           id: ra.id,
           name: ra.name,
-          category: 'Rubrik Assessment',
+          category: resolveCategory(ra),
           phase: 'Massive',
           score: ensureMin(rawScore),
         };
@@ -1296,6 +1349,7 @@ export class ClassesService {
     const programs = await this.programRepository.find();
     let importedCount = 0;
     let enrolledCount = 0;
+    let reEnrolledCount = 0;
     const distributionSummary: Record<string, number> = {};
 
     for (const item of payload.users) {
@@ -1342,8 +1396,15 @@ export class ClassesService {
         if (item.studyProgram) user.studyProgram = item.studyProgram.trim();
         if (item.selectedProgram)
           user.selectedProgram = item.selectedProgram.trim();
+
+        // Reactivate suspended / inactive account if re-enrolled into a new batch
+        if (user.status === UserStatus.SUSPENDED) {
+          user.status = UserStatus.ACTIVE;
+        }
+
         await this.userRepository.save(user);
         importedCount++;
+        reEnrolledCount++;
       }
 
       // 2. Auto-Enrollment into selectedProgram within target Batch
@@ -1457,8 +1518,9 @@ export class ClassesService {
       success: true,
       totalImported: importedCount,
       totalEnrolled: enrolledCount,
+      totalReEnrolled: reEnrolledCount,
       distributionSummary,
-      message: `Berhasil memproses ${importedCount} data murid: ${enrolledCount} terdaftar ke program studi dan didistribusikan.`,
+      message: `Berhasil memproses ${importedCount} data murid (${reEnrolledCount} peserta terdaftar ulang): ${enrolledCount} terdaftar ke program studi dan didistribusikan.`,
     };
   }
 
@@ -2092,7 +2154,7 @@ export class ClassesService {
 
     // Check if there are assignments using this competency
     const assignmentsUsingIt = await this.assignmentRepository.count({
-      where: { competency: id },
+      where: { competency: competency.name },
     });
     if (assignmentsUsingIt > 0) {
       throw new ForbiddenException(
@@ -2164,7 +2226,18 @@ export class ClassesService {
           programCompetencyId: savedPc.id,
         }),
       );
-      await this.competencyRepository.save(syllabusEntities);
+      const savedSyllabuses = await this.competencyRepository.save(syllabusEntities);
+
+      // Auto-populate weights (Gap #6 fix)
+      const defaultWeight = 1 / savedSyllabuses.length;
+      const compWeights = savedSyllabuses.map(s => ({
+        competencyId: s.id,
+        weight: defaultWeight
+      }));
+
+      initialRA.competencies = compWeights;
+      finalRA.competencies = compWeights;
+      await this.rubrikAssessmentRepository.save([initialRA, finalRA]);
     }
 
     return savedPc;
