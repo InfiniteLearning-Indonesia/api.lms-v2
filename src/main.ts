@@ -10,9 +10,13 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { DataSource } from 'typeorm';
 import { User, UserRole, UserStatus } from './users/entities/user.entity.js';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Global exception filter — sanitize errors
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   // Security Hardening: HTTP headers
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // Adjust if CORS issues happen
@@ -22,10 +26,12 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 7000);
-  const sessionSecret = configService.get<string>(
-    'SESSION_SECRET',
-    'change-me',
-  );
+  const sessionSecret = configService.get<string>('SESSION_SECRET');
+  if (!sessionSecret) {
+    throw new Error(
+      'FATAL: SESSION_SECRET is not set. Refusing to start without a secure session secret.',
+    );
+  }
   const frontendUrl = configService
     .get<string>('FRONTEND_URL', 'http://localhost:3000')
     .replace(/\/$/, '');

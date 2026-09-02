@@ -41,7 +41,12 @@ export class AttendanceController {
   }
 
   @Post('permission-requests')
-  async createPermissionRequest(@Body() dto: CreatePermissionRequestDto) {
+  async createPermissionRequest(
+    @Body() dto: CreatePermissionRequestDto,
+    @Req() req: any,
+  ) {
+    // Always use authenticated user's ID — never trust client-provided studentId
+    dto.studentId = req.user.id;
     return this.attendanceService.createPermissionRequest(dto);
   }
 

@@ -16,11 +16,13 @@ echo "3/7 🔨 Building NestJS application..."
 npm run build
 
 echo "4/7 🔄 Restarting PM2 process..."
+export NODE_ENV=production
+
 if pm2 list | grep -q "backend-lms"; then
     pm2 delete "backend-lms"
 fi
 
-pm2 start dist/src/main.js --name "backend-lms" || pm2 start dist/main.js --name "backend-lms"
+pm2 start dist/src/main.js --name "backend-lms" --env production || pm2 start dist/main.js --name "backend-lms" --env production
 pm2 save
 
 echo "5/7 🛡️ Testing Nginx configuration..."

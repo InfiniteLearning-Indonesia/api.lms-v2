@@ -50,9 +50,11 @@ export class AttendanceService {
       return;
     }
 
-    const apiKey =
-      this.configService.get<string>('INDO_API_KEY') ||
-      'aip_live_HiuHZIPnn2vm6Vpyc6WPfHy9udoVYFYI';
+    const apiKey = this.configService.get<string>('INDO_API_KEY');
+    if (!apiKey) {
+      this.logger.warn('INDO_API_KEY not set — skipping holiday sync.');
+      return;
+    }
 
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59);
@@ -599,27 +601,23 @@ export class AttendanceService {
       massiveStart = new Date(midTime + 86400000);
     }
 
-    // Get all attendances in this batch
-    const attendances = await this.attendanceRepository.find({
-      where: { batchId },
-    });
-    const studentIds = Array.from(new Set(attendances.map((a) => a.studentId)));
+    // Batch fetch: all attendances + active days for both phases (no N+1)
+    const [allAttendances, microActiveInfo, massiveActiveInfo] = await Promise.all([
+      this.attendanceRepository.find({ where: { batchId } }),
+      this.getActiveDaysForDateRange(batchId, microStart, microEnd),
+      this.getActiveDaysForDateRange(batchId, massiveStart, massiveEnd),
+    ]);
 
+    const studentIds = Array.from(new Set(allAttendances.map((a) => a.studentId)));
+
+    // Pre-filter attendances per student (no re-query)
     const scoresMap: Record<string, any> = {};
 
     for (const studentId of studentIds) {
-      const microRes = await this.calculateStudentPhaseScore(
-        batchId,
-        studentId,
-        microStart,
-        microEnd,
-      );
-      const massiveRes = await this.calculateStudentPhaseScore(
-        batchId,
-        studentId,
-        massiveStart,
-        massiveEnd,
-      );
+      const studentAttendances = allAttendances.filter((a) => a.studentId === studentId);
+
+      const microRes = this.calculateScoreFromAttendances(studentAttendances, microActiveInfo);
+      const massiveRes = this.calculateScoreFromAttendances(studentAttendances, massiveActiveInfo);
 
       scoresMap[studentId] = {
         microScore: microRes.score,
@@ -638,6 +636,46 @@ export class AttendanceService {
         massiveEndDate: massiveEnd,
       },
     };
+  }
+
+  private calculateScoreFromAttendances(
+    attendances: any[],
+    activeInfo: { total: number; activeDateStrings: string[] },
+  ): {
+    totalSyncDays: number;
+    alphaDays: number;
+    cleanAttendance: number;
+    score: number;
+    oncamDays: number;
+    oncamScore: number;
+  } {
+    const totalSyncDays = activeInfo.total;
+    if (totalSyncDays === 0) {
+      return { totalSyncDays: 0, alphaDays: 0, cleanAttendance: 0, score: 65.0, oncamDays: 0, oncamScore: 65.0 };
+    }
+
+    const alphaDays = attendances.filter((a) => {
+      if (a.status !== AttendanceStatus.ALPHA) return false;
+      const d = new Date(a.date);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return activeInfo.activeDateStrings.includes(ds);
+    }).length;
+
+    const oncamDays = attendances.filter((a) => {
+      if (a.status !== AttendanceStatus.HADIR_ON_CAM) return false;
+      const d = new Date(a.date);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return activeInfo.activeDateStrings.includes(ds);
+    }).length;
+
+    const cleanAttendance = Math.max(0, totalSyncDays - alphaDays);
+    const rawScore = (cleanAttendance / totalSyncDays) * 95;
+    const score = Math.max(65.0, Math.min(95.0, Math.round(rawScore * 10) / 10));
+
+    const rawOncamScore = 65.0 + (oncamDays / totalSyncDays) * 30;
+    const oncamScore = Math.max(65.0, Math.min(95.0, Math.round(rawOncamScore * 10) / 10));
+
+    return { totalSyncDays, alphaDays, cleanAttendance, score, oncamDays, oncamScore };
   }
 
   async createPermissionRequest(dto: CreatePermissionRequestDto) {

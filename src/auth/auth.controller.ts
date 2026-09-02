@@ -25,6 +25,15 @@ export class AuthController {
     string,
     { sessionID: string; userId: string; expiresAt: number }
   >();
+
+  private static cleanupExpiredCodes(): void {
+    const now = Date.now();
+    for (const [key, entry] of AuthController.exchangeCodes.entries()) {
+      if (entry.expiresAt < now) {
+        AuthController.exchangeCodes.delete(key);
+      }
+    }
+  }
   private readonly logger = new Logger(AuthController.name);
 
   constructor(
@@ -61,6 +70,7 @@ export class AuthController {
       }
 
       // Generate a short-lived exchange code that maps to the session
+      AuthController.cleanupExpiredCodes();
       const exchangeCode = crypto.randomBytes(32).toString('hex');
       AuthController.exchangeCodes.set(exchangeCode, {
         sessionID: req.sessionID,
@@ -200,11 +210,28 @@ export class AuthController {
   @UseGuards(SessionAuthGuard)
   async logout(@Req() req: any, @Res() res: Response) {
     this.logger.log(`Logout requested for user: ${req.session?.userEmail}`);
+
+    const frontendUrl = (
+      this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000') ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const isHttps =
+      this.configService.get<string>('NODE_ENV') === 'production' ||
+      frontendUrl.startsWith('https://');
+    const isInfiniteDomain =
+      frontendUrl.includes('infinitelearningstudent.id') ||
+      this.configService.get<string>('NODE_ENV') === 'production';
+
     req.session.destroy((err: any) => {
       if (err) {
         return res.status(500).json({ message: 'Failed to log out' });
       }
-      res.clearCookie('connect.sid');
+      res.clearCookie('connect.sid', {
+        path: '/',
+        domain: isInfiniteDomain ? '.infinitelearningstudent.id' : undefined,
+        secure: isHttps,
+        sameSite: isHttps ? 'none' : 'lax',
+      });
       return res.json({ message: 'Logged out' });
     });
   }

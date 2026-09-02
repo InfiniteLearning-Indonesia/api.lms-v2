@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, Between, Like } from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
@@ -92,39 +93,46 @@ export class ClassesService {
     });
     const globalCompNames = globalCompetencies.map((c) => c.name);
 
-    const enrichedClasses = await Promise.all(
-      enrollments.map(async (e) => {
-        const cls = e.class;
-        const batchClasses = await this.classRepository.find({
-          where: { batchId: cls.batchId },
+    // Batch fetch: get all unique batchIds and classIds to avoid N+1
+    const batchIds = [...new Set(enrollments.map((e) => e.class?.batchId).filter(Boolean))];
+    const allBatchClasses = batchIds.length > 0
+      ? await this.classRepository.find({
+          where: { batchId: In(batchIds) },
           relations: { program: true },
-        });
-        const allBatchClassIds = batchClasses.map((c) => c.id);
-        const relatedClassIds = batchClasses
-          .filter(
-            (c) =>
-              c.programId === cls.programId ||
-              c.program?.name?.toLowerCase().includes('professional'),
-          )
-          .map((c) => c.id);
+        })
+      : [];
 
-        const allAssignments = await this.assignmentRepository.find({
+    const allBatchClassIds = allBatchClasses.map((c) => c.id);
+    const allAssignments = allBatchClassIds.length > 0
+      ? await this.assignmentRepository.find({
           where: { classId: In(allBatchClassIds) },
           order: { createdAt: 'ASC' },
-        });
+        })
+      : [];
 
-        const assignments = allAssignments.filter(
-          (a) =>
-            relatedClassIds.includes(a.classId) ||
-            globalCompNames.includes(a.competency),
-        );
+    // Filter in memory per enrollment
+    const enrichedClasses = enrollments.map((e) => {
+      const cls = e.class;
+      const relatedClassIds = allBatchClasses
+        .filter(
+          (c) =>
+            c.batchId === cls.batchId &&
+            (c.programId === cls.programId ||
+              c.program?.name?.toLowerCase().includes('professional')),
+        )
+        .map((c) => c.id);
 
-        return {
-          ...cls,
-          assignments,
-        };
-      }),
-    );
+      const assignments = allAssignments.filter(
+        (a) =>
+          relatedClassIds.includes(a.classId) ||
+          globalCompNames.includes(a.competency),
+      );
+
+      return {
+        ...cls,
+        assignments,
+      };
+    });
 
     return enrichedClasses;
   }
@@ -660,34 +668,8 @@ export class ClassesService {
 
   async getProgramsWithDetails() {
     await this.healEnrollments();
-    const officialNames = [
-      'AI Development',
-      'Game Development',
-      'Web Development and UI/UX Design',
-      'Mobile Development and UI/UX Design',
-    ];
 
     const programs = await this.programRepository.find();
-    for (const name of officialNames) {
-      if (!programs.some((p) => p.name === name)) {
-        const newProg = await this.programRepository.save(
-          this.programRepository.create({
-            name,
-            description: `Program Resmi ${name} sesuai Source of Truth v2.0`,
-          }),
-        );
-        programs.push(newProg);
-      }
-    }
-
-    // Clean slate reset: Ensure legacy global batch is completed if it exists without programId
-    const legacyBatch = await this.batchRepository.findOne({
-      where: { name: 'Batch 7 - 2026' },
-    });
-    if (legacyBatch && legacyBatch.status === BatchStatus.ACTIVE) {
-      legacyBatch.status = BatchStatus.COMPLETED;
-      await this.batchRepository.save(legacyBatch);
-    }
 
     const allBatches = await this.batchRepository.find({
       order: { createdAt: 'DESC' },
@@ -1364,9 +1346,10 @@ export class ClassesService {
       });
       if (!user) {
         const isGmail = cleanEmail.endsWith('@gmail.com');
+        const randomPassword = crypto.randomBytes(16).toString('hex');
         const defaultPassword = isGmail
           ? null
-          : await bcrypt.hash('Student123!', 10);
+          : await bcrypt.hash(randomPassword, 10);
         const isPasswordChanged = isGmail ? true : false;
 
         user = await this.userRepository.save(
@@ -3024,7 +3007,31 @@ export class ClassesService {
     studentId: string,
     assignmentId: string,
     link: string,
+    classId?: string,
   ) {
+    // Verify assignment exists and belongs to the claimed class
+    const assignment = await this.assignmentRepository.findOne({
+      where: { id: assignmentId },
+    });
+    if (!assignment) throw new NotFoundException('Assignment not found');
+
+    if (classId && assignment.classId !== classId) {
+      throw new BadRequestException('Assignment does not belong to this class');
+    }
+
+    // Verify student is enrolled in the batch for this class
+    const enrollment = await this.enrollmentRepository.findOne({
+      where: {
+        studentId,
+        class: { id: assignment.classId },
+      },
+    });
+    if (!enrollment) {
+      throw new ForbiddenException(
+        'Anda tidak terdaftar di kelas ini.',
+      );
+    }
+
     let submission = await this.submissionRepository.findOne({
       where: { studentId, assignmentId },
     });
@@ -3065,6 +3072,25 @@ export class ClassesService {
       relations: { assignment: true },
     });
     if (!submission) throw new NotFoundException('Submission not found');
+
+    // Verify mentor owns the class for this submission
+    if (submission.assignment?.classId) {
+      const cls = await this.classRepository.findOne({
+        where: { id: submission.assignment.classId },
+      });
+      if (cls && cls.mentorId !== mentorId) {
+        // Allow admin to grade any submission
+        const mentor = await this.userRepository.findOne({
+          where: { id: mentorId },
+        });
+        const isAdmin = mentor?.roles?.includes(UserRole.ADMIN as any);
+        if (!isAdmin) {
+          throw new ForbiddenException(
+            'Anda bukan mentor untuk kelas ini.',
+          );
+        }
+      }
+    }
 
     let finalScore = score;
     let feedback = manualFeedback;

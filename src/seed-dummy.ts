@@ -1,12 +1,23 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Program } from './classes/entities/program.entity';
 import { User, UserRole, UserStatus } from './users/entities/user.entity';
 
 async function bootstrap() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const dataSource = app.get(DataSource);
+  const configService = app.get(ConfigService);
+  const nodeEnv = configService.get<string>('NODE_ENV');
+
+  if (nodeEnv === 'production') {
+    console.error(
+      '❌ ABORT: seed:dummy must NOT be run in production. NODE_ENV=production detected.',
+    );
+    await app.close();
+    process.exit(1);
+  }
 
   console.log('Starting dummy data seeding...');
 

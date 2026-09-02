@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Batch } from '../../classes/entities/batch.entity';
@@ -18,6 +19,7 @@ export enum AttendanceStatus {
 }
 
 @Entity('attendances')
+@Index(['studentId', 'batchId', 'date'], { unique: true })
 export class Attendance {
   @PrimaryGeneratedColumn('uuid')
   id: string;
