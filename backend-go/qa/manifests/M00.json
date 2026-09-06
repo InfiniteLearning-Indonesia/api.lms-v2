@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "package": "M00",
+  "profile": "local-synthetic",
+  "full_suite_implemented": false,
+  "pytest_paths": ["qa/tests/ops", "qa/tests/baseline"],
+  "expected_checks": [
+    "Q00-go-format", "Q00-go-build", "Q00-go-unit", "Q00-go-vet", "Q00-operational-evidence", "Q00-release-contract", "Q00-postgres-lab-boundary",
+    "Q00-local-api-boundary", "M00-T02-fail-closed", "M00-T05-handoff-gate",
+    "M01-T01-backup-predicate", "Q00-evidence-missing-cases",
+    "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero",
+    "Q00-render-preserves-human-section", "Q00-runner-lock-and-env",
+    "Q00-runner-plugin-evidence", "M00-T01-local-inventory", "M00-T02-db-cli-offline-gates"
+  ],
+  "deliverables": [
+    {"id": "M00-D01", "checks": ["M00-T01-local-inventory", "Q00-go-unit"], "pending_evidence": ["DEPLOYED_SHA_NOT_VERIFIED", "ROUTE_AND_SCHEMA_DIFF_REVIEW_PENDING"]},
+    {"id": "M00-D02", "checks": ["M00-T02-fail-closed", "Q00-operational-evidence"], "pending_evidence": ["PRODUCTION_IDENTITY_AND_TLS_PENDING", "DEDICATED_READ_ONLY_ROLE_PENDING", "STAGING_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"]},
+    {"id": "M00-D03", "checks": ["M00-T01-local-inventory"], "pending_evidence": ["FULL_NAMESPACE_JOBS_STORAGE_INVENTORY_PENDING", "PUBLIC_CATALOG_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"]},
+    {"id": "M00-D04", "checks": ["Q00-evidence-missing-cases"], "pending_evidence": ["CAPACITY_AND_DATA_ACCESS_REVIEW_NOT_AVAILABLE", "CAPACITY_ACCEPTANCE_TEST_NOT_IMPLEMENTED"]},
+    {"id": "M00-D05", "checks": ["M00-T05-handoff-gate"], "pending_evidence": ["OPERATOR_APPROVAL_AND_SCHEMA_RECEIPT_NOT_AVAILABLE"]}
+  ],
+  "required_gates": [
+    {"id": "M00-operator-environment-verification", "status": "BLOCKED"},
+    {"id": "QG01-QG08-full-acceptance", "status": "NOT_RUN"}
+  ]
+}
