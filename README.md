@@ -4,7 +4,7 @@ Repository/worktree root: **`backend-v3/backend-go`** locally. On branch `be-v3`
 
 Implementation checkpoint: Go platform, synthetic protected backup/migration foundation and first real Class API journey. **Belum backend LMS lengkap atau siap staging/production.** Product scope dan acceptance tetap di [docs](docs/README.md); posisi aktual di [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
-Latest scoped work: [CP08–CP10 results](docs/checkpoints/2026-09-07-cp08-cp10.md) PASS_SYNTHETIC_ONLY. CP10 Playwright 6/6, integration, Linux race/non-root and cumulative bootstrap checks PASS. Operational backup/identity/runtime gates remain partial; both available env configurations are staging, production unknown. [CP11–CP15 brief](docs/checkpoints/CP11-CP15_BRIEF.md) ready for selection, not executed. [CP06–CP07 history](docs/checkpoints/2026-09-07-cp06-cp07.md) retained.
+Latest scoped work: [CP11–CP12 results](docs/checkpoints/2026-09-08-cp11-cp12.md) **VERIFIED_LOCAL_SLICES**, 4/4 deliverable lokal per checkpoint. CP11 API 6/6, CP12 + CP11 regression 9/9, CP10 API 6/6 PASS. Gabungan statement coverage: identity 86.01%, Class 83.85%, capability 100%; seluruh measured packages 70.09%. Real legacy issuer, browser, operational identity/backup/runtime dan full M04/M05 gates tetap pending. [CP13–CP15](docs/checkpoints/CP11-CP15_BRIEF.md) belum dikerjakan. Kedua konfigurasi yang tersedia adalah staging; production unknown.
 
 CP05 continuation **PASS_SYNTHETIC_ONLY** on 7 September: [actual PostgreSQL backup/restore + transaction integration evidence](docs/checkpoints/2026-09-07-cp05-closure.md). Local cluster stopped and retained; production/staging untouched.
 
@@ -12,6 +12,7 @@ CP05 continuation **PASS_SYNTHETIC_ONLY** on 7 September: [actual PostgreSQL bac
 
 - `cmd/api`: HTTP Go standard library, explicit loopback-only binding, timeouts, graceful shutdown, generated request ID, controlled error/log fields. `/health/live` 200; `/health/ready` **503** sampai DB/identity/ownership siap. Business/auth endpoints belum ada; 404 bukan bukti RBAC selesai.
 - `cmd/class-lab`: separate opt-in loopback fixture entry point for real Class handlers, hashed opaque bearer sessions and restricted PostgreSQL runtime. No dotenv/shared DSN, seed, migration or login bypass at HTTP startup. Class routes are not yet wired into `cmd/api`; no actual issuer/provider login.
+- `cmd/identity-lab`: HTTPS cookie/CSRF gateway dengan pinned assertion verifier, session lifecycle dan contextual Class commands; pool identity writer terpisah. `cmd/bridge-fixture` hanya issuer sintetis offline untuk QA. [OpenAPI lokal](docs/api/cp11-cp12.openapi.json); adapter legacy dan runtime non-lab belum tersedia.
 - `cmd/baseline`: scan seluruh `src/**/*.ts` dua checkout backend, Git commit/dirty/source hash dan declaration locations. Config dibandingkan sebagai fingerprint, tanpa mencetak password/host/user/database. **Tidak membuka koneksi DB**, menjalankan NestJS, atau membuktikan deployment/schema aktual.
 - `cmd/db-inspect`: operator-only pgx CLI dengan explicit staging acknowledgement, verified TLS, one connection, transaction read-only, static public-catalog queries dan timeouts. Tidak dipanggil API atau synthetic QA. [Inspeksi staging terbaru](docs/checkpoints/2026-09-06-staging-ca-verified.md) berhasil membaca metadata 20 tabel public dengan CA pengguna; credential teramati memiliki hak luas, bukan least-privilege runtime.
 - `qa/run.py`: Go format/build/unit/vet/coverage → Pytest operator/self-tests → Playwright Python ke binary API baru khusus M03 → evidence/coverage/blockers. M00 menambahkan actual local source inventory. Full suite M00–M19 belum tersedia.
@@ -55,6 +56,8 @@ Setelah izin membuat cluster lokal baru, jalankan CP06 regression + CP08–CP10 
 ```
 
 Harness membackup/restore sebelum fixture/schema writes, menjalankan Go integration dan Playwright Python, lalu menghentikan server tanpa menghapus cluster/data/backup. Setiap rerun menggunakan direktori baru; tidak menyentuh staging/live. Default coverage 38.6% dan selected API coverage 81.4% punya denominator berbeda; [detail evidence](docs/checkpoints/2026-09-07-cp08-cp10.md).
+
+Angka pada paragraf sebelumnya adalah historical CP10. Untuk CP11–CP12 beserta regresi CP08–CP10, gunakan flag `--identity-journey` menggantikan `--class-journey`. QA CP11 terpicu setelah installment CP11; CP12 hanya dimulai bila CP11 lulus dan backup berikutnya terbukti. `qa.checkpoint_report` menggabungkan evidence terbaru dengan M00/M03/Linux, menolak hasil stale/missing, serta menghitung deliverable dan statement coverage. [Command lengkap dan run final](docs/checkpoints/2026-09-08-cp11-cp12.md#reproduksi-dan-checkpoint-berikutnya).
 
 ## Evidence dan status otomatis
 

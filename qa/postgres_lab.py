@@ -84,7 +84,7 @@ def validate_tools(directory):
             if (directory / (name + ext)).is_file()}
 
 
-def run_lab(pg_bin, class_journey=False):
+def run_lab(pg_bin, class_journey=False, identity_journey=False):
     tools = validate_tools(pg_bin)
     if len(tools) != 6:
         raise ValueError("PostgreSQL tools unavailable")
@@ -150,6 +150,19 @@ def run_lab(pg_bin, class_journey=False):
                 for text in ["SELECT value FROM qa_cp05.marker"] + [f"SELECT id FROM qa_cp05.{t} ORDER BY id" for t in ("domain", "audit", "outbox")]:
                     if sql(database, text) != sql(proof, text):
                         raise ValueError("synthetic restore data mismatch")
+            if name in ("pre_cp11", "pre_cp12"):
+                for compare in CATALOG_QUERIES:
+                    compare = compare.replace("('public','qa_cp05')", "('public','qa_cp05','v3','v3ops','v3identity')")
+                    if sql(database, compare) != sql(proof, compare):
+                        raise ValueError("lifecycle restore catalog mismatch")
+                tables = sql(database, "SELECT schemaname||'.'||tablename FROM pg_tables WHERE schemaname IN ('v3','v3ops','v3identity') ORDER BY 1").decode().splitlines()
+                import re
+                for table in tables:
+                    if not re.fullmatch(r"v3(?:ops|identity)?\.[a-z_]+", table):
+                        raise ValueError("unreviewed backup table name")
+                    compare = f"SELECT to_jsonb(r)::text FROM {table} r ORDER BY 1"
+                    if sql(database, compare) != sql(proof, compare):
+                        raise ValueError("lifecycle restore rows mismatch")
             receipt = {"scope": "SYNTHETIC_ONLY", "restore": "VERIFIED_FIXTURE_SCOPE", "source_database": database,
                        "proof_database": proof, "artifacts": {p.name: sha256(p.read_bytes()).hexdigest() for p in (archive, rendered)}}
             write_new_json(directory / (name + "-receipt.json"), receipt)
@@ -287,6 +300,38 @@ def run_lab(pg_bin, class_journey=False):
                     if sql("qa_cp05", query) != b"0":
                         raise ValueError("Class persistence reconciliation failed")
                 result["cp10"]["database_reconciliation"] = "PASS"
+                if identity_journey:
+                    manifest.update(json.loads((ROOT / "qa/manifests/CP11-CP12.json").read_text()))
+                    env["QA_IDENTITY_PASSWORD"] = secrets.token_hex(32)
+                    issuer_binary = directory / ("bridge-fixture.exe" if os.name == "nt" else "bridge-fixture")
+                    command(["go", "build", "-trimpath", "-o", issuer_binary, "./cmd/bridge-fixture"],120)
+                    identity_binary = directory / ("identity-lab.exe" if os.name == "nt" else "identity-lab")
+                    command(["go", "build", "-cover", "-coverpkg=./cmd/identity-lab,./internal/identity,./internal/classes,./internal/access", "-trimpath", "-o", identity_binary, "./cmd/identity-lab"],120)
+                    for cp, package, test in (("cp11", "./internal/identity", "TestSyntheticIdentityLifecycle"), ("cp12", "./internal/classes", "TestSyntheticContextLifecycle")):
+                        result[cp+"_backup"] = snapshot("qa_cp05", "pre_"+cp)
+                        write_new_json(directory / (cp+"-proof.json"),dict(run_id=run_id,target=target,created_at=datetime.now(timezone.utc).isoformat(),restored=True,archive_hash=sha256((directory/("pre_"+cp+".dump")).read_bytes()).hexdigest()))
+                        slice_go(cp, package, test)
+                        identity_state = json.loads(sql("qa_cp05", "SELECT jsonb_object_agg(l.subject,jsonb_build_object('id',l.user_id,'version',l.version,'active',l.active,'site_role_version',r.version)) FROM v3identity.links l JOIN v3identity.site_roles r ON r.user_id=l.user_id"))
+                        write_new_json(directory / (cp+"-state.json"),identity_state)
+                        cp_cover=directory/(cp+"-api-cover");cp_cover.mkdir()
+                        env.update(QA_CHECKPOINT=cp, QA_IDENTITY_BINARY=str(identity_binary),QA_ISSUER_BINARY=str(issuer_binary),QA_BRIDGE_PUBLIC=(directory/"issuer-public.txt").read_text(),QA_CASE_RESULTS=str(directory/(cp+"-api-cases.json")),GOCOVERDIR=str(cp_cover))
+                        command([sys.executable,"-m","pytest","-p","qa.plugin","qa/tests/identity_api","-q"],120)
+                        api_cases=json.loads((directory/(cp+"-api-cases.json")).read_text())
+                        expected=set(manifest[cp+"_python"])
+                        if api_cases["exit_status"]!=0 or set(api_cases["collected_ids"])!=expected or len(api_cases["cases"])!=len(expected) or any(c["status"]!="PASS" for c in api_cases["cases"]):
+                            raise ValueError("lifecycle API required cases incomplete")
+                        result[cp]["api_cases"]=api_cases["cases"]
+                        profile=directory/(cp+"-api-coverage.out")
+                        command(["go","tool","covdata","textfmt","-i="+str(cp_cover),"-o="+str(profile)])
+                        if not profile.is_file() or "lmsv3/internal/identity/" not in profile.read_text() or not any(line.endswith(" 1") for line in profile.read_text().splitlines()):
+                            raise ValueError("lifecycle API coverage missing")
+                        result[cp]["api_coverage"]=command(["go","tool","cover","-func="+str(profile)]).decode().strip()
+                        result[cp]["binary_sha256"]=sha256(identity_binary.read_bytes()).hexdigest()
+                    for query in ("SELECT count(*) FROM v3.audit a LEFT JOIN v3.outbox o ON o.event_id=a.id WHERE o.event_id IS NULL", "SELECT count(*) FROM v3.enrollment_access x JOIN v3.enrollments e ON e.id=x.enrollment_id WHERE x.suspended_at IS NOT NULL AND e.status<>'ACTIVE'", "SELECT count(*) FROM v3.episodes p JOIN v3.enrollments e ON e.id=p.enrollment_id WHERE p.ended_at IS NULL AND e.status<>'ACTIVE'", "SELECT count(*) FROM v3.roles r JOIN v3.enrollments e ON e.id=r.enrollment_id WHERE r.revoked_at IS NULL AND e.status<>'ACTIVE'"):
+                        if sql("qa_cp05",query)!=b"0":raise ValueError("lifecycle persistence reconciliation failed")
+                    for query in ("SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='end' AND previous_state='SUSPENDED' AND next_state='ENDED')", "SELECT EXISTS(SELECT 1 FROM v3.transition_events t WHERE action='add' AND previous_state='ENDED' AND (SELECT count(*) FROM v3.episodes p WHERE p.enrollment_id=t.enrollment_id)>=2)", "SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='close' AND previous_state='PUBLISHED' AND next_state='CLOSED')", "SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='reactivate' AND previous_state='SUSPENDED' AND next_state='ACTIVE')"):
+                        if sql("qa_cp05",query)!=b"t":raise ValueError("lifecycle history evidence missing")
+                    result["lifecycle_reconciliation"]="PASS"
             if source != source_fingerprint(ROOT):
                 raise ValueError("source changed during integration")
             result["status"] = "PASS_SYNTHETIC_ONLY"
@@ -308,8 +353,9 @@ def main():
     parser.add_argument("--create-local-synthetic-cluster", action="store_true", required=True)
     parser.add_argument("--pg-bin", type=Path, required=True)
     parser.add_argument("--class-journey", action="store_true", help="Also execute CP08-CP10 on the new synthetic cluster only")
+    parser.add_argument("--identity-journey", action="store_true", help="Execute CP11 then CP12 plus CP08-CP10 regression; new local cluster only")
     args = parser.parse_args()
-    return run_lab(args.pg_bin, args.class_journey)
+    return run_lab(args.pg_bin, args.class_journey or args.identity_journey, args.identity_journey)
 
 
 if __name__ == "__main__":

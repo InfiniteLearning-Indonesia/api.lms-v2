@@ -14,8 +14,8 @@ import (
 )
 
 // Handler has no token-issuance/login bypass and never trusts X-User/X-Role.
-// Bearer sessions only for this slice; cookie auth/CSRF/browser integration is
-// deliberately not enabled. Do not deploy before the M04 issuer contract closes.
+// The legacy lab uses Bearer; the lifecycle gateway supplies a verified internal
+// context after cookie/CSRF checks. Neither lab is a production identity adapter.
 func Handler(store *Store, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID, err := ID()
@@ -60,8 +60,15 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			respond(200, map[string]string{"status": "alive"})
 			return
 		}
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token == r.Header.Get("Authorization") || !opaqueToken(token) {
+		token := identity.ContextToken(ctx)
+		if token == "" {
+			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+				fail(identity.ErrUnauthenticated)
+				return
+			}
+			token = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		}
+		if !opaqueToken(token) {
 			fail(identity.ErrUnauthenticated)
 			return
 		}
@@ -85,7 +92,7 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			return
 		}
 		// The lab API is not a cross-origin browser service. No permissive CORS.
-		if r.Header.Get("Origin") != "" {
+		if identity.ContextToken(ctx) == "" && r.Header.Get("Origin") != "" {
 			fail(ErrForbidden)
 			return
 		}
@@ -118,14 +125,14 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			switch parts[3] {
 			case "participants":
 				cmd.Action = "add"
-			case "publish", "archive":
+			case "publish", "archive", "close", "reopen":
 				cmd.Action = parts[3]
 			default:
 				fail(ErrNotFound)
 				return
 			}
-		} else if len(parts) == 6 && parts[3] == "participants" && parts[5] == "end" && r.Method == "POST" {
-			cmd.Action = "end"
+		} else if len(parts) == 6 && parts[3] == "participants" && (parts[5] == "end" || parts[5] == "suspend" || parts[5] == "reactivate") && r.Method == "POST" {
+			cmd.Action = parts[5]
 			cmd.ClassID = parts[2]
 			cmd.UserID = parts[4]
 		} else {
@@ -172,14 +179,14 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 				cmd.UserID = v.User
 				cmd.Role = v.Role
 			}
-		case "publish", "archive":
+		case "publish", "archive", "close", "reopen":
 			var v struct {
 				Version int64 `json:"version"`
 			}
 			if err = decode(&v); err == nil {
 				cmd.Version = v.Version
 			}
-		case "end":
+		case "end", "suspend", "reactivate":
 			var v struct{}
 			err = decode(&v)
 		}

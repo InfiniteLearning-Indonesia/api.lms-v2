@@ -55,14 +55,17 @@ type Proof struct {
 }
 
 func ValidateProof(p Proof, root, target string, now time.Time) error {
+	return validateArtifact(p, root, target, now, "pre_v3.dump")
+}
+func validateArtifact(p Proof, root, target string, now time.Time, filename string) error {
 	if !p.Restored || p.Target != target || p.RunID != filepath.Base(root) || now.Before(p.CreatedAt) || now.Sub(p.CreatedAt) > time.Hour || !backup.SafeRoot(root) {
 		return errors.New("LAB_BACKUP_GATE_REJECTED")
 	}
-	info, err := os.Lstat(filepath.Join(root, "pre_v3.dump"))
+	info, err := os.Lstat(filepath.Join(root, filename))
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 32<<20 {
 		return errors.New("LAB_BACKUP_FILE_REJECTED")
 	}
-	data, err := os.ReadFile(filepath.Join(root, "pre_v3.dump"))
+	data, err := os.ReadFile(filepath.Join(root, filename))
 	if err != nil || Digest(data) != p.ArchiveHash {
 		return errors.New("LAB_BACKUP_HASH_REJECTED")
 	}

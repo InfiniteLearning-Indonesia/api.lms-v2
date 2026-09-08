@@ -8,6 +8,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"lmsv3/internal/access"
 	"lmsv3/internal/identity"
 	"lmsv3/internal/platform/transaction"
 	"regexp"
@@ -42,11 +43,71 @@ type Command struct {
 	UpdateCohort  bool
 }
 type Store struct {
-	pool      *pgxpool.Pool
-	failAfter func(string) error
+	pool       *pgxpool.Pool
+	failAfter  func(string) error
+	resolve    func(context.Context, pgx.Tx, string) (identity.Actor, error)
+	contextual bool
 }
 
-func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+func New(pool *pgxpool.Pool) *Store           { return &Store{pool: pool} }
+func NewBridge(pool *pgxpool.Pool) *Store     { return &Store{pool: pool, resolve: identity.ResolveBridge} }
+func NewContextual(pool *pgxpool.Pool) *Store { s := NewBridge(pool); s.contextual = true; return s }
+func (s *Store) actor(ctx context.Context, tx pgx.Tx, token string) (identity.Actor, error) {
+	if s.resolve != nil {
+		return s.resolve(ctx, tx, token)
+	}
+	return identity.Resolve(ctx, tx, token)
+}
+func (s *Store) load(ctx context.Context, tx pgx.Tx, id string) (Class, error) {
+	c, err := load(ctx, tx, id)
+	if err != nil || !s.contextual {
+		return c, err
+	}
+	var closed bool
+	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM v3.class_access WHERE class_id=$1 AND closed_at IS NOT NULL)", id).Scan(&closed); err != nil {
+		return c, err
+	}
+	if closed && c.State == "PUBLISHED" {
+		c.State = "CLOSED"
+	}
+	return c, nil
+}
+func (s *Store) allowed(ctx context.Context, tx pgx.Tx, a identity.Actor, c Class, cmd Command) error {
+	if !s.contextual {
+		return allowed(ctx, tx, a, c, cmd.Action)
+	}
+	roles := []string{}
+	rows, err := tx.Query(ctx, `SELECT r.role FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id AND r.class_id=e.class_id WHERE e.class_id=$1 AND e.user_id=$2 AND e.status='ACTIVE' AND r.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL)`, c.ID, a.ID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var role string
+		if err = rows.Scan(&role); err != nil {
+			rows.Close()
+			return err
+		}
+		roles = append(roles, role)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if !access.Allows(a.Admin, roles, c.State, cmd.Action, cmd.Role) {
+		return ErrForbidden
+	}
+	if !a.Admin && (cmd.Action == "add" || cmd.Action == "end" || cmd.Action == "suspend" || cmd.Action == "reactivate") {
+		var staff bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id AND r.class_id=e.class_id WHERE e.class_id=$1 AND e.user_id=$2 AND r.role='teacher' AND r.revoked_at IS NULL)`, c.ID, cmd.UserID).Scan(&staff); err != nil {
+			return err
+		}
+		if staff {
+			return ErrForbidden
+		}
+	}
+	return nil
+}
 func ID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -106,15 +167,15 @@ func (s *Store) Read(ctx context.Context, token, id string) (Class, error) {
 		return result, ErrInvalid
 	}
 	err := transaction.Within(ctx, s.pool, func(tx pgx.Tx) error {
-		a, err := identity.Resolve(ctx, tx, token)
+		a, err := s.actor(ctx, tx, token)
 		if err != nil {
 			return err
 		}
-		c, err := load(ctx, tx, id)
+		c, err := s.load(ctx, tx, id)
 		if err != nil {
 			return err
 		}
-		if err = allowed(ctx, tx, a, c, "read"); err != nil {
+		if err = s.allowed(ctx, tx, a, c, Command{Action: "read"}); err != nil {
 			return err
 		}
 		result = c
@@ -132,18 +193,18 @@ func validate(c Command) error {
 		if !idPattern.MatchString(c.UserID) || (c.Role != "teacher" && c.Role != "student") {
 			return ErrInvalid
 		}
-	case "end":
+	case "end", "suspend", "reactivate":
 		if !idPattern.MatchString(c.UserID) {
 			return ErrInvalid
 		}
-	case "publish", "archive":
+	case "publish", "archive", "close", "reopen":
 	default:
 		return ErrInvalid
 	}
 	if c.Action != "create" && !idPattern.MatchString(c.ClassID) {
 		return ErrInvalid
 	}
-	if (c.Action == "edit" || c.Action == "publish" || c.Action == "archive") && c.Version < 1 {
+	if (c.Action == "edit" || c.Action == "publish" || c.Action == "archive" || c.Action == "close" || c.Action == "reopen") && c.Version < 1 {
 		return ErrInvalid
 	}
 	return nil
@@ -159,11 +220,14 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 	if err := validate(cmd); err != nil {
 		return nil, err
 	}
+	if !s.contextual && (cmd.Action == "close" || cmd.Action == "reopen" || cmd.Action == "suspend" || cmd.Action == "reactivate") {
+		return nil, ErrInvalid
+	}
 	raw, _ := json.Marshal(cmd)
 	hash := identity.TokenHash(string(raw))
 	var response json.RawMessage
 	err := transaction.Within(ctx, s.pool, func(tx pgx.Tx) error {
-		actor, err := identity.Resolve(ctx, tx, token)
+		actor, err := s.actor(ctx, tx, token)
 		if err != nil {
 			return err
 		}
@@ -173,11 +237,11 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 				return ErrForbidden
 			}
 		} else {
-			c, err = load(ctx, tx, cmd.ClassID)
+			c, err = s.load(ctx, tx, cmd.ClassID)
 			if err != nil {
 				return err
 			}
-			if err = allowed(ctx, tx, actor, c, cmd.Action); err != nil {
+			if err = s.allowed(ctx, tx, actor, c, cmd); err != nil {
 				return err
 			}
 		}
@@ -198,11 +262,45 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 		if cmd.Action != "create" && c.State == "ARCHIVED" {
 			return ErrConflict
 		}
-		if (cmd.Action == "edit" || cmd.Action == "publish" || cmd.Action == "archive") && c.Version != cmd.Version {
+		if c.State == "CLOSED" && cmd.Action != "reopen" && cmd.Action != "archive" {
+			return ErrConflict
+		}
+		if (cmd.Action == "edit" || cmd.Action == "publish" || cmd.Action == "archive" || cmd.Action == "close" || cmd.Action == "reopen") && c.Version != cmd.Version {
 			return ErrConflict
 		}
 		var result any
+		previousState := c.State
+		transitionEnrollment := ""
+		nextState := ""
 		switch cmd.Action {
+		case "close", "reopen":
+			if (cmd.Action == "close" && c.State != "PUBLISHED") || (cmd.Action == "reopen" && c.State != "CLOSED") {
+				return ErrConflict
+			}
+			if cmd.Action == "reopen" {
+				var teacher bool
+				if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id JOIN v3identity.links l ON l.user_id=e.user_id JOIN v3.users u ON u.id=e.user_id WHERE e.class_id=$1 AND e.status='ACTIVE' AND r.role='teacher' AND r.revoked_at IS NULL AND l.active AND u.active AND NOT EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL))`, c.ID).Scan(&teacher); err != nil {
+					return err
+				}
+				if !teacher {
+					return ErrConflict
+				}
+			}
+			q := `INSERT INTO v3.class_access(class_id,closed_at) VALUES($1,clock_timestamp()) ON CONFLICT(class_id) DO UPDATE SET closed_at=excluded.closed_at`
+			c.State = "CLOSED"
+			if cmd.Action == "reopen" {
+				q = "UPDATE v3.class_access SET closed_at=NULL WHERE class_id=$1"
+				c.State = "PUBLISHED"
+			}
+			if _, err = tx.Exec(ctx, q, c.ID); err != nil {
+				return err
+			}
+			c.Version++
+			if _, err = tx.Exec(ctx, "UPDATE v3.classes SET version=$2 WHERE id=$1", c.ID, c.Version); err != nil {
+				return err
+			}
+			result = c
+			nextState = c.State
 		case "create":
 			id, err := ID()
 			if err != nil {
@@ -235,6 +333,9 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 				}
 				var teacher bool
 				err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id AND r.class_id=e.class_id JOIN v3.users u ON u.id=e.user_id WHERE e.class_id=$1 AND e.status='ACTIVE' AND r.role='teacher' AND r.revoked_at IS NULL AND u.active)`, c.ID).Scan(&teacher)
+				if err == nil && s.contextual {
+					err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id JOIN v3identity.links l ON l.user_id=e.user_id JOIN v3.users u ON u.id=e.user_id WHERE e.class_id=$1 AND e.status='ACTIVE' AND r.role='teacher' AND r.revoked_at IS NULL AND l.active AND u.active AND NOT EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL))`, c.ID).Scan(&teacher)
+				}
 				if err != nil {
 					return err
 				}
@@ -261,11 +362,28 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 			if !active {
 				return ErrConflict
 			}
+			if s.contextual {
+				if err = tx.QueryRow(ctx, "SELECT active FROM v3identity.links WHERE user_id=$1", cmd.UserID).Scan(&active); err != nil {
+					return ErrInvalid
+				}
+				if !active {
+					return ErrConflict
+				}
+			}
 			var enrollment, status string
 			err = tx.QueryRow(ctx, "SELECT id,status FROM v3.enrollments WHERE class_id=$1 AND user_id=$2 FOR UPDATE", c.ID, cmd.UserID).Scan(&enrollment, &status)
 			fresh := errors.Is(err, pgx.ErrNoRows)
 			if err != nil && !fresh {
 				return err
+			}
+			if s.contextual && !fresh {
+				var suspended bool
+				if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM v3.enrollment_access WHERE enrollment_id=$1 AND suspended_at IS NOT NULL)", enrollment).Scan(&suspended); err != nil {
+					return err
+				}
+				if suspended {
+					return ErrConflict
+				}
 			}
 			if fresh {
 				enrollment, err = ID()
@@ -300,8 +418,48 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 				return err
 			}
 			result = map[string]string{"class_id": c.ID, "enrollment_id": enrollment, "user_id": cmd.UserID, "role": cmd.Role, "status": "ACTIVE"}
+			transitionEnrollment = enrollment
+			previousState = status
+			if fresh {
+				previousState = "ABSENT"
+			}
+			nextState = "ACTIVE"
+		case "suspend", "reactivate":
+			var status string
+			var suspended bool
+			err = tx.QueryRow(ctx, `SELECT e.id,e.status,EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL) FROM v3.enrollments e WHERE e.class_id=$1 AND e.user_id=$2 FOR UPDATE`, c.ID, cmd.UserID).Scan(&transitionEnrollment, &status, &suspended)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return err
+			}
+			if status != "ACTIVE" || (cmd.Action == "suspend" && suspended) || (cmd.Action == "reactivate" && !suspended) {
+				return ErrConflict
+			}
+			if cmd.Action == "suspend" {
+				if err = s.remainingTeacher(ctx, tx, c, cmd.UserID); err != nil {
+					return err
+				}
+				_, err = tx.Exec(ctx, `INSERT INTO v3.enrollment_access(enrollment_id,suspended_at) VALUES($1,clock_timestamp()) ON CONFLICT(enrollment_id) DO UPDATE SET suspended_at=excluded.suspended_at`, transitionEnrollment)
+				previousState = "ACTIVE"
+				nextState = "SUSPENDED"
+			} else {
+				_, err = tx.Exec(ctx, "UPDATE v3.enrollment_access SET suspended_at=NULL WHERE enrollment_id=$1", transitionEnrollment)
+				previousState = "SUSPENDED"
+				nextState = "ACTIVE"
+			}
+			if err != nil {
+				return err
+			}
+			result = map[string]string{"enrollment_id": transitionEnrollment, "status": nextState}
 		case "end":
-			if c.State == "PUBLISHED" {
+			if s.contextual {
+				if err = s.remainingTeacher(ctx, tx, c, cmd.UserID); err != nil {
+					return err
+				}
+			}
+			if !s.contextual && c.State == "PUBLISHED" {
 				var remaining bool
 				if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id AND r.class_id=e.class_id JOIN v3.users u ON u.id=e.user_id WHERE e.class_id=$1 AND e.user_id<>$2 AND e.status='ACTIVE' AND r.role='teacher' AND r.revoked_at IS NULL AND u.active)`, c.ID, cmd.UserID).Scan(&remaining); err != nil {
 					return err
@@ -318,12 +476,37 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 			if err != nil {
 				return err
 			}
+			if s.contextual {
+				if err = tx.QueryRow(ctx, `SELECT CASE WHEN EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL) THEN 'SUSPENDED' ELSE e.status END FROM v3.enrollments e WHERE e.id=$1`, enrollment).Scan(&previousState); err != nil {
+					return err
+				}
+			}
 			for _, q := range []string{"UPDATE v3.enrollments SET status='ENDED' WHERE id=$1", "UPDATE v3.episodes SET ended_at=now() WHERE enrollment_id=$1 AND ended_at IS NULL", "UPDATE v3.roles SET revoked_at=now() WHERE enrollment_id=$1 AND revoked_at IS NULL"} {
 				if _, err = tx.Exec(ctx, q, enrollment); err != nil {
 					return err
 				}
 			}
 			result = map[string]string{"enrollment_id": enrollment, "status": "ENDED"}
+			if s.contextual {
+				if _, err = tx.Exec(ctx, "UPDATE v3.enrollment_access SET suspended_at=NULL WHERE enrollment_id=$1", enrollment); err != nil {
+					return err
+				}
+			}
+			transitionEnrollment = enrollment
+			nextState = "ENDED"
+		}
+		if s.contextual && nextState != "" {
+			id, e := ID()
+			if e != nil {
+				return e
+			}
+			var enrollment any
+			if transitionEnrollment != "" {
+				enrollment = transitionEnrollment
+			}
+			if _, err = tx.Exec(ctx, "INSERT INTO v3.transition_events(id,actor_id,class_id,enrollment_id,action,previous_state,next_state) VALUES($1,$2,$3,$4,$5,$6,$7)", id, actor.ID, c.ID, enrollment, cmd.Action, previousState, nextState); err != nil {
+				return err
+			}
 		}
 		if err = s.fail("domain"); err != nil {
 			return err
@@ -352,4 +535,19 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 		return err
 	})
 	return response, err
+}
+
+func (s *Store) remainingTeacher(ctx context.Context, tx pgx.Tx, c Class, target string) error {
+	if c.State != "PUBLISHED" {
+		return nil
+	}
+	var isTeacher, remaining bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id WHERE e.class_id=$1 AND e.user_id=$2 AND r.role='teacher' AND r.revoked_at IS NULL),EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id JOIN v3identity.links l ON l.user_id=e.user_id JOIN v3.users u ON u.id=e.user_id WHERE e.class_id=$1 AND e.user_id<>$2 AND e.status='ACTIVE' AND r.role='teacher' AND r.revoked_at IS NULL AND l.active AND u.active AND NOT EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL))`, c.ID, target).Scan(&isTeacher, &remaining)
+	if err != nil {
+		return err
+	}
+	if isTeacher && !remaining {
+		return ErrConflict
+	}
+	return nil
 }

@@ -1,0 +1,19 @@
+{
+ "version":1,
+ "scope":"LOCAL_SYNTHETIC_SLICE",
+ "full_modules_verified":false,
+ "cp11_go":["lmsv3/internal/identity:TestSyntheticIdentityLifecycle"],
+ "cp12_go":["lmsv3/internal/classes:TestSyntheticContextLifecycle"],
+ "cp11_python":["CP11-exchange","CP11-session","CP11-boundary","CP11-projection","CP11-site-admin","CP11-replay-rate"],
+ "cp12_python":["CP11-exchange","CP11-session","CP11-boundary","CP11-projection","CP11-site-admin","CP11-replay-rate","CP12-capability","CP12-lifecycle","CP12-prerequisites"],
+ "deliverables":{
+  "CP11-D01":["CP11-exchange","CP11-boundary"],
+  "CP11-D02":["CP11-session","CP11-boundary","CP11-replay-rate","cp11_go"],
+  "CP11-D03":["CP11-projection","CP11-site-admin","cp11_go"],
+  "CP11-D04":["cp11_go","cp10_regression","default_regression"],
+  "CP12-D01":["CP12-capability"],
+  "CP12-D02":["CP12-lifecycle","CP12-prerequisites"],
+  "CP12-D03":["cp12_go"],
+  "CP12-D04":["cp11_regression","cp10_regression","default_regression"]
+ }
+}

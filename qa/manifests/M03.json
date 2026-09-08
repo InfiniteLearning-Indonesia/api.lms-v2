@@ -5,6 +5,7 @@
   "full_suite_implemented": false,
   "pytest_paths": ["qa/tests/ops", "qa/tests/api"],
   "expected_checks": [
+    "Q00-checkpoint-report",
     "Q00-go-format", "Q00-go-build", "Q00-go-unit", "Q00-go-vet", "Q00-operational-evidence", "Q00-release-contract", "Q00-postgres-lab-boundary",
     "Q00-local-api-boundary", "M00-T02-fail-closed", "M00-T05-handoff-gate",
     "M01-T01-backup-predicate", "Q00-evidence-missing-cases",

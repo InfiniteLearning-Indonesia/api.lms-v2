@@ -1,8 +1,8 @@
 # CP11–CP15 — usulan kelanjutan backend Go
 
-Status awal: **PROPOSED / NOT_STARTED**. Brief setelah [CP08–CP10](2026-09-07-cp08-cp10.md); paket Mxx tetap acceptance canonical; checkpoint adalah potongan pekerjaan berdasarkan dependency, bukan penggantinya. Frontend tetap belakangan.
+Status terbaru: **CP11–CP12 VERIFIED_LOCAL_SLICES**, masing-masing 4/4 deliverable lokal; [hasil dan batas evidence](2026-09-08-cp11-cp12.md). CP13–CP15 belum dijalankan. Paket Mxx tetap acceptance canonical; checkpoint adalah potongan pekerjaan berdasarkan dependency, bukan penggantinya. Frontend tetap belakangan.
 
-**8 September — CP11 saja diotorisasi:** dependency/inventory review dan [draft ADR + negative contract](../adr/CP11_IDENTITY_AUTHORITY.md) disiapkan. CP11 **BLOCKED_DECISION** pada choice bridge/OIDC; lifecycle implementation dan QA belum dijalankan, exit criteria belum tercapai. Default owner sudah ditetapkan master plan (hardened legacy); transport/trust adapter belum approved. CP12–CP15 tidak dimulai. Tidak ada izin deployment/ekspor/push dari checkpoint ini.
+**Riwayat kickoff 8 September:** CP11 semula BLOCKED_DECISION pada pilihan transport; kelanjutan CP11–CP12 memakai bridge untuk slice lokal sesuai [acceptance](CP11-CP12_ACCEPTANCE.md). Global owner tetap hardened legacy; real adapter/provider belum verified. Status awal NOT_RUN di uraian rencana di bawah adalah baseline, bukan hasil terbaru. Tidak ada deployment/ekspor dari checkpoint ini.
 
 Rekomendasi: **CP11 → CP12 → CP13** untuk kemajuan kode. CP14 dapat dipersiapkan lebih awal bersama operator tetapi tindakan terhadap provider/shared DB harus disetujui terpisah. CP15 dimulai setelah authority dan runtime matang; tidak membutuhkan data production.
 

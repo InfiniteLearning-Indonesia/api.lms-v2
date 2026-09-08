@@ -1,0 +1,1648 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LMS v3 CP11-CP12 local lifecycle contract",
+    "version": "0.1.0",
+    "description": "Local synthetic HTTPS lab only. Real legacy issuer/provisioning adapter, browser integration and deployment remain unverified. Cookie-only gateway rejects Authorization headers and URL query strings. JWT EdDSA pinned kid; issuer/audience/purpose/iat/nbf/exp/JTI/version; max assertion age 60s, no leeway. Account freshness <= assertion expiry; session rotation window 15min, absolute lifetime 1h. __Host cookies Secure/HttpOnly/SameSite=Strict/Path=/, no Domain. Session and authority mutations serialize with domain transactions through a DB fence; no instantaneous external-issuer revocation claim. Invite/reset/profile/setup-password routes return 404 OWNER_ROUTE_NOT_AVAILABLE. JSON bodies limited to 12KiB auth/16KiB Class. Frozen scope and residual gates: docs/checkpoints/CP11-CP12_ACCEPTANCE.md."
+  },
+  "security": [
+    {
+      "SessionCookie": []
+    }
+  ],
+  "paths": {
+    "/v3/auth/challenge": {
+      "post": {
+        "summary": "Create single-use browser-bound challenge (60 seconds).",
+        "operationId": "post__v3_auth_challenge",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "429": {
+            "description": "Process-local challenge limit reached (120/minute)."
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v3/auth/exchange": {
+      "post": {
+        "summary": "Exchange pinned issuer assertion plus challenge cookie for fresh Go session.",
+        "operationId": "post__v3_auth_exchange",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Assertion"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ChallengeCookie": []
+          }
+        ]
+      }
+    },
+    "/v3/auth/account-state": {
+      "post": {
+        "summary": "Project signed version-advancing account state; consumes JTI and revokes existing sessions.",
+        "operationId": "post__v3_auth_account-state",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Assertion"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v3/auth/me": {
+      "get": {
+        "summary": "Resolve current local session/account/site-role.",
+        "operationId": "get__v3_auth_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Actor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        }
+      }
+    },
+    "/v3/auth/rotate": {
+      "post": {
+        "summary": "rotate with retained session records. Lost rotate response requires fresh login; old token is not replayed.",
+        "operationId": "post__v3_auth_rotate",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/auth/logout": {
+      "post": {
+        "summary": "logout with retained session records. Lost rotate response requires fresh login; old token is not replayed.",
+        "operationId": "post__v3_auth_logout",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/auth/revoke-all": {
+      "post": {
+        "summary": "revoke-all with retained session records. Lost rotate response requires fresh login; old token is not replayed.",
+        "operationId": "post__v3_auth_revoke-all",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/auth/site-role": {
+      "post": {
+        "summary": "Local site-admin-only versioned grant/demotion with last-local-admin guard.",
+        "operationId": "post__v3_auth_site-role",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteRole"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes": {
+      "post": {
+        "summary": "Site admin creates independent Class.",
+        "operationId": "post__v3_classes",
+        "parameters": [
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClass"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}": {
+      "get": {
+        "summary": "Read authorized Class; Student cannot read DRAFT or suspended/ended membership.",
+        "operationId": "get__v3_classes_class_id",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Assigned Teacher or site admin edits Class using current version.",
+        "operationId": "patch__v3_classes_class_id",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditClass"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/publish": {
+      "post": {
+        "summary": "Publish DRAFT with active unsuspended Teacher; content readiness remains M07 gate.",
+        "operationId": "post__v3_classes_class_id_publish",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Version"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/archive": {
+      "post": {
+        "summary": "Site admin archive with state/version guard. CLOSED is read-only; ARCHIVED terminal.",
+        "operationId": "post__v3_classes_class_id_archive",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Version"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/close": {
+      "post": {
+        "summary": "Site admin close with state/version guard. CLOSED is read-only; ARCHIVED terminal.",
+        "operationId": "post__v3_classes_class_id_close",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Version"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/reopen": {
+      "post": {
+        "summary": "Site admin reopen with state/version guard. CLOSED is read-only; ARCHIVED terminal.",
+        "operationId": "post__v3_classes_class_id_reopen",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Class"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Version"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/participants": {
+      "post": {
+        "summary": "Admin assigns Teacher/Student. Teacher assigns only Students and cannot modify existing staff targets.",
+        "operationId": "post__v3_classes_class_id_participants",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Participation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Participant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/participants/{user_id}/end": {
+      "post": {
+        "summary": "Admin or assigned Teacher end participation; Teacher cannot target staff. Last active Teacher protected on PUBLISHED Class.",
+        "operationId": "post__v3_classes_class_id_participants_user_id_end",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Participation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/participants/{user_id}/suspend": {
+      "post": {
+        "summary": "Admin or assigned Teacher suspend participation; Teacher cannot target staff. Last active Teacher protected on PUBLISHED Class.",
+        "operationId": "post__v3_classes_class_id_participants_user_id_suspend",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Participation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/participants/{user_id}/reactivate": {
+      "post": {
+        "summary": "Admin or assigned Teacher reactivate participation; Teacher cannot target staff. Last active Teacher protected on PUBLISHED Class.",
+        "operationId": "post__v3_classes_class_id_participants_user_id_reactivate",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured HTTPS origin; no trust in forwarded origin."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "description": "Actor-scoped. Same key/payload replays only after current authorization; different payload conflicts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Participation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON/input"
+          },
+          "401": {
+            "description": "Invalid/expired session or assertion"
+          },
+          "403": {
+            "description": "Capability, CSRF or origin denied"
+          },
+          "404": {
+            "description": "Resource or owner-only route unavailable"
+          },
+          "409": {
+            "description": "State/version/replay/invariant conflict"
+          },
+          "503": {
+            "description": "Dependency unavailable; fail closed"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-lms-v3"
+      },
+      "ChallengeCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-lms-v3-challenge"
+      }
+    },
+    "schemas": {
+      "Empty": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Assertion": {
+        "type": "object",
+        "required": [
+          "assertion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "SiteRole": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "admin",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "admin": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "CreateClass": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Non-blank; Go additionally enforces at most 200 UTF-8 bytes."
+          },
+          "program_label": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "At most 200 UTF-8 bytes."
+          },
+          "cohort_label": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "At most 200 UTF-8 bytes."
+          }
+        }
+      },
+      "EditClass": {
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Non-blank; Go additionally enforces at most 200 UTF-8 bytes."
+          },
+          "program_label": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "At most 200 UTF-8 bytes."
+          },
+          "cohort_label": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "At most 200 UTF-8 bytes."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "Participant": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "teacher",
+              "student"
+            ]
+          }
+        }
+      },
+      "Class": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "program_label": {
+            "type": "string"
+          },
+          "cohort_label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "CLOSED",
+              "ARCHIVED"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        }
+      },
+      "Credential": {
+        "type": "object",
+        "required": [
+          "csrf_token"
+        ],
+        "properties": {
+          "csrf_token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "Actor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "site_admin": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Challenge": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "Participation": {
+        "type": "object",
+        "properties": {
+          "class_id": {
+            "type": "string"
+          },
+          "enrollment_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "SUSPENDED",
+              "ENDED"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

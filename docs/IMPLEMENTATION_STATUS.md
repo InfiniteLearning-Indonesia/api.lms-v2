@@ -1,5 +1,7 @@
 # LMS v3 backend — Implementation status
 
+**Latest CP11–CP12, 8 September:** [VERIFIED_LOCAL_SLICES](checkpoints/2026-09-08-cp11-cp12.md), **4/4 deliverable lokal masing-masing**. CP11 API 6/6; CP12 + CP11 regression 9/9; CP10 API 6/6; M00 20/20; M03 23/23; 23 default Go cases + Linux race/non-root PASS. Measured coverage union: identity 86.01%, Class 83.85%, access 100%, seluruh profile 70.09%. Full M04/M05 gates tetap belum terverifikasi. Root Go dan CP08–CP10 published pada `edac5af`; user kemudian mengotorisasi publikasi CP11–CP12 ke `be-v3` setelah QA, dengan raw artifact tetap lokal. Ringkasan numerik CP08–CP10 di bawah adalah histori, bukan source terbaru.
+
 [Indeks](README.md) · [QA contract](QA_AUTOMATION_PLAN.md) · [Master plan](../../../ImplementationPlan.MD)
 
 Baseline brief: 5 September 2026; checkpoint implementasi: 6 September 2026 WIB. **M00 inventory source dan M03 Go/QA bootstrap kini executable dan diuji lokal setelah otorisasi pengguna.** Full module, DB identity/backup/migration dan release belum verified. Owner/reviewer operasional belum ditetapkan. Panduan command: [service README](../README.md).
@@ -16,7 +18,7 @@ Riwayat sebelum CP01–CP05: [staging inspection](checkpoints/2026-09-06-staging
 
 **Git layout correction 8 September:** user authorized backend-only root and push. Worktree root is now `backend-v3/backend-go`; root CI paths and evidence binding updated. [Git handoff and fresh regression](checkpoints/2026-09-08-git-root.md) supersede old layout/publication descriptions. This is not CP11 implementation or CP12 authorization.
 
-**8 September CP11-only kickoff:** dependency dan legacy identity inventory reviewed; [draft authority ADR/negative contract](adr/CP11_IDENTITY_AUTHORITY.md) menunggu keputusan bridge vs OIDC. CP11 lifecycle/QA belum dijalankan (**BLOCKED_DECISION**, exit belum tercapai); tidak ada code/schema/data change, CP12 tidak dimulai. Hasil QA CP08–CP10 di atas tetap historical source-bound evidence, bukan hasil CP11.
+**Riwayat kickoff CP11:** semula BLOCKED_DECISION; kelanjutan user mengotorisasi CP11–CP12 dan bridge untuk local slice. [Authority ADR](adr/CP11_IDENTITY_AUTHORITY.md) serta [hasil terbaru](checkpoints/2026-09-08-cp11-cp12.md) menggantikan status kickoff. Real legacy/provider integration tetap belum verified.
 
 Coverage adalah fully verified D / planned mandatory D, bukan jumlah file/tes yang dibuat. Denominator M19 belum frozen. Full-suite pass rate masih N/A; bootstrap checks dan measured Go statement coverage tercatat terpisah pada run evidence. Generated sections di bawah adalah latest checkpoint per paket.
 
@@ -26,8 +28,8 @@ Coverage adalah fully verified D / planned mandatory D, bukan jumlah file/tes ya
 | [M01](modules/M01.md) | IN_PROGRESS (synthetic backup/recovery) | PARTIAL_INTEGRATION; full gate BLOCKED | 0/5 (0%) | CP08 actual synthetic dump encryption/decryption/restore verified; real source/target, ACL, key custody and full scope pending. |
 | [M02](modules/M02.md) | NOT_STARTED | NOT_RUN | 0/6 (0%) | Live mitigations belum diverifikasi; companion frontend security belum berada dalam scope backend. |
 | [M03](modules/M03.md) | IN_PROGRESS | PARTIAL_QA; full gate BLOCKED | 0/5 (0%) | CP09 restricted pool, fixed fixture migration ledger, atomic audit/outbox and lease protocol tested; general migration/runtime wiring, worker, full QG, container/remote CI pending. |
-| [M04](modules/M04.md) | IN_PROGRESS (Class slice) | PARTIAL_API_DB | 0/5 (0%) | Hashed bearer session + DB actor/context resolution tested; actual issuer/bridge, session lifecycle, in-flight revoke fencing and full capabilities pending. |
-| [M05](modules/M05.md) | IN_PROGRESS (Class slice) | PARTIAL_API_DB | 0/5 (0%) | Standalone multi-Teacher/Student Class, enrollment/role/episode, publish/archive/end/rejoin tested; full lifecycle/grouping/policy/content readiness pending. |
+| [M04](modules/M04.md) | IN_PROGRESS (CP11–CP12 slice verified) | LOCAL_IDENTITY_API_DB_PASS | 0/5 full (0%) | Verified synthetic bridge/session/CSRF/projection/local admin/fence; real legacy provisioning/reset/global owner, browser and full QG pending. CP11 slice 4/4. |
+| [M05](modules/M05.md) | IN_PROGRESS (CP12 slice verified) | LOCAL_CAPABILITY_API_DB_PASS | 0/5 full (0%) | Teacher manages Students; close/reopen/suspend/reactivate/end/rejoin/history/last-teacher/concurrency verified locally. Grouping/retake/content readiness/operational QG pending. CP12 slice 4/4. |
 | [M06](modules/M06.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | File/context API dan isolated object fixture belum tersedia. |
 | [M07](modules/M07.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Content/platform dependencies belum implemented. |
 | [M08](modules/M08.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Assignment/identity/DB implementation belum tersedia. |
@@ -119,10 +121,10 @@ Riwayat 5 September di atas merekam hasil pekerjaan brief terdahulu, bukan kondi
 <!-- QA:M03:START -->
 ## M03: latest automated checkpoint
 
-- Run: `20260908T090108Z-M03-c54c1ea50440`; automated checks: **PASS**.
+- Run: `20260908T145630Z-M03-590db667a394`; automated checks: **PASS**.
 - Package: **BLOCKED**; evidence: `CURRENT`.
 - Verified deliverables: **0/5 (0%)**.
-- Bootstrap checks: 22/22 PASS; other outcomes: `{}`.
+- Bootstrap checks: 23/23 PASS; other outcomes: `{}`.
 - Full-package test pass rate: N/A while acceptance suite is incomplete.
 - Release/migration/deployment: NOT_VERIFIED / NOT_EXECUTED / NOT_DEPLOYED.
 - This is bootstrap evidence, not a completed module. See private run manifest for blockers.
@@ -131,10 +133,10 @@ Riwayat 5 September di atas merekam hasil pekerjaan brief terdahulu, bukan kondi
 <!-- QA:M00:START -->
 ## M00: latest automated checkpoint
 
-- Run: `20260908T085943Z-M00-33318dd6442b`; automated checks: **PASS**.
+- Run: `20260908T145441Z-M00-ee475c01a1e0`; automated checks: **PASS**.
 - Package: **BLOCKED**; evidence: `CURRENT`.
 - Verified deliverables: **0/5 (0%)**.
-- Bootstrap checks: 19/19 PASS; other outcomes: `{}`.
+- Bootstrap checks: 20/20 PASS; other outcomes: `{}`.
 - Full-package test pass rate: N/A while acceptance suite is incomplete.
 - Release/migration/deployment: NOT_VERIFIED / NOT_EXECUTED / NOT_DEPLOYED.
 - This is bootstrap evidence, not a completed module. See private run manifest for blockers.

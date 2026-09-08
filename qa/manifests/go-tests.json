@@ -1,6 +1,8 @@
 {
   "version": 1,
   "expected_tests": [
+    "lmsv3/internal/identity:TestBridgeVerifier",
+    "lmsv3/internal/access:TestCapabilityMatrix",
     "lmsv3/internal/migration/backup:TestBackupSealing",
     "lmsv3/internal/migration/backup:TestBackupHostAndExclusiveWrite",
     "lmsv3/internal/platform/database:TestRuntimePoolConfig",

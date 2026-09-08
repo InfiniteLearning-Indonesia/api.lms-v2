@@ -1,6 +1,8 @@
 # CP11 — Identity authority dan session lifecycle decision
 
-Tanggal: 8 September 2026 WIB. Status **PROPOSED / NEEDS_OWNER_DECISION**, bukan approved ADR atau completed checkpoint. Scope hanya CP11; CP12 tidak dimulai. [Brief](../checkpoints/CP11-CP15_BRIEF.md), [M04](../modules/M04.md), [master plan §16.2](../../../../ImplementationPlan.MD).
+**Continuation 8 September:** user requested CP11–CP12 after the bridge proposal. Implement option A for the isolated Go slice under [frozen acceptance](../checkpoints/CP11-CP12_ACCEPTANCE.md); global legacy authority remains unchanged. Prior NEEDS_OWNER_DECISION sections below are historical proposal context. Real legacy/provider approval is still external, not conferred by local QA.
+
+Tanggal: 8 September 2026 WIB. Status **IMPLEMENTED_AND_VERIFIED_LOCAL** untuk bridge CP11–CP12; real owner integration masih external gate. [Hasil QA](../checkpoints/2026-09-08-cp11-cp12.md), [brief](../checkpoints/CP11-CP15_BRIEF.md), [M04](../modules/M04.md), [master plan §16.2](../../../../ImplementationPlan.MD). Inventori dan usulan awal di bawah dipertahankan sebagai konteks historis; tidak membatalkan status kelanjutan lokal ini.
 
 ## Keputusan yang sudah ada vs yang masih terbuka
 
