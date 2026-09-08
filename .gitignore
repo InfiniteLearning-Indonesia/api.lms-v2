@@ -1,73 +1,22 @@
-# compiled output
-/dist
-/node_modules
-/build
-
-# Logs
-logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# OS
-.DS_Store
-
-# Tests
-/coverage
-/.nyc_output
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# dotenv environment variable files
+.venv/
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+.qa-artifacts/
 .env
-.env.staging
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
-
-# temp directory
-.temp
-.tmp
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
-# Graphify temp steps and local files
-step*.ps1
-graphify-out/
-
-fix_ai_users.sql
-
-# Status history runtime file
-status-history.json
-test_db.js
-test_grep.sh
-test_db2.js
-test_db3.js
-test_db4.js
-test_db5.js
-test_db6.js
+.env.*
+# User-provided .env.example is private too; safe templates live in docs/examples.
+*.dump
+*.sql.backup
+*.exe
+coverage.out
+qa/operator.local.json
+*.qa-*.tmp
+# Local trust material and Git recovery archives never belong in public source.
+*.crt
+*.pem
+*.key
+*.bundle
+*.sqlite
+*.sqlite3

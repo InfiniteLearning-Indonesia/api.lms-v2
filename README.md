@@ -1,98 +1,85 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LMS v3 backend — Go
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Repository/worktree root: **`backend-v3/backend-go`** locally. On branch `be-v3`, GitHub now shows `go.mod`, `cmd/`, `internal/`, `qa/`, `docs/` and `.github/` directly at root, without legacy NestJS files or an extra `backend-go/` wrapper. See [layout correction](docs/checkpoints/2026-09-08-git-root.md). Links to master plan/audit outside this directory are workspace references; those external documents are not bundled in this backend-only repository.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Implementation checkpoint: Go platform, synthetic protected backup/migration foundation and first real Class API journey. **Belum backend LMS lengkap atau siap staging/production.** Product scope dan acceptance tetap di [docs](docs/README.md); posisi aktual di [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
-## Description
+Latest scoped work: [CP08–CP10 results](docs/checkpoints/2026-09-07-cp08-cp10.md) PASS_SYNTHETIC_ONLY. CP10 Playwright 6/6, integration, Linux race/non-root and cumulative bootstrap checks PASS. Operational backup/identity/runtime gates remain partial; both available env configurations are staging, production unknown. [CP11–CP15 brief](docs/checkpoints/CP11-CP15_BRIEF.md) ready for selection, not executed. [CP06–CP07 history](docs/checkpoints/2026-09-07-cp06-cp07.md) retained.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+CP05 continuation **PASS_SYNTHETIC_ONLY** on 7 September: [actual PostgreSQL backup/restore + transaction integration evidence](docs/checkpoints/2026-09-07-cp05-closure.md). Local cluster stopped and retained; production/staging untouched.
 
-## Project setup
+## Yang sudah executable
 
-```bash
-$ npm install
+- `cmd/api`: HTTP Go standard library, explicit loopback-only binding, timeouts, graceful shutdown, generated request ID, controlled error/log fields. `/health/live` 200; `/health/ready` **503** sampai DB/identity/ownership siap. Business/auth endpoints belum ada; 404 bukan bukti RBAC selesai.
+- `cmd/class-lab`: separate opt-in loopback fixture entry point for real Class handlers, hashed opaque bearer sessions and restricted PostgreSQL runtime. No dotenv/shared DSN, seed, migration or login bypass at HTTP startup. Class routes are not yet wired into `cmd/api`; no actual issuer/provider login.
+- `cmd/baseline`: scan seluruh `src/**/*.ts` dua checkout backend, Git commit/dirty/source hash dan declaration locations. Config dibandingkan sebagai fingerprint, tanpa mencetak password/host/user/database. **Tidak membuka koneksi DB**, menjalankan NestJS, atau membuktikan deployment/schema aktual.
+- `cmd/db-inspect`: operator-only pgx CLI dengan explicit staging acknowledgement, verified TLS, one connection, transaction read-only, static public-catalog queries dan timeouts. Tidak dipanggil API atau synthetic QA. [Inspeksi staging terbaru](docs/checkpoints/2026-09-06-staging-ca-verified.md) berhasil membaca metadata 20 tabel public dengan CA pengguna; credential teramati memiliki hak luas, bukan least-privilege runtime.
+- `qa/run.py`: Go format/build/unit/vet/coverage → Pytest operator/self-tests → Playwright Python ke binary API baru khusus M03 → evidence/coverage/blockers. M00 menambahkan actual local source inventory. Full suite M00–M19 belum tersedia.
+- `cmd/backup-plan --plan-only`: reads strict JSON from stdin, no env/DB/process execution; checks declarations and refuses unsafe/occupied destination. `PLAN_VALID_NOT_AUTHORIZED` is not real backup, verified disk/ACL/approval, or execution permission.
+- `qa.release`, `qa.linux_qa`, `qa.postgres_lab`: separate static-artifact, Linux race/non-root, and explicitly authorized NEW synthetic PostgreSQL lab workflows. Lab never accepts existing/shared DSNs and retains cluster/backups; see checkpoint for actually executed vs pending evidence.
+- CI bootstrap di [repository workflow](.github/workflows/backend-go-qa.yml), sekarang di root yang sama dengan `go.mod`. Historical checkpoint push status dicatat di masing-masing laporan; publikasi layout terbaru ada di [handoff Git](docs/checkpoints/2026-09-08-git-root.md). Remote CI/deploy tidak diasumsikan lulus dari push.
+
+## Menjalankan checkpoint lokal (PowerShell)
+
+Prasyarat: Git, Go **1.27.1**, Python 3.12, akses download dependency saat setup. Python lokal saat checkpoint ini 3.12.2; production Python bukan runtime aplikasi. Go memakai toolchain terpin; patch berikutnya wajib direview dan QA ulang. [Go releases](https://go.dev/doc/devel/release).
+
+```powershell
+cd D:\Projects\lms-v2\backend-v3\backend-go
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r qa/requirements.lock
+$env:GOTOOLCHAIN = 'go1.27.1'
+$env:GOMODCACHE = "$PWD\.cache\go-mod"
+$env:GOCACHE = "$PWD\.cache\go-build"
+go version
+go mod download
+.\.venv\Scripts\python.exe -m qa.run --package M00 --workspace D:\Projects\lms-v2 --update-docs
+.\.venv\Scripts\python.exe -m qa.run --package M03 --update-docs
 ```
 
-## Compile and run the project
+Jalankan command M00 dan M03 secara terpisah; jangan memakai success chaining untuk menyembunyikan `BLOCKED`. M03 bootstrap lokal independen dapat diuji saat gate operasional M00 tertahan. Di shell Linux gunakan `.venv/bin/python` dan install Go 1.27.1 terlebih dahulu. Runner tidak mendownload Go/module/dependency, karena child `GOPROXY=off`; initial `go version` di atas menyiapkan toolchain jika Go terpasang berbeda.
 
-```bash
-# development
-$ npm run start
+Tidak perlu menginstall browser: QA menggunakan [Playwright APIRequestContext](https://playwright.dev/python/docs/api-testing), bukan browser/UI. Dependencies Python dikunci versi dalam `qa/requirements.lock`; artifact-hash lock/wheel provenance dan vulnerability scan penuh masih pekerjaan hardening M03, bukan dianggap selesai.
 
-# watch mode
-$ npm run start:dev
+| Exit runner | Makna |
+|---|---|
+| `0` | Full module verified, **atau** hanya bootstrap checks dengan flag eksplisit `--checks-only`. Periksa `package_status`; flag tidak mengubah coverage/gates. |
+| `1` | Build/test/collection/hash/runner error; baca evidence. |
+| `2` | Checks lokal lulus, tetapi module evidence/dependencies/approvals belum lengkap. Kondisi normal pada bootstrap saat ini. |
 
-# production mode
-$ npm run start:prod
+Default package runner hanya mendukung `M00` dan `M03`, profile `local-synthetic`. CP08–CP10 DB/API integration memakai opt-in lab terpisah, bukan full M01/M04/M05 suite. Paket lain/profile staging/live ditolak, tidak ditandai hijau. Satu runner aktif per environment melalui OS lock; crash melepas lock tanpa menghapus lock file. Tidak ada daemon/background agent yang menjanjikan pekerjaan berlanjut setelah sesi ditutup.
+
+Setelah izin membuat cluster lokal baru, jalankan CP06 regression + CP08–CP10 sebagai satu command (PostgreSQL tools diperlukan):
+
+```powershell
+.\.venv\Scripts\python.exe -m qa.postgres_lab --create-local-synthetic-cluster --class-journey --pg-bin 'C:\Program Files\PostgreSQL\18\bin'
 ```
 
-## Run tests
+Harness membackup/restore sebelum fixture/schema writes, menjalankan Go integration dan Playwright Python, lalu menghentikan server tanpa menghapus cluster/data/backup. Setiap rerun menggunakan direktori baru; tidak menyentuh staging/live. Default coverage 38.6% dan selected API coverage 81.4% punya denominator berbeda; [detail evidence](docs/checkpoints/2026-09-07-cp08-cp10.md).
 
-```bash
-# unit tests
-$ npm run test
+## Evidence dan status otomatis
 
-# e2e tests
-$ npm run test:e2e
+Setiap run membuat `.qa-artifacts/<UTC-package-unique-id>/` baru: manifest summary, result per case, Go coverage, command logs, binary hashes, JUnit, report preview. Run lama tidak ditimpa. `--update-docs` memperbarui hanya blok `QA:Mxx` di module dan dashboard, mempertahankan scope/checklist manual, lalu mencatat `publication.json`. Update atomic **per file**, bukan transaksi dua file; bila publikasi terputus, run ID berbeda atau receipt tidak ada berarti publikasi belum lengkap. Rerun checkpoint untuk rekonsiliasi.
 
-# test coverage
-$ npm run test:cov
+Hash mencakup source Go/Python, executable manifests/lock dan workflow. Documentation-only edits tidak mengubah executable hash. Source berubah setelah run → evidence lama bukan current confidence. Local artifacts belum signed/cryptographically attested dan belum memakai WORM; exclusive creation mencegah overwrite oleh runner, bukan modifikasi oleh operator filesystem. Tidak dapat digunakan sebagai izin migrasi/deploy.
+
+`.gitignore` mengecualikan env, toolchain, venv, evidence, dump dan binary. **Gitignore bukan ACL atau enkripsi**: jangan simpan backup/PII nyata di folder evidence sebelum aturan akses, enkripsi dan backup M01 terverifikasi. Tidak ada dump production dibuat di checkpoint ini.
+
+## Safety yang tidak boleh dilompati
+
+API runtime tetap tanpa DB connection dan menolak mode staging/production. Driver PostgreSQL pgx v5.10.0 kini hanya dipakai operator CLI `cmd/db-inspect`; bukan implicit startup hook. Tidak ada SQL migration, seed, provider/email integration, file-delete endpoint atau worker DB. Predicate backup/approval masih synthetic evidence-shape checks, bukan dump/restore proof. TLS trust/hostname diuji dengan server lokal nyata; staging kemudian berhasil terverifikasi menggunakan CA pengguna, tanpa bypass. Hak role, production distinctness dan backup/restore tetap gate terpisah.
+
+M00 harus menutup unknown deployed SHA dan identitas source/target/role/CA; M01 harus membuat **backup valid dan restore proof sebelum setiap migrasi**. Copy production → staging tidak boleh overwrite existing staging, menjalankan `--clean`, atau menghapus row/schema/object. Live tetap legacy owner sampai cutover disetujui. [Baseline dan blocker](docs/baseline/LOCAL_BASELINE.md).
+
+CI memakai `pull_request` (bukan `pull_request_target`), token read-only, checkout tanpa persisted credential dan action commit pin. Dasar konfigurasi: [checkout](https://github.com/actions/checkout), [setup-go](https://github.com/actions/setup-go), [setup-python](https://github.com/actions/setup-python). Bootstrap job PASS bukan full module/release acceptance. Windows race attempt terhambat compiler C 32-bit; CP04 kini memiliki actual WSL Linux race PASS untuk 17 registered Go tests dan non-root process proof. Remote CI/container execution tetap belum dijalankan.
+
+## Inspeksi staging eksplisit (bukan QA otomatis)
+
+```powershell
+.\.venv\Scripts\python.exe -m qa.inspect_staging --staging-readonly
 ```
 
-## Deployment
+Wrapper hanya memilih `.env.staging` di service root, mengompilasi Go CLI, dan menyimpan metadata sanitised dengan run ID baru. Tidak menerima raw SQL atau export/import/deploy options. Koneksi maksimum satu, connect timeout 5s, keseluruhan probe 20s, statement timeout 5s, lock timeout 1s. Read-only transaction tidak berarti credential telah terbukti least-privilege.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Jika `TLS_CERTIFICATE_VERIFICATION_FAILED`, periksa CA **dan hostname** dari provider. Unduh CA project dari Supabase Dashboard → Database Settings → SSL Configuration; simpan lokal lalu tambahkan `DB_SSL_ROOT_CERT=<path>` di `.env.staging` sendiri. Relative path dihitung dari lokasi env; system certificate store tidak dimutasi. Tidak menggunakan `InsecureSkipVerify`, `sslmode=require`, atau mengambil sertifikat dari endpoint belum trusted lalu otomatis mempercayainya. [Supabase SSL](https://supabase.com/docs/guides/platform/ssl-enforcement).
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Lihat [template DB aman](docs/examples/db-inspect.env.example), [template runtime aman](docs/examples/runtime.env.example), dan [brief sesi staging](docs/checkpoints/2026-09-06-staging-inspection.md). `.env.example` milik pengguna tidak ditimpa; ada nilai `SESSION_SECRET` yang sama dengan staging. Kedua root env sekarang di-ignore dan QA menolak jika tracked; jangan force-add. Nilai secret tidak dicetak atau disalin ke template baru. `.gitignore` tidak menggantikan ACL/enkripsi atau rotasi jika secret pernah dipublikasikan.

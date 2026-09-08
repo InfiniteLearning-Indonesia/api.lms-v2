@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "full_modules_verified": false,
+  "cp08_go": ["lmsv3/internal/migration/backup:TestSyntheticBackupProtection"],
+  "cp09_go": ["lmsv3/internal/classes:TestSyntheticRuntimeFoundation"],
+  "cp10_python": ["CP10-standalone", "CP10-authority", "CP10-validation", "CP10-session", "CP10-idempotency", "CP10-lifecycle"]
+}

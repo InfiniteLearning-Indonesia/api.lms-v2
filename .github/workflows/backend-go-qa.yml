@@ -3,10 +3,8 @@ name: Backend Go bootstrap QA (not release approval)
 on:
   push:
     branches: [be-v3]
-    paths: ['backend-go/**', '.github/workflows/backend-go-qa.yml']
   pull_request:
     branches: [be-v3]
-    paths: ['backend-go/**', '.github/workflows/backend-go-qa.yml']
   workflow_dispatch:
 
 permissions:
@@ -22,14 +20,14 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: backend-go
+        working-directory: .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: backend-go/go.mod
+          go-version-file: go.mod
           cache: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -45,12 +43,12 @@ jobs:
           go mod download
           .venv/bin/python -m qa.run --package M03 --profile local-synthetic --checks-only
         env:
-          GOMODCACHE: ${{ github.workspace }}/backend-go/.cache/go-mod
+          GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
       - name: Go race detector (Linux compiler)
         env:
           GOTOOLCHAIN: go1.27.1
           GOPROXY: 'off'
-          GOMODCACHE: ${{ github.workspace }}/backend-go/.cache/go-mod
+          GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
         run: go test -race -count=1 ./...
       - name: Static non-root artifact (build only, no publish)
         run: .venv/bin/python -m qa.release
