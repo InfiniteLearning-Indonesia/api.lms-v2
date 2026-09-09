@@ -70,7 +70,7 @@ func TestSyntheticRuntimeFoundation(t *testing.T) {
 		t.Fatal("migration replay failed")
 	}
 	var n int
-	if owner.QueryRow(ctx, "SELECT count(*) FROM v3ops.migrations").Scan(&n) != nil || n != 1 {
+	if owner.QueryRow(ctx, "SELECT count(*) FROM v3ops.migrations WHERE version='class-slice-1'").Scan(&n) != nil || n != 1 {
 		t.Fatal("duplicate migration")
 	}
 	actors := map[string]fixtureActor{}
@@ -107,8 +107,9 @@ func TestSyntheticRuntimeFoundation(t *testing.T) {
 	if err != nil {
 		t.Fatal("runtime fixture role failed")
 	}
-	_, err = owner.Exec(ctx, `GRANT USAGE ON SCHEMA v3,qa_cp05 TO qa_runtime;
+	_, err = owner.Exec(ctx, `GRANT USAGE ON SCHEMA v3,v3ops,qa_cp05 TO qa_runtime;
  GRANT SELECT ON v3.users,v3.sessions,qa_cp05.marker TO qa_runtime;
+ GRANT SELECT ON v3ops.migrations TO qa_runtime;
  GRANT SELECT,INSERT ON v3.audit TO qa_runtime;
  GRANT SELECT,INSERT,UPDATE ON v3.classes,v3.enrollments,v3.roles,v3.episodes,v3.commands,v3.outbox TO qa_runtime;`, pgx.QueryExecModeSimpleProtocol)
 	if err != nil {

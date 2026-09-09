@@ -1,5 +1,7 @@
 # CP11–CP15 — usulan kelanjutan backend Go
 
+**Revisi pelacakan 9 September:** dokumen ini kini referensi alias historis, bukan antrean utama. Capaian diikuti lewat [M → CP](../MODULE_CHECKPOINT_MAP.md) dan module briefs. CP11/CP12 yang sudah diuji dipetakan ke M04-CP01–02 / M05-CP02. CP13 lama menjadi **M03-CP03–06**; CP14 menjadi M00-CP02–04 + M01-CP02–04 dan M02-CP01 handoff; CP15 menjadi M06-CP01–02 + M07-CP01–02. Checklist/scope rencana lama di bawah dipertahankan sebagai konteks, tidak otomatis dianggap selesai atau memicu implementasi.
+
 Status terbaru: **CP11–CP12 VERIFIED_LOCAL_SLICES**, masing-masing 4/4 deliverable lokal; [hasil dan batas evidence](2026-09-08-cp11-cp12.md). CP13–CP15 belum dijalankan. Paket Mxx tetap acceptance canonical; checkpoint adalah potongan pekerjaan berdasarkan dependency, bukan penggantinya. Frontend tetap belakangan.
 
 **Riwayat kickoff 8 September:** CP11 semula BLOCKED_DECISION pada pilihan transport; kelanjutan CP11–CP12 memakai bridge untuk slice lokal sesuai [acceptance](CP11-CP12_ACCEPTANCE.md). Global owner tetap hardened legacy; real adapter/provider belum verified. Status awal NOT_RUN di uraian rencana di bawah adalah baseline, bukan hasil terbaru. Tidak ada deployment/ekspor dari checkpoint ini.

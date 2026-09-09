@@ -1,0 +1,17 @@
+{
+  "m03_cp03_go": ["lmsv3/internal/migration/runner:TestSyntheticForwardRunner"],
+  "m03_cp04_python": [
+    "M03-CP04-health",
+    "M03-CP04-mounted",
+    "M03-CP04-boundary",
+    "CP11-exchange",
+    "CP11-session",
+    "CP11-boundary",
+    "CP11-projection",
+    "CP11-site-admin",
+    "CP11-replay-rate",
+    "CP12-capability",
+    "CP12-lifecycle",
+    "CP12-prerequisites"
+  ]
+}

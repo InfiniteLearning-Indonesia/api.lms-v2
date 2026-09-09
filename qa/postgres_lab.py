@@ -84,7 +84,7 @@ def validate_tools(directory):
             if (directory / (name + ext)).is_file()}
 
 
-def run_lab(pg_bin, class_journey=False, identity_journey=False):
+def run_lab(pg_bin, class_journey=False, identity_journey=False, runtime_journey=False):
     tools = validate_tools(pg_bin)
     if len(tools) != 6:
         raise ValueError("PostgreSQL tools unavailable")
@@ -102,7 +102,10 @@ def run_lab(pg_bin, class_journey=False, identity_journey=False):
         with password_file.open("x", encoding="utf-8") as f:
             f.write(password)
         env = clean_environment(ROOT, os.environ)
-        env.update(PGPASSWORD=password, PGCONNECT_TIMEOUT="3", PGSSLMODE="disable", PGOPTIONS="-c statement_timeout=5000")
+        # Database creation/restore can exceed five seconds on a cold Windows
+        # filesystem. The subprocess timeout remains the outer bound; runtime
+        # roles still enforce their own 3-5 second statement limits.
+        env.update(PGPASSWORD=password, PGCONNECT_TIMEOUT="3", PGSSLMODE="disable", PGOPTIONS="-c statement_timeout=30000")
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
@@ -257,6 +260,7 @@ def run_lab(pg_bin, class_journey=False, identity_journey=False):
                 labels = ("admin", "teacher", "teacher2", "student", "outsider", "disabled", "expired", "revoked", "student2")
                 write_new_json(directory / "actors.private.json", {label: dict(id=f"{i:032x}", token=secrets.token_hex(32)) for i, label in enumerate(labels, 1)})
                 manifest = json.loads((ROOT / "qa/manifests/CP08-CP10.json").read_text())
+                manifest.update(json.loads((ROOT / "qa/manifests/M03-CP03-CP04.json").read_text()))
 
                 def slice_go(checkpoint, package, test):
                     output = command(["go", "test", "-json", "-count=1", "-tags=qaintegration", "-run=^"+test+"$",
@@ -267,6 +271,17 @@ def run_lab(pg_bin, class_journey=False, identity_journey=False):
                         raise ValueError("checkpoint integration incomplete")
                     write_new_json(directory / (checkpoint+"-cases.json"), cases)
                     result[checkpoint] = dict(status="PASS_SYNTHETIC_ONLY", cases=cases)
+
+                slice_go("m03_cp03", "./internal/migration/runner", "TestSyntheticForwardRunner")
+                migrate_binary = directory / ("migrate.exe" if os.name == "nt" else "migrate")
+                command(["go", "build", "-trimpath", "-o", migrate_binary, "./cmd/migrate"], 120)
+                env["LMS_MIGRATION_MODE"] = "local-synthetic"
+                migration_output = command([migrate_binary], 45)
+                migration_result = json.loads(migration_output)
+                if migration_result.get("status") != "APPLIED" or migration_result.get("applied") or set(migration_result.get("replayed",[])) != {"class-slice-1","cp11-1","cp12-1"}:
+                    raise ValueError("operator migration replay evidence invalid")
+                result["m03_cp03"]["operator_cli"] = "PASS_REPLAY_SYNTHETIC_ONLY"
+                result["m03_cp03"]["binary_sha256"] = sha256(migrate_binary.read_bytes()).hexdigest()
 
                 slice_go("cp08", "./internal/migration/backup", "TestSyntheticBackupProtection")
                 recovered = directory / "recovered.dump"
@@ -332,6 +347,27 @@ def run_lab(pg_bin, class_journey=False, identity_journey=False):
                     for query in ("SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='end' AND previous_state='SUSPENDED' AND next_state='ENDED')", "SELECT EXISTS(SELECT 1 FROM v3.transition_events t WHERE action='add' AND previous_state='ENDED' AND (SELECT count(*) FROM v3.episodes p WHERE p.enrollment_id=t.enrollment_id)>=2)", "SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='close' AND previous_state='PUBLISHED' AND next_state='CLOSED')", "SELECT EXISTS(SELECT 1 FROM v3.transition_events WHERE action='reactivate' AND previous_state='SUSPENDED' AND next_state='ACTIVE')"):
                         if sql("qa_cp05",query)!=b"t":raise ValueError("lifecycle history evidence missing")
                     result["lifecycle_reconciliation"]="PASS"
+                    if runtime_journey:
+                        tls_binary=directory/("tls-fixture.exe" if os.name=="nt" else "tls-fixture")
+                        command(["go","build","-trimpath","-o",tls_binary,"./cmd/tls-fixture"],120)
+                        command([tls_binary],30)
+                        api_binary=directory/("api-runtime.exe" if os.name=="nt" else "api-runtime")
+                        command(["go","build","-cover","-coverpkg=./cmd/api,./internal/identity,./internal/classes,./internal/access,./internal/platform/httpserver,./internal/platform/database,./internal/migration/runner","-trimpath","-o",api_binary,"./cmd/api"],120)
+                        with socket.socket() as runtime_socket:
+                            runtime_socket.bind(("127.0.0.1",0));runtime_port=runtime_socket.getsockname()[1]
+                        runtime_state=json.loads(sql("qa_cp05", "SELECT jsonb_object_agg(l.subject,jsonb_build_object('id',l.user_id,'version',l.version,'active',l.active,'site_role_version',r.version)) FROM v3identity.links l JOIN v3identity.site_roles r ON r.user_id=l.user_id"))
+                        write_new_json(directory/"runtime-state.json",runtime_state)
+                        runtime_cover=directory/"m03-cp04-api-cover";runtime_cover.mkdir()
+                        env.update(QA_CHECKPOINT="runtime",QA_RUNTIME_KIND="api",QA_IDENTITY_BINARY=str(api_binary),QA_ISSUER_BINARY=str(issuer_binary),QA_BRIDGE_PUBLIC=(directory/"issuer-public.txt").read_text(),QA_CASE_RESULTS=str(directory/"m03-cp04-api-cases.json"),GOCOVERDIR=str(runtime_cover),LMS_MODE="v3-local-synthetic",LMS_HTTP_ADDR=f"127.0.0.1:{runtime_port}",LMS_ORIGIN=f"https://127.0.0.1:{runtime_port}",LMS_TLS_CERT_FILE=str((directory/"runtime-tls.crt").resolve()),LMS_TLS_KEY_FILE=str((directory/"runtime-tls.key").resolve()),LMS_BRIDGE_PUBLIC_KEY=(directory/"issuer-public.txt").read_text())
+                        command([sys.executable,"-m","pytest","-p","qa.plugin","qa/tests/identity_api","-q"],180)
+                        api_cases=json.loads((directory/"m03-cp04-api-cases.json").read_text())
+                        expected=set(manifest["m03_cp04_python"])
+                        if api_cases["exit_status"]!=0 or set(api_cases["collected_ids"])!=expected or len(api_cases["cases"])!=len(expected) or any(c["status"]!="PASS" for c in api_cases["cases"]):
+                            raise ValueError("runtime API required cases incomplete")
+                        profile=directory/"m03-cp04-api-coverage.out"
+                        command(["go","tool","covdata","textfmt","-i="+str(runtime_cover),"-o="+str(profile)])
+                        require_coverage(profile)
+                        result["m03_cp04"]=dict(status="PASS_SYNTHETIC_ONLY",cases=api_cases["cases"],binary_sha256=sha256(api_binary.read_bytes()).hexdigest(),instrumented_go_coverage=command(["go","tool","cover","-func="+str(profile)]).decode().strip(),startup_ddl="NONE",direct_tls=True,graceful_shutdown="PASS")
             if source != source_fingerprint(ROOT):
                 raise ValueError("source changed during integration")
             result["status"] = "PASS_SYNTHETIC_ONLY"
@@ -354,8 +390,9 @@ def main():
     parser.add_argument("--pg-bin", type=Path, required=True)
     parser.add_argument("--class-journey", action="store_true", help="Also execute CP08-CP10 on the new synthetic cluster only")
     parser.add_argument("--identity-journey", action="store_true", help="Execute CP11 then CP12 plus CP08-CP10 regression; new local cluster only")
+    parser.add_argument("--runtime-journey", action="store_true", help="Execute M03-CP03/CP04 plus all identity/Class regressions on a new local cluster")
     args = parser.parse_args()
-    return run_lab(args.pg_bin, args.class_journey or args.identity_journey, args.identity_journey)
+    return run_lab(args.pg_bin, args.class_journey or args.identity_journey or args.runtime_journey, args.identity_journey or args.runtime_journey, args.runtime_journey)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,7 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		w.Header().Set("X-Request-ID", requestID)
 		status := 503
 		route := "identity.unmatched"

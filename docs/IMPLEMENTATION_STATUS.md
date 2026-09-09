@@ -1,12 +1,27 @@
 # LMS v3 backend — Implementation status
 
+## Posisi pekerjaan per M — 9 September 2026
+
+**M adalah unit capaian utama; CP adalah bagian di dalam M.** Lihat [peta lengkap M00–M19 → CP](MODULE_CHECKPOINT_MAP.md) dan bagian “Peta pekerjaan” di setiap module brief. Canonical D verification dan raw/generated QA sections di bawah tetap mempunyai denominator acceptance sendiri.
+
+| M yang sudah disentuh | CP rencana | Bagian teruji lokal | Posisi/sisa paling dekat |
+|---|---:|---:|---|
+| [M00](modules/M00.md) | 4 | 1/4 | Source inventory/evidence lokal ada; production/deployed identity, full inventory/capacity dan handoff belum lengkap |
+| [M01](modules/M01.md) | 4 | 1/4 | Synthetic backup/restore teruji; real host/key/object protection, backup nyata dan closure tersisa |
+| [M02](modules/M02.md) | 4 | 0/4; CP01 parsial | Security disposition bukan mitigation; perlu scoped legacy fixes dan deployment verification |
+| [M03](modules/M03.md) | 6 | 2/6 | **Berikutnya M03-CP03** reusable migration runner, kemudian CP04 API runtime, CP05 worker, CP06 QA/closure |
+| [M04](modules/M04.md) | 5 | 2/5 | Bridge/session dan Class fence lokal teruji; real owner/provisioning, refresh/browser dan full ancestry tersisa |
+| [M05](modules/M05.md) | 5 | 2/5 | Core Class/participation/lifecycle teruji; grouping/mentor/invited/retake serta content integration tersisa |
+
+M06–M14 masing-masing 0/4, M15 0/5, M16–M17 0/4, M18 0/3; M19 belum frozen (N/A). Ini jumlah potongan scope teruji, **bukan persentase effort atau progress full module**. Tidak menjumlahkan numerator antar M karena shared evidence dan ukuran CP berbeda. Full M00–M18 masih 0/97 D pada evidence terakhir; tidak ada D diubah/diluluskan oleh restrukturisasi ini. Source/test manifests tetap sama; tidak menjalankan QA aplikasi atau operasi DB baru.
+
 **Latest CP11–CP12, 8 September:** [VERIFIED_LOCAL_SLICES](checkpoints/2026-09-08-cp11-cp12.md), **4/4 deliverable lokal masing-masing**. CP11 API 6/6; CP12 + CP11 regression 9/9; CP10 API 6/6; M00 20/20; M03 23/23; 23 default Go cases + Linux race/non-root PASS. Measured coverage union: identity 86.01%, Class 83.85%, access 100%, seluruh profile 70.09%. Full M04/M05 gates tetap belum terverifikasi. Root Go dan CP08–CP10 published pada `edac5af`; user kemudian mengotorisasi publikasi CP11–CP12 ke `be-v3` setelah QA, dengan raw artifact tetap lokal. Ringkasan numerik CP08–CP10 di bawah adalah histori, bukan source terbaru.
 
 [Indeks](README.md) · [QA contract](QA_AUTOMATION_PLAN.md) · [Master plan](../../../ImplementationPlan.MD)
 
 Baseline brief: 5 September 2026; checkpoint implementasi: 6 September 2026 WIB. **M00 inventory source dan M03 Go/QA bootstrap kini executable dan diuji lokal setelah otorisasi pengguna.** Full module, DB identity/backup/migration dan release belum verified. Owner/reviewer operasional belum ditetapkan. Panduan command: [service README](../README.md).
 
-**Latest scoped session:** [CP08–CP10](checkpoints/2026-09-07-cp08-cp10.md) PASS_SYNTHETIC_ONLY: protected synthetic backup recovery, restricted runtime/atomic Class+audit+outbox and real Class API journey. CP10 Playwright 6/6 PASS; M00 19/19, M03 22/22 automated checks; 21 Go cases and Linux race/non-root PASS. Default Go statement coverage 38.6%; separate four-package API coverage 81.4%, not whole-backend coverage. Full operational/module gates remain incomplete. CP07 [security/environment handoff](baseline/CP07_ENVIRONMENT_SECURITY_HANDOFF.md) remains blocked on actual production/provider/owner inputs; both available env configurations are staging per user correction. [Next CP11–CP15](checkpoints/CP11-CP15_BRIEF.md) proposed, not started. Earlier numerical summaries are historical; current run IDs are generated below.
+**Histori CP08–CP10:** [laporan lama](checkpoints/2026-09-07-cp08-cp10.md) menyimpan PASS_SYNTHETIC_ONLY sebelum identity/lifecycle berikutnya. Hasil terbaru CP11–CP12 ada di atas. CP07 [security/environment handoff](baseline/CP07_ENVIRONMENT_SECURITY_HANDOFF.md) tetap menunggu actual production/provider/owner inputs. CP13–CP15 yang semula diusulkan sekarang dipetakan ke CP milik M; bukan urutan global baru. Generated blocks di bawah mempertahankan evidence per package.
 
 **7 September update:** [CP05 closed for synthetic scope](checkpoints/2026-09-07-cp05-closure.md): local PostgreSQL backup/restore proof and 3/3 transaction-suite cases PASS; transaction package coverage 100%, not whole-backend coverage. Server stopped; all synthetic data/backups retained. Production/staging backup and full module gates remain pending.
 

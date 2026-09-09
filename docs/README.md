@@ -1,19 +1,20 @@
 # LMS v3 — Brief eksekusi backend Go
 
-Service root: `D:/Projects/lms-v2/backend-v3/backend-go`. Branch rencana implementasi: `be-v3`. Versi brief: 1.0, 5 September 2026.
+Service root: `D:/Projects/lms-v2/backend-v3/backend-go`. Branch: `be-v3`. Versi brief: 1.1, restrukturisasi capaian M → CP pada 9 September 2026.
 
 **Repository boundary corrected 8 September:** this service directory is now the Git worktree root; `.github/` lives inside it. [Layout/publication handoff](checkpoints/2026-09-08-git-root.md) records current QA and preserves historical checkpoint status below. External master-plan/audit links are local workspace references, not files included in this backend-only branch tree.
 
-**Current continuation:** [CP08–CP10 implementation/evidence](checkpoints/2026-09-07-cp08-cp10.md) PASS_SYNTHETIC_ONLY; protected fixture backup/recovery, restricted runtime/atomic persistence and first Class API journey tested. [CP07 security/environment handoff](baseline/CP07_ENVIRONMENT_SECURITY_HANDOFF.md) remains BLOCKED_INPUT; production unknown and both available envs are staging. [Next CP11–CP15 brief](checkpoints/CP11-CP15_BRIEF.md) proposed, not implemented. Later paragraphs describing an unavailable runner are historical planning context, not current runtime status.
+**Mulai dari capaian M:** [MODULE_CHECKPOINT_MAP.md](MODULE_CHECKPOINT_MAP.md) menunjukkan jumlah CP per M, bagian teruji, sisa dependency dan next action. Setiap [Mxx.md](modules/M03.md) kini mempunyai CP miliknya sendiri, misalnya `M03-CP03`; CP01–CP12 lama tetap evidence alias. Posisi lokal: M00 1/4, M01 1/4, M03 2/6, M04 2/5, M05 2/5 bagian teruji. Full canonical D/gates belum tertutup; angka bagian bukan effort/completion percentage.
 
-**Status sekarang: partial backend implementation setelah otorisasi pengguna.** M00/M03 bootstrap serta CP08–CP10 slices tersedia; full module masih pending. Panduan executable ada di [service README](../README.md), hasil aktual di dashboard. Tidak ada shared DB copy/mutation/backup, frontend atau deployment. Foundation previously pushed; CP08–CP10 belum commit/push. Backup dan fixture writes hanya pada cluster sintetis lokal baru yang dihentikan serta dipertahankan. Slice QA lulus tidak berarti seluruh paket terverifikasi.
+**Status sekarang: partial backend implementation.** [CP11–CP12 dan regresi](checkpoints/2026-09-08-cp11-cp12.md) sudah diuji lokal dan published pada `a0d296e`; full M tetap pending. Panduan executable ada di [service README](../README.md), hasil aktual di dashboard. Backup dan fixture writes hanya pada cluster sintetis lokal baru yang dihentikan serta dipertahankan. Production reference masih unknown; kedua konfigurasi adalah staging. Restrukturisasi ini hanya dokumentasi, bukan coding/push/migrasi baru.
 
 ## Mulai dari sini
 
 1. [ImplementationPlan.MD](../../../ImplementationPlan.MD): keputusan domain, keamanan dan migrasi utama.
-2. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md): posisi seluruh paket, blocker dan checkpoint berikutnya.
-3. [QA_AUTOMATION_PLAN.md](QA_AUTOMATION_PLAN.md): trigger runner, shared gates, evidence dan perhitungan coverage.
-4. Pilih brief gelombang Bxx, lalu Mxx di dalamnya. Satu instruksi dapat mencakup beberapa paket dengan QA setiap checkpoint.
+2. [MODULE_CHECKPOINT_MAP.md](MODULE_CHECKPOINT_MAP.md): peta semua M beserta CP, progress bagian, alias historis dan urutan dependency.
+3. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md): status full module, current evidence dan blockers; tidak menggantikan progress bagian.
+4. [QA_AUTOMATION_PLAN.md](QA_AUTOMATION_PLAN.md): trigger runner, shared gates, evidence dan perhitungan coverage.
+5. Pilih M dan CP-nya, atau bundle beberapa M/CP dalam gelombang Bxx. Satu instruksi dapat mencakup beberapa bagian dengan QA setelah setiap CP.
 
 Referensi faktual: [audit codebase](../../../LMS_CODEBASE_AUDIT_AND_REMEDIATION.md), [benchmark Moodle](../../../LMS_Modern_Moodle_Benchmark_Architecture_Business_Flow.md). Brief ini menurunkan master plan menjadi acceptance contract; tidak menyalin schema Moodle atau mengubah target ke TypeScript.
 
@@ -69,7 +70,7 @@ Gelombang adalah scope kerja, bukan ukuran jaminan satu sesi. B01/B06 bisa terta
 
 ## Cara menjalankan pekerjaan nanti
 
-Saat meminta implementasi, sebut scope Bxx atau rentang M beserta batas environment/operasi. Pelaksana membaca brief, memeriksa dependency, mengimplementasikan paket, menjalankan QA+regression, mencatat evidence lalu melanjutkan paket dependency-ready tanpa perlu prompt per M. Berhenti untuk keputusan/otorisasi baru, failed safety gate, limit atau external blocker; checkpoint tetap tersimpan.
+Saat meminta implementasi, sebut M dan CP atau bundle Bxx, misalnya “kerjakan M03-CP03 sampai M03-CP05, QA tiap CP, laporkan sisa M03”. Pelaksana membaca brief, memeriksa dependency, mengimplementasikan bagian, menjalankan QA+regression dan memperbarui capaian M. Tidak perlu prompt per CP. Berhenti pada dependency/otorisasi baru atau failed safety gate; pekerjaan independen yang diotorisasi tetap dapat maju.
 
 QA runner lokal M00/M03 tersedia dan menjalankan Go/Python/Playwright serta report gates. M01 preflight diuji melalui regression Go; full M01 suite dan operational backup belum selesai. Explicit operator probes/lab berbeda dari synthetic QA otomatis. Markdown berubah tidak men-trigger proses sendiri. Detail trigger dan reporting ada pada QA plan.
 
@@ -85,4 +86,4 @@ Coverage D, pass rate tests, Go code coverage, external approval dan migration/d
 
 Baca dashboard, relevant B/M, latest evidence refs dan actual worktree. Cocokkan tested commit/tree/schema/test manifest hash; stale evidence diuji ulang. Jangan reset user changes atau mulai migration ulang tanpa membaca committed receipts. Simpan last safe action/next action serta outstanding approval agar instruksi selanjutnya cukup menyebut checkpoint.
 
-Pekerjaan berikut yang aman adalah review brief lalu meminta implementasi scope pertama yang dipilih. Perintah `[LAKSANAKAN]` yang menghasilkan folder ini hanya menyetujui **brief dan rencana QA**, tidak otomatis seluruh M00–M19 implementation.
+Rekomendasi berikut: **M03-CP03 → M03-CP04 → M03-CP05 → M03-CP06**, pengganti rencana CP13 lama. Scope historical trigger brief tidak memberi izin otomatis seluruh roadmap. ID Mxx-CPnn baru masih alias perencanaan; adapter runner belum tersedia, gunakan suite existing sesuai [QA plan](QA_AUTOMATION_PLAN.md).

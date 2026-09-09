@@ -1,5 +1,7 @@
 # LMS v3 backend — Go
 
+**Pelacakan pekerjaan 9 September:** mulai dari [capaian M00–M19 dan CP di dalam modul](docs/MODULE_CHECKPOINT_MAP.md), bukan nomor CP global. Posisi lokal: M03 2/6 bagian, M04 2/5, M05 2/5; full acceptance terpisah. Next recommended: **M03-CP03–06**, pemecahan CP13 lama. Setiap module brief berisi dependency, target D, exit/QA dan sisa pekerjaan.
+
 Repository/worktree root: **`backend-v3/backend-go`** locally. On branch `be-v3`, GitHub now shows `go.mod`, `cmd/`, `internal/`, `qa/`, `docs/` and `.github/` directly at root, without legacy NestJS files or an extra `backend-go/` wrapper. See [layout correction](docs/checkpoints/2026-09-08-git-root.md). Links to master plan/audit outside this directory are workspace references; those external documents are not bundled in this backend-only repository.
 
 Implementation checkpoint: Go platform, synthetic protected backup/migration foundation and first real Class API journey. **Belum backend LMS lengkap atau siap staging/production.** Product scope dan acceptance tetap di [docs](docs/README.md); posisi aktual di [implementation status](docs/IMPLEMENTATION_STATUS.md).

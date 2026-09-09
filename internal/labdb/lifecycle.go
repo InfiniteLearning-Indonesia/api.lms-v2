@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"lmsv3/internal/migration/backup"
+	"lmsv3/internal/migration/runner"
 	"lmsv3/internal/platform/transaction"
 	"os"
 	"path/filepath"
@@ -30,6 +31,16 @@ CREATE TABLE v3.transition_events(id text PRIMARY KEY,actor_id text NOT NULL REF
 CREATE INDEX transition_actor_idx ON v3.transition_events(actor_id);
 CREATE INDEX transition_class_idx ON v3.transition_events(class_id);
 CREATE INDEX transition_enrollment_idx ON v3.transition_events(enrollment_id);`
+
+// Catalogue is the single immutable source for the currently implemented v3
+// installments. The reusable runner consumes a copy; callers cannot add SQL.
+func Catalogue() []runner.Migration {
+	return []runner.Migration{
+		{Version: "class-slice-1", SQL: schema},
+		{Version: "cp11-1", SQL: identitySchema, Requires: []string{"class-slice-1"}},
+		{Version: "cp12-1", SQL: accessSchema, Requires: []string{"cp11-1"}},
+	}
+}
 
 // Additional closed operator installments; original class-slice-1 is untouched.
 // Receipt is separately bound to a fresh snapshot made after prior checkpoints.

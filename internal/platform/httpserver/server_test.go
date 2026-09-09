@@ -77,3 +77,22 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Fatal("shutdown did not finish")
 	}
 }
+
+func TestApplicationReadinessOutage(t *testing.T) {
+	ready := true
+	h := ApplicationHandler(slog.New(slog.DiscardHandler), func(context.Context) error {
+		if !ready {
+			return context.DeadlineExceeded
+		}
+		return nil
+	}, http.NotFoundHandler())
+	for _, want := range []int{200, 503} {
+		r := httptest.NewRequest("GET", "/health/ready", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != want {
+			t.Fatalf("ready status=%d want=%d", w.Code, want)
+		}
+		ready = false
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"lmsv3/internal/migration/backup"
+	"lmsv3/internal/migration/runner"
 	"lmsv3/internal/platform/database"
 	"lmsv3/internal/platform/transaction"
 	"os"
@@ -56,6 +57,29 @@ type Proof struct {
 
 func ValidateProof(p Proof, root, target string, now time.Time) error {
 	return validateArtifact(p, root, target, now, "pre_v3.dump")
+}
+
+// MigrationGate re-verifies the retained backup bytes before the reusable
+// runner sees a receipt. It is intentionally restricted to the synthetic lab.
+func MigrationGate(now time.Time) (runner.Gate, error) {
+	root := os.Getenv("QA_LAB_DIR")
+	info, err := os.Lstat(filepath.Join(root, "pre-v3-proof.json"))
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 65536 {
+		return runner.Gate{}, errors.New("LAB_BACKUP_RECEIPT_INVALID")
+	}
+	data, err := os.ReadFile(filepath.Join(root, "pre-v3-proof.json"))
+	if err != nil {
+		return runner.Gate{}, errors.New("LAB_BACKUP_RECEIPT_REQUIRED")
+	}
+	var proof Proof
+	if json.Unmarshal(data, &proof) != nil {
+		return runner.Gate{}, errors.New("LAB_BACKUP_RECEIPT_INVALID")
+	}
+	target := Target(os.Getenv("QA_PG_PORT"), os.Getenv("QA_PG_MARKER"))
+	if err = ValidateProof(proof, root, target, now.UTC()); err != nil {
+		return runner.Gate{}, err
+	}
+	return runner.Gate{RunID: proof.RunID, TargetFingerprint: target, ArchiveSHA256: proof.ArchiveHash, RestoreVerified: true, VerifiedAt: proof.CreatedAt}, nil
 }
 func validateArtifact(p Proof, root, target string, now time.Time, filename string) error {
 	if !p.Restored || p.Target != target || p.RunID != filepath.Base(root) || now.Before(p.CreatedAt) || now.Sub(p.CreatedAt) > time.Hour || !backup.SafeRoot(root) {

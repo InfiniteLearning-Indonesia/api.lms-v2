@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import signal
 import time
 import uuid
 import pytest
@@ -9,7 +10,9 @@ from playwright.sync_api import sync_playwright
 
 
 def pytest_ignore_collect(collection_path, config):
-    return collection_path.name == "test_context.py" and os.environ.get("QA_CHECKPOINT") == "cp11"
+    checkpoint = os.environ.get("QA_CHECKPOINT")
+    if collection_path.name == "test_context.py" and checkpoint == "cp11": return True
+    return collection_path.name == "test_runtime.py" and checkpoint != "runtime"
 
 
 def pytest_collection_modifyitems(items):
@@ -25,10 +28,12 @@ def lab():
     assert binary.is_relative_to(root) and signer.is_relative_to(root)
     assert os.environ["QA_PG_ACK"] == "new-local-synthetic-cluster"
     cp = os.environ["QA_CHECKPOINT"]
-    env = {k:v for k,v in os.environ.items() if k.upper() in {"PATH","SYSTEMROOT","WINDIR","TEMP","TMP","COMSPEC","QA_PG_ACK","QA_PG_PORT","QA_PG_MARKER","QA_RUNTIME_PASSWORD","QA_IDENTITY_PASSWORD","QA_BRIDGE_PUBLIC","QA_CHECKPOINT","GOCOVERDIR"}}
+    allowed={"PATH","SYSTEMROOT","WINDIR","TEMP","TMP","COMSPEC","QA_PG_ACK","QA_PG_PORT","QA_PG_MARKER","QA_RUNTIME_PASSWORD","QA_IDENTITY_PASSWORD","QA_BRIDGE_PUBLIC","QA_CHECKPOINT","GOCOVERDIR","LMS_MODE","LMS_HTTP_ADDR","LMS_ORIGIN","LMS_TLS_CERT_FILE","LMS_TLS_KEY_FILE","LMS_BRIDGE_PUBLIC_KEY","QA_RUNTIME_KIND"}
+    env = {k:v for k,v in os.environ.items() if k.upper() in allowed}
     logfile = root / (cp+"-identity-runtime.jsonl")
     with logfile.open("x",encoding="utf-8") as log:
-        proc = subprocess.Popen([str(binary)],env=env,stdin=subprocess.PIPE,stdout=log,stderr=log)
+        flags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" and env.get("QA_RUNTIME_KIND")=="api" else 0
+        proc = subprocess.Popen([str(binary)],env=env,stdin=subprocess.PIPE,stdout=log,stderr=log,creationflags=flags)
         try:
             deadline=time.monotonic()+10
             address=None
@@ -36,9 +41,18 @@ def lab():
                 assert proc.poll() is None, "identity runtime startup gate rejected"
                 lines=logfile.read_text().splitlines()
                 if lines:
-                    event=json.loads(lines[0]); assert event["msg"]=="identity_lab_started"
-                    address=event["address"];assert address.startswith("https://127.0.0.1:")
-                    break
+                    event=json.loads(lines[0])
+                    if env.get("QA_RUNTIME_KIND")=="api":
+                        assert event["msg"]=="local_server_started" and event["mode"]=="v3-local-synthetic"
+                        address="https://"+event["address"]
+                    else:
+                        assert event["msg"]=="identity_lab_started"; address=event["address"]
+                    assert address.startswith("https://127.0.0.1:")
+                    if env.get("QA_RUNTIME_KIND")!="api": break
+                    try:
+                        probe=__import__('urllib.request',fromlist=['urlopen']).urlopen(address+"/health/live",context=__import__('ssl')._create_unverified_context(),timeout=.5)
+                        if probe.status==200: break
+                    except Exception: address=None
                 time.sleep(.05)
             assert address
             actors=json.loads((root/(cp+"-state.json")).read_text())
@@ -71,8 +85,12 @@ def lab():
                     assert all(s not in contents for s in secrets),"credential in runtime log"
                     assert env["QA_IDENTITY_PASSWORD"] not in contents and env["QA_RUNTIME_PASSWORD"] not in contents
         finally:
-            if proc.poll() is None:proc.stdin.write(b"shutdown\n");proc.stdin.flush()
+            if proc.poll() is None:
+                if env.get("QA_RUNTIME_KIND")=="api":
+                    proc.send_signal(signal.CTRL_BREAK_EVENT if os.name=="nt" else signal.SIGTERM)
+                else: proc.stdin.write(b"shutdown\n");proc.stdin.flush()
             try:proc.wait(timeout=8)
             except subprocess.TimeoutExpired:proc.kill();proc.wait(timeout=3);pytest.fail("identity shutdown timed out")
-            finally:proc.stdin.close()
+            finally:
+                if proc.stdin: proc.stdin.close()
             assert proc.returncode==0

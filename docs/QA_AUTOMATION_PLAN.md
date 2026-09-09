@@ -1,5 +1,15 @@
 # Backend Go — Automation QA Plan
 
+## Pelacakan M → CP — revisi 9 September 2026
+
+[Peta modul](MODULE_CHECKPOINT_MAP.md) dan bagian CP pada setiap `modules/Mxx.md` menjadi tampilan utama pekerjaan. **Mxx-Dnn tetap acceptance canonical; Mxx-CPnn adalah potongan scope**, bukan test-case ID atau numerator D baru. CP01–CP12/test IDs/run lama dipertahankan; scope hasil lama dapat mendukung CP baru melalui alias yang eksplisit. Tidak ada manifest executable atau hasil QA diubah oleh revisi Markdown ini.
+
+Sesudah satu CP diimplementasikan: freeze scope/case/gates → preflight → suite yang relevan + regression dependencies → evidence/hash → update CP milik M → evaluasi klausa D yang benar-benar tertutup → laporkan sisa M. Sesudah seluruh CP coding, masih wajib full module/integration/QG closure; external/browser/provider gate tidak berubah menjadi PASS dari local suite.
+
+Handoff minimal: `M / CP / supported D / scope environment / tests dan source hash / CP status / D residual / migration+owner status / next CP`. Jumlah bagian teruji boleh ditampilkan sebagai `2/6`; bukan 33% effort atau 33% fitur. Jangan double-count shared evidence menjadi overall project completion. M19 denominator tetap unfrozen.
+
+**Batas automation aktual:** runner menerima M00/M03; lab menerima historical CP08–CP12 via `--identity-journey`; aggregator `qa.checkpoint_report` mengevaluasi slice lama. Tidak ada command `--checkpoint M03-CP03` atau full suite M04 yang tiba-tiba tersedia dari nama baru. M03-CP06 mencakup adapter registry module→CP→case→D dan reporting kompatibel IDs lama. Sampai adapter tersedia, pelaksana memakai runner existing, menjalankan QA per CP secara eksplisit dan mencatat alias; perubahan tulisan DONE tidak men-trigger proses.
+
 [Indeks](README.md) · [Dashboard](IMPLEMENTATION_STATUS.md) · [Master plan](../../../ImplementationPlan.MD)
 
 Status: PARTIAL_IMPLEMENTATION, checkpoint 6 September 2026 WIB. Runner M00/M03, Go tests, Pytest/Playwright API tests dan workflow bootstrap telah dibuat; hasil lokal tersedia di dashboard. CI remote dan full QG acceptance belum verified. Kontrak berikut tetap target implementasi lengkap; tidak memberikan izin DB mutation, deployment, frontend work atau production copy.
