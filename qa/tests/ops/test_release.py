@@ -20,3 +20,6 @@ def test_release_contract():
     docker = (Path(__file__).resolve().parents[3] / "deploy/Dockerfile").read_text()
     instructions = [line for line in docker.splitlines() if line and not line.startswith("#")]
     assert instructions == ["FROM scratch", "COPY --chown=65532:65532 --chmod=0555 api /api", "USER 65532:65532", 'ENTRYPOINT ["/api"]']
+    worker = (Path(__file__).resolve().parents[3] / "deploy/Dockerfile.worker").read_text()
+    instructions = [line for line in worker.splitlines() if line and not line.startswith("#")]
+    assert instructions == ["FROM scratch", "COPY --chown=65532:65532 --chmod=0555 worker /worker", "USER 65532:65532", 'ENTRYPOINT ["/worker"]']

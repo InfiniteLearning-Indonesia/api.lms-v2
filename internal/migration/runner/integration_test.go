@@ -31,7 +31,11 @@ func TestSyntheticForwardRunner(t *testing.T) {
 	if err = gate.Validate(target, time.Now().UTC()); err != nil {
 		t.Fatal("gate", err)
 	}
-	if err = runner.ValidateCatalogue(labdb.Catalogue()); err != nil {
+	catalogue, err := labdb.SyntheticCatalogueScope(os.Getenv("QA_CATALOGUE_SCOPE"))
+	if err != nil {
+		t.Fatal("catalogue scope", err)
+	}
+	if err = runner.ValidateCatalogue(catalogue); err != nil {
 		t.Fatal("catalogue", err)
 	}
 	verify := func(ctx context.Context, tx pgx.Tx) error {
@@ -41,8 +45,8 @@ func TestSyntheticForwardRunner(t *testing.T) {
 		}
 		return nil
 	}
-	broken := append([]runner.Migration{}, labdb.Catalogue()...)
-	broken = append(broken, runner.Migration{Version: "failure-fixture", SQL: "CREATE TABLE v3.invalid(", Requires: []string{"cp12-1"}})
+	broken := append([]runner.Migration{}, catalogue...)
+	broken = append(broken, runner.Migration{Version: "failure-fixture", SQL: "CREATE TABLE v3.invalid(", Requires: []string{catalogue[len(catalogue)-1].Version}})
 	if _, err = runner.Apply(ctx, owner, broken, gate, target, verify); err == nil || errors.Is(err, runner.ErrGate) || errors.Is(err, runner.ErrCatalogue) {
 		t.Fatal("invalid installment committed")
 	}
@@ -58,7 +62,7 @@ func TestSyntheticForwardRunner(t *testing.T) {
 	if _, err = held.Exec(ctx, "SELECT pg_advisory_xact_lock(810910)"); err != nil {
 		t.Fatal(err)
 	}
-	_, applyErr := runner.Apply(ctx, owner, labdb.Catalogue(), gate, target, verify)
+	_, applyErr := runner.Apply(ctx, owner, catalogue, gate, target, verify)
 	if err = held.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -66,11 +70,11 @@ func TestSyntheticForwardRunner(t *testing.T) {
 		t.Fatal("migration lock not enforced", applyErr)
 	}
 
-	result, err := runner.Apply(ctx, owner, labdb.Catalogue(), gate, target, verify)
-	if err != nil || len(result.Applied) != 3 {
+	result, err := runner.Apply(ctx, owner, catalogue, gate, target, verify)
+	if err != nil || len(result.Applied) != len(catalogue) {
 		t.Fatal("catalogue apply failed", err, result)
 	}
-	if err = runner.Ready(ctx, owner, labdb.Catalogue()); err != nil {
+	if err = runner.Ready(ctx, owner, catalogue); err != nil {
 		t.Fatal("ready ledger rejected", err)
 	}
 
@@ -80,7 +84,7 @@ func TestSyntheticForwardRunner(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			r, e := runner.Apply(ctx, owner, labdb.Catalogue(), gate, target, verify)
+			r, e := runner.Apply(ctx, owner, catalogue, gate, target, verify)
 			if e == nil && len(r.Applied) != 0 {
 				e = errors.New("replay reapplied migration")
 			}
@@ -95,14 +99,14 @@ func TestSyntheticForwardRunner(t *testing.T) {
 		}
 	}
 
-	drifted := labdb.Catalogue()
+	drifted := append([]runner.Migration{}, catalogue...)
 	drifted[0].SQL += "\nCREATE TABLE v3.drift(id integer);"
 	if _, err = runner.Apply(ctx, owner, drifted, gate, target, verify); !errors.Is(err, runner.ErrConflict) {
 		t.Fatal("checksum drift accepted", err)
 	}
 	badGate := gate
 	badGate.RestoreVerified = false
-	if _, err = runner.Apply(ctx, owner, labdb.Catalogue(), badGate, target, verify); !errors.Is(err, runner.ErrGate) {
+	if _, err = runner.Apply(ctx, owner, catalogue, badGate, target, verify); !errors.Is(err, runner.ErrGate) {
 		t.Fatal("missing restore accepted", err)
 	}
 }

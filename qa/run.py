@@ -101,6 +101,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         api_binary = directory / "bin" / ("api" + extension)
         baseline_binary = directory / "bin" / ("baseline" + extension)
         db_inspect_binary = directory / "bin" / ("db-inspect" + extension)
+        worker_binary = directory / "bin" / ("worker" + extension)
         env.update(QA_API_BINARY=str(api_binary), QA_ARTIFACT_ROOT=str(directory),
                    QA_DB_INSPECT_BINARY=str(db_inspect_binary),
                    QA_CASE_RESULTS=str(directory / "pytest-cases.json"),
@@ -118,6 +119,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
             gofiles = sorted(str(p) for base in (ROOT / "cmd", ROOT / "internal") for p in base.rglob("*.go"))
             fmt = command([str(Path(goroot["stdout"].strip()) / "bin" / ("gofmt" + extension)), "-l", *gofiles], "go-format")
         api_build = command(["go", "build", "-trimpath", "-o", str(api_binary), "./cmd/api"], "go-build-api")
+        worker_build = command(["go", "build", "-trimpath", "-o", str(worker_binary), "./cmd/worker"], "go-build-worker")
         baseline_build = command(["go", "build", "-trimpath", "-o", str(baseline_binary), "./cmd/baseline"], "go-build-baseline")
         db_inspect_build = command(["go", "build", "-trimpath", "-o", str(db_inspect_binary), "./cmd/db-inspect"], "go-build-db-inspect")
         backup_build = command(["go", "build", "-trimpath", "-o", str(directory / "bin" / ("backup-plan" + extension)), "./cmd/backup-plan"], "go-build-backup-plan")
@@ -145,7 +147,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         case_report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {}
         checks = [
             ("Q00-go-format", fmt["return_code"] == 0 and not fmt["stdout"].strip()),
-            ("Q00-go-build", api_build["return_code"] == 0 and baseline_build["return_code"] == 0 and db_inspect_build["return_code"] == 0 and backup_build["return_code"] == 0),
+            ("Q00-go-build", api_build["return_code"] == 0 and worker_build["return_code"] == 0 and baseline_build["return_code"] == 0 and db_inspect_build["return_code"] == 0 and backup_build["return_code"] == 0),
             ("Q00-go-unit", unit["return_code"] == 0 and verify_go_cases(go_manifest["expected_tests"], go_results)),
             ("Q00-go-vet", vet["return_code"] == 0),
         ]
@@ -163,7 +165,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
                       commands=commands, cases=cases, required_gates=manifest["required_gates"],
                       toolchain=version["stdout"].strip(), python=sys.version.split()[0],
                       go_test_case_count=len(go_results), go_statement_coverage=coverage["stdout"].strip().splitlines()[-1:] or ["NOT_MEASURED"],
-                      binary_sha256={p.name: sha256(p.read_bytes()).hexdigest() for p in (api_binary, baseline_binary, db_inspect_binary) if p.exists()},
+                      binary_sha256={p.name: sha256(p.read_bytes()).hexdigest() for p in (api_binary, worker_binary, baseline_binary, db_inspect_binary) if p.exists()},
                       database_access="NOT_EXECUTED", backup="NOT_EXECUTED", migration="NOT_EXECUTED",
                       deployment="NOT_DEPLOYED", source_commit="UNCOMMITTED_WORKTREE_HASH_USED",
                       approval="NOT_REQUESTED_OR_GRANTED_BY_THIS_RUN")

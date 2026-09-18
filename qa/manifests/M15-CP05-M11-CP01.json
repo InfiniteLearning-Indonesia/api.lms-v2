@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M15-CP05","module":"M15","deliverables":["M15-D05"],"cases":["lmsv3/internal/migration/foundation:TestSyntheticReconciliationComplete","lmsv3/internal/migration/foundation:TestSyntheticReconciliationRejectsIncomplete","M15-CP05-no-public-reconcile-route"]},
+    {"id":"M11-CP01","module":"M11","deliverables":["M11-D01"],"cases":["lmsv3/internal/attendance:TestSyntheticClassMeetingCalendar","lmsv3/internal/attendance:TestSyntheticMeetingExceptionBoundary","M11-CP01-meeting-calendar","M11-CP01-cross-class-denied"]}
+  ],
+  "m15_cp05_go": ["lmsv3/internal/migration/foundation:TestSyntheticReconciliationComplete","lmsv3/internal/migration/foundation:TestSyntheticReconciliationRejectsIncomplete"],
+  "m15_cp05_python": ["M15-CP05-no-public-reconcile-route"],
+  "m11_cp01_go": ["lmsv3/internal/attendance:TestSyntheticClassMeetingCalendar","lmsv3/internal/attendance:TestSyntheticMeetingExceptionBoundary"],
+  "m11_cp01_python": ["M11-CP01-meeting-calendar","M11-CP01-cross-class-denied"],
+  "external_gates": ["REAL_SOURCE_IDENTITY_AND_BACKUP", "ACADEMIC_REVIEW", "SHARED_DATABASE_ROLE_REVIEW", "REMOTE_CI_EXECUTION", "ACTUAL_ATTENDANCE_POLICY"]
+}

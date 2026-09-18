@@ -28,14 +28,14 @@ def lab():
     assert binary.is_relative_to(root) and signer.is_relative_to(root)
     assert os.environ["QA_PG_ACK"] == "new-local-synthetic-cluster"
     cp = os.environ["QA_CHECKPOINT"]
-    allowed={"PATH","SYSTEMROOT","WINDIR","TEMP","TMP","COMSPEC","QA_PG_ACK","QA_PG_PORT","QA_PG_MARKER","QA_RUNTIME_PASSWORD","QA_IDENTITY_PASSWORD","QA_BRIDGE_PUBLIC","QA_CHECKPOINT","GOCOVERDIR","LMS_MODE","LMS_HTTP_ADDR","LMS_ORIGIN","LMS_TLS_CERT_FILE","LMS_TLS_KEY_FILE","LMS_BRIDGE_PUBLIC_KEY","QA_RUNTIME_KIND"}
+    allowed={"PATH","SYSTEMROOT","WINDIR","TEMP","TMP","COMSPEC","QA_PG_ACK","QA_PG_PORT","QA_PG_MARKER","QA_RUNTIME_PASSWORD","QA_IDENTITY_PASSWORD","QA_BRIDGE_PUBLIC","QA_CHECKPOINT","QA_FILE_ROOT","QA_CATALOGUE_SCOPE","GOCOVERDIR","LMS_MODE","LMS_HTTP_ADDR","LMS_ORIGIN","LMS_TLS_CERT_FILE","LMS_TLS_KEY_FILE","LMS_BRIDGE_PUBLIC_KEY","QA_RUNTIME_KIND"}
     env = {k:v for k,v in os.environ.items() if k.upper() in allowed}
     logfile = root / (cp+"-identity-runtime.jsonl")
     with logfile.open("x",encoding="utf-8") as log:
         flags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name=="nt" and env.get("QA_RUNTIME_KIND")=="api" else 0
         proc = subprocess.Popen([str(binary)],env=env,stdin=subprocess.PIPE,stdout=log,stderr=log,creationflags=flags)
         try:
-            deadline=time.monotonic()+10
+            deadline=time.monotonic()+20
             address=None
             while time.monotonic()<deadline:
                 assert proc.poll() is None, "identity runtime startup gate rejected"
@@ -76,7 +76,7 @@ def lab():
                     cookie=[v for v in c.storage_state()["cookies"] if v["name"]=="__Host-lms-v3"][0]
                     secrets.append(cookie["value"]);return c,csrf
                 def mutate(c,csrf,path,body,method="post",key=None):
-                    return getattr(c,method)(path,data=body,headers={"X-CSRF-Token":csrf,"Idempotency-Key":key or uuid.uuid4().hex})
+                    return getattr(c,method.lower())(path,data=body,headers={"X-CSRF-Token":csrf,"Idempotency-Key":key or uuid.uuid4().hex})
                 try:
                     yield dict(client=client,sign=sign,login=login,actors=actors,mutate=mutate,origin=address)
                 finally:

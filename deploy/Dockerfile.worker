@@ -1,0 +1,7 @@
+# Build context is ONLY the generated release directory, never the repository.
+# No shell, package manager, credentials, database client or CA bundle included.
+# Shared runtime mode remains disabled until its operational gates are approved.
+FROM scratch
+COPY --chown=65532:65532 --chmod=0555 worker /worker
+USER 65532:65532
+ENTRYPOINT ["/worker"]

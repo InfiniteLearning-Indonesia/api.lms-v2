@@ -3,6 +3,7 @@
   "expected_tests": [
     "lmsv3/internal/identity:TestBridgeVerifier",
     "lmsv3/internal/access:TestCapabilityMatrix",
+    "lmsv3/internal/access:TestFileCapabilities",
     "lmsv3/internal/migration/backup:TestBackupSealing",
     "lmsv3/internal/migration/backup:TestBackupHostAndExclusiveWrite",
     "lmsv3/internal/platform/database:TestRuntimePoolConfig",
@@ -23,10 +24,23 @@
     "lmsv3/internal/platform/httpserver:TestGracefulShutdown",
     "lmsv3/internal/platform/httpserver:TestApplicationReadinessOutage",
     "lmsv3/internal/labdb:TestCatalogueIsForwardOnly",
+    "lmsv3/internal/outbox:TestWorkerConfiguration",
+    "lmsv3/internal/outbox:TestStoreInputBoundary",
+    "lmsv3/internal/outbox:TestWorkerRetryConcurrencyAndShutdown",
     "lmsv3/internal/migration/runner:TestCatalogueAndGateFailClosed",
     "lmsv3/internal/platform/dbinspect:TestDatabaseConfigLiteralParsingAndRedaction",
     "lmsv3/internal/platform/dbinspect:TestDatabaseConfigRejectsAmbiguityAndUnsafeFiles",
     "lmsv3/internal/platform/dbinspect:TestDatabaseTLSVerifiesTrustAndHostname",
-    "lmsv3/internal/platform/dbinspect:TestDatabaseErrorsAndCatalogAreSafe"
+    "lmsv3/internal/platform/dbinspect:TestDatabaseErrorsAndCatalogAreSafe",
+    "lmsv3/internal/files:TestLocalStoreQuarantinePromotionAndIntegrity",
+    "lmsv3/internal/files:TestUploadValidationAndScannerFailClosed",
+    "lmsv3/internal/egress:TestPolicyRejectsPrivateArbitraryAndRedirectTargets",
+    "lmsv3/internal/egress:TestFetchBoundsBytesTimeoutConcurrencyAndHeaders",
+    "lmsv3/internal/egress:TestConfigurationFailsClosed",
+    "lmsv3/internal/content:TestContentInputAndRouteBoundaries",
+    "lmsv3/internal/content:TestSafeCanonicalContentAndSchedule",
+    "lmsv3/internal/content:TestAssignmentRevisionContractBoundary",
+    "lmsv3/internal/submissions:TestCommandBoundary",
+    "lmsv3/internal/submissions:TestHandinBoundary"
   ]
 }

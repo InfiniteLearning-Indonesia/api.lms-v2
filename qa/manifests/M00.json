@@ -11,7 +11,7 @@
     "M01-T01-backup-predicate", "Q00-evidence-missing-cases",
     "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero",
     "Q00-render-preserves-human-section", "Q00-runner-lock-and-env",
-    "Q00-runner-plugin-evidence", "M00-T01-local-inventory", "M00-T02-db-cli-offline-gates"
+    "Q00-runner-plugin-evidence", "M03-CP06-checkpoint-registry", "M00-T01-local-inventory", "M00-T02-db-cli-offline-gates"
   ],
   "deliverables": [
     {"id": "M00-D01", "checks": ["M00-T01-local-inventory", "Q00-go-unit"], "pending_evidence": ["DEPLOYED_SHA_NOT_VERIFIED", "ROUTE_AND_SCHEMA_DIFF_REVIEW_PENDING"]},

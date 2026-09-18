@@ -1,20 +1,31 @@
 # LMS v3 backend — Go
 
-**Pelacakan pekerjaan 9 September:** mulai dari [capaian M00–M19 dan CP di dalam modul](docs/MODULE_CHECKPOINT_MAP.md), bukan nomor CP global. Posisi lokal: M03 2/6 bagian, M04 2/5, M05 2/5; full acceptance terpisah. Next recommended: **M03-CP03–06**, pemecahan CP13 lama. Setiap module brief berisi dependency, target D, exit/QA dan sisa pekerjaan.
+**Update 15 September:** [M12-CP02/CP03](docs/checkpoints/2026-09-15-m12-cp02-cp03.md) lulus 8/8 frozen Go/DB+Playwright cases dengan backup SQL/custom dan actual isolated restore terpisah. M12 kini 3/4 slice lokal; canonical 0/5. Entry/revision dan scoped personal-mentor review baru di harness sintetis, belum shared `cmd/api`. Tidak ada staging/production access, delete, commit atau push.
+
+**Update 14 September:** [M12-CP01](docs/checkpoints/2026-09-14-m12-cp01.md) lulus 4/4 frozen Go/DB+Playwright cases pada cluster sintetis baru dengan backup SQL/custom dan actual isolated restore. M12 kini 1/4 slice lokal; canonical 0/5. Endpoint period-set masih hanya di harness QA, bukan `cmd/api` runtime bersama. Tidak ada staging/production access, delete, commit atau push.
+
+**Update 14 September 2026:** [M15-CP05 + M11-CP01](docs/checkpoints/2026-09-14-m15-cp05-m11-cp01.md) lulus pada full synthetic PostgreSQL journey: masing-masing 3/3 dan 4/4 frozen QA cases, dengan fresh SQL/custom backups dan actual isolated restores. M15 sekarang 5/5 **slice sintetis**, M11 1/4 **slice lokal**; canonical tetap M15 0/6 dan M11 0/5. Status bertanggal 13 September di bawah adalah histori. Tidak ada DB nyata, commit, atau push.
+
+**Pelacakan pekerjaan 13 September:** mulai dari [capaian M00–M19 dan CP di dalam modul](docs/MODULE_CHECKPOINT_MAP.md), bukan nomor CP global. Posisi lokal: M03 6/6 bagian, M04 2/5, M05 4/5, M06 3/4, M07 3/4, M08 3/4 exit lokal dengan CP04 parsial, M15 4/5 slice sintetis; full acceptance terpisah. Next recommended: **M15-CP05 synthetic reconciliation/closure**; source nyata tetap memerlukan CA/backup/approval gate. Peta tersebut menunjukkan urutan dependency seluruh CP lintas M.
 
 Repository/worktree root: **`backend-v3/backend-go`** locally. On branch `be-v3`, GitHub now shows `go.mod`, `cmd/`, `internal/`, `qa/`, `docs/` and `.github/` directly at root, without legacy NestJS files or an extra `backend-go/` wrapper. See [layout correction](docs/checkpoints/2026-09-08-git-root.md). Links to master plan/audit outside this directory are workspace references; those external documents are not bundled in this backend-only repository.
 
 Implementation checkpoint: Go platform, synthetic protected backup/migration foundation and first real Class API journey. **Belum backend LMS lengkap atau siap staging/production.** Product scope dan acceptance tetap di [docs](docs/README.md); posisi aktual di [implementation status](docs/IMPLEMENTATION_STATUS.md).
 
-Latest scoped work: [CP11–CP12 results](docs/checkpoints/2026-09-08-cp11-cp12.md) **VERIFIED_LOCAL_SLICES**, 4/4 deliverable lokal per checkpoint. CP11 API 6/6, CP12 + CP11 regression 9/9, CP10 API 6/6 PASS. Gabungan statement coverage: identity 86.01%, Class 83.85%, capability 100%; seluruh measured packages 70.09%. Real legacy issuer, browser, operational identity/backup/runtime dan full M04/M05 gates tetap pending. [CP13–CP15](docs/checkpoints/CP11-CP15_BRIEF.md) belum dikerjakan. Kedua konfigurasi yang tersedia adalah staging; production unknown.
+Latest scoped work: [M15-CP03/CP04 results](docs/checkpoints/2026-09-13-m15-cp03-cp04.md) **dua synthetic local slices PASS; canonical M15 0/6**. Deterministic quarantine mapping dan atomic private shadow backfill, dua backup+actual restore, Go/DB, Playwright dan seluruh backend regression lulus. [CP01/CP02 foundation](docs/checkpoints/2026-09-13-m15-cp01-cp02.md) tetap berlaku. Tidak ada source nyata/staging/live DB yang disentuh; M08-CP04 tetap partial/BLOCKED_M15 untuk chronology nyata.
+
+Prior Class scope: [M05-CP03–CP04 results](docs/checkpoints/2026-09-10-m05-cp03-cp04.md) **VERIFIED_LOCAL_SLICES**. Class-owned grouping, personal mentor history, target-bound invitations, explicit retake/transfer/equivalence provenance, backup/restore dan seluruh backend regression lulus. Canonical M05 tetap 0/5 karena CP05/shared/QG gates.
+
+Prior scoped work: [M03-CP03–CP04 results](docs/checkpoints/2026-09-09-m03-cp03-cp04.md) **VERIFIED_LOCAL_SLICES**. Forward migration runner + real `cmd/api` TLS process lulus pada fresh synthetic PostgreSQL; CP04 12/12 API cases, CP03/CP04 coverage 76.4%/69.4%, dan CP08–CP12 regressions PASS.
 
 CP05 continuation **PASS_SYNTHETIC_ONLY** on 7 September: [actual PostgreSQL backup/restore + transaction integration evidence](docs/checkpoints/2026-09-07-cp05-closure.md). Local cluster stopped and retained; production/staging untouched.
 
 ## Yang sudah executable
 
-- `cmd/api`: HTTP Go standard library, explicit loopback-only binding, timeouts, graceful shutdown, generated request ID, controlled error/log fields. `/health/live` 200; `/health/ready` **503** sampai DB/identity/ownership siap. Business/auth endpoints belum ada; 404 bukan bukti RBAC selesai.
+- `cmd/api`: bootstrap health-only mode serta `v3-local-synthetic` real TLS business runtime. Mode business memasang cookie identity + contextual Class handler, dependency readiness dan restricted pools; startup tidak menjalankan DDL. Shared mode belum diaktifkan.
+- `cmd/migrate`: forward-only operator runner dengan katalog terkompilasi, checksum/dependency/lock dan fresh restored-backup gate; checkpoint ini hanya mengizinkan cluster sintetis baru.
 - `cmd/class-lab`: separate opt-in loopback fixture entry point for real Class handlers, hashed opaque bearer sessions and restricted PostgreSQL runtime. No dotenv/shared DSN, seed, migration or login bypass at HTTP startup. Class routes are not yet wired into `cmd/api`; no actual issuer/provider login.
-- `cmd/identity-lab`: HTTPS cookie/CSRF gateway dengan pinned assertion verifier, session lifecycle dan contextual Class commands; pool identity writer terpisah. `cmd/bridge-fixture` hanya issuer sintetis offline untuk QA. [OpenAPI lokal](docs/api/cp11-cp12.openapi.json); adapter legacy dan runtime non-lab belum tersedia.
+- `cmd/identity-lab`: HTTPS cookie/CSRF fixture lokal yang juga memasang contextual Class/participation/private-file routes untuk QA. `cmd/bridge-fixture` hanya issuer sintetis offline. [OpenAPI identity lokal](docs/api/cp11-cp12.openapi.json); adapter legacy/real issuer, malware scanner dan private object provider belum tersedia.
 - `cmd/baseline`: scan seluruh `src/**/*.ts` dua checkout backend, Git commit/dirty/source hash dan declaration locations. Config dibandingkan sebagai fingerprint, tanpa mencetak password/host/user/database. **Tidak membuka koneksi DB**, menjalankan NestJS, atau membuktikan deployment/schema aktual.
 - `cmd/db-inspect`: operator-only pgx CLI dengan explicit staging acknowledgement, verified TLS, one connection, transaction read-only, static public-catalog queries dan timeouts. Tidak dipanggil API atau synthetic QA. [Inspeksi staging terbaru](docs/checkpoints/2026-09-06-staging-ca-verified.md) berhasil membaca metadata 20 tabel public dengan CA pengguna; credential teramati memiliki hak luas, bukan least-privilege runtime.
 - `qa/run.py`: Go format/build/unit/vet/coverage → Pytest operator/self-tests → Playwright Python ke binary API baru khusus M03 → evidence/coverage/blockers. M00 menambahkan actual local source inventory. Full suite M00–M19 belum tersedia.
@@ -61,6 +72,14 @@ Harness membackup/restore sebelum fixture/schema writes, menjalankan Go integrat
 
 Angka pada paragraf sebelumnya adalah historical CP10. Untuk CP11–CP12 beserta regresi CP08–CP10, gunakan flag `--identity-journey` menggantikan `--class-journey`. QA CP11 terpicu setelah installment CP11; CP12 hanya dimulai bila CP11 lulus dan backup berikutnya terbukti. `qa.checkpoint_report` menggabungkan evidence terbaru dengan M00/M03/Linux, menolak hasil stale/missing, serta menghitung deliverable dan statement coverage. [Command lengkap dan run final](docs/checkpoints/2026-09-08-cp11-cp12.md#reproduksi-dan-checkpoint-berikutnya).
 
+Untuk M03-CP03–CP04 gunakan `--runtime-journey`; harness membuat cluster baru, backup+actual restore, menjalankan runner/CLI dan seluruh CP08–CP12 regression, lalu menguji proses `cmd/api` nyata dengan Playwright. [Hasil final](docs/checkpoints/2026-09-09-m03-cp03-cp04.md).
+
+Untuk rantai terbaru sampai bounded M08-CP04 gunakan `--submission-journey`. Flag ini meng-include content/file/participation/worker journeys, membackup+restore sebelum tiap schema installment, lalu menjalankan Go/DB dan Playwright API. Gunakan hanya pada NEW synthetic cluster; [hasil dan batas receipt](docs/checkpoints/2026-09-13-m08-cp03-cp04.md).
+
+Untuk M15-CP01/CP02 synthetic preflight/provenance beserta seluruh dependency, gunakan `--migration-foundation-journey` pada NEW loopback cluster saja. Harness membuat backup SQL/dump baru dan actual isolated restore sebelum tiap CP; [hasil dan batas source nyata](docs/checkpoints/2026-09-13-m15-cp01-cp02.md). Tidak menerima DSN staging/production.
+
+Untuk menambah M15-CP03/CP04 mapping dan shadow backfill sintetis pada dependency journey yang sama, gunakan `--migration-backfill-journey`. Opsi ini mengambil backup SQL/dump baru dan actual isolated restore sebelum masing-masing CP; hasil QA dan batasnya dicatat terpisah dari canonical M15.
+
 ## Evidence dan status otomatis
 
 Setiap run membuat `.qa-artifacts/<UTC-package-unique-id>/` baru: manifest summary, result per case, Go coverage, command logs, binary hashes, JUnit, report preview. Run lama tidak ditimpa. `--update-docs` memperbarui hanya blok `QA:Mxx` di module dan dashboard, mempertahankan scope/checklist manual, lalu mencatat `publication.json`. Update atomic **per file**, bukan transaksi dua file; bila publikasi terputus, run ID berbeda atau receipt tidak ada berarti publikasi belum lengkap. Rerun checkpoint untuk rekonsiliasi.
@@ -71,7 +90,7 @@ Hash mencakup source Go/Python, executable manifests/lock dan workflow. Document
 
 ## Safety yang tidak boleh dilompati
 
-API runtime tetap tanpa DB connection dan menolak mode staging/production. Driver PostgreSQL pgx v5.10.0 kini hanya dipakai operator CLI `cmd/db-inspect`; bukan implicit startup hook. Tidak ada SQL migration, seed, provider/email integration, file-delete endpoint atau worker DB. Predicate backup/approval masih synthetic evidence-shape checks, bukan dump/restore proof. TLS trust/hostname diuji dengan server lokal nyata; staging kemudian berhasil terverifikasi menggunakan CA pengguna, tanpa bypass. Hak role, production distinctness dan backup/restore tetap gate terpisah.
+API bootstrap tetap tanpa DB connection; mode business hanya mengizinkan marker-bound cluster sintetis lokal dan menolak staging/production. PostgreSQL dipakai restricted API/identity/worker pools serta operator runner terpisah; startup tidak menjalankan migration/seed. Worker substrate ada, tetapi belum ada provider/email nyata atau file-delete endpoint. Harness CP03–CP06 telah membuktikan dump+actual isolated restore lokal; ini bukan backup shared/production. Hak role nyata, production distinctness dan operational backup/restore tetap gate terpisah.
 
 M00 harus menutup unknown deployed SHA dan identitas source/target/role/CA; M01 harus membuat **backup valid dan restore proof sebelum setiap migrasi**. Copy production → staging tidak boleh overwrite existing staging, menjalankan `--clean`, atau menghapus row/schema/object. Live tetap legacy owner sampai cutover disetujui. [Baseline dan blocker](docs/baseline/LOCAL_BASELINE.md).
 

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "module": "M05",
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "full_module_verified": false,
+  "m05_cp03_go": ["lmsv3/internal/classes:TestSyntheticGroupingAndMentor"],
+  "m05_cp04_go": ["lmsv3/internal/classes:TestSyntheticInvitationRetakeAndProvenance"],
+  "m05_python": [
+    "M05-CP03-group-ownership",
+    "M05-CP03-mentor-history",
+    "M05-CP03-authority-validation",
+    "M05-CP04-invitation-acceptance",
+    "M05-CP04-retake-provenance",
+    "M05-CP04-transfer-equivalence"
+  ],
+  "checkpoints": [
+    {
+      "id": "M05-CP03",
+      "deliverables": ["M05-D02", "M05-D05"],
+      "cases": [
+        "M05-CP03-group-ownership",
+        "M05-CP03-mentor-history",
+        "M05-CP03-authority-validation",
+        "lmsv3/internal/classes:TestSyntheticGroupingAndMentor"
+      ]
+    },
+    {
+      "id": "M05-CP04",
+      "deliverables": ["M05-D03", "M05-D04", "M05-D05"],
+      "cases": [
+        "M05-CP04-invitation-acceptance",
+        "M05-CP04-retake-provenance",
+        "M05-CP04-transfer-equivalence",
+        "lmsv3/internal/classes:TestSyntheticInvitationRetakeAndProvenance"
+      ]
+    }
+  ],
+  "external_gates": ["IDENTITY_PROVISIONING_OWNER", "M08_M09_LEARNER_STATE", "SHARED_DATABASE_BACKUP", "REMOTE_CI_EXECUTION"]
+}

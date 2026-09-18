@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M12-CP01","module":"M12","deliverables":["M12-D01"],"cases":["lmsv3/internal/logbook:TestSyntheticClassPeriodLifecycle","lmsv3/internal/logbook:TestSyntheticPeriodBoundary","M12-CP01-period-lifecycle","M12-CP01-context-denied"]}
+  ],
+  "m12_cp01_go": ["lmsv3/internal/logbook:TestSyntheticClassPeriodLifecycle","lmsv3/internal/logbook:TestSyntheticPeriodBoundary"],
+  "m12_cp01_python": ["M12-CP01-period-lifecycle","M12-CP01-context-denied"],
+  "external_gates": ["ACTUAL_PERIOD_POLICY", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION", "ENTRY_REVIEW_LIFECYCLE"]
+}

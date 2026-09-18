@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M09-CP01","module":"M09","deliverables":["M09-D01"],"cases":["lmsv3/internal/gradebook:TestSyntheticGradeDefinitionLifecycle","lmsv3/internal/gradebook:TestSyntheticGradeDefinitionBoundary","M09-CP01-definition-lifecycle","M09-CP01-definition-boundary"]},
+    {"id":"M09-CP02","module":"M09","deliverables":["M09-D02","M09-D03"],"cases":["lmsv3/internal/gradebook:TestSyntheticScopedGradeLifecycle","lmsv3/internal/gradebook:TestSyntheticScopedGradeBoundary","M09-CP02-grade-lifecycle","M09-CP02-grade-boundary"]}
+  ],
+  "m09_cp01_go": ["lmsv3/internal/gradebook:TestSyntheticGradeDefinitionLifecycle","lmsv3/internal/gradebook:TestSyntheticGradeDefinitionBoundary"],
+  "m09_cp01_python": ["M09-CP01-definition-lifecycle","M09-CP01-definition-boundary"],
+  "m09_cp02_go": ["lmsv3/internal/gradebook:TestSyntheticScopedGradeLifecycle","lmsv3/internal/gradebook:TestSyntheticScopedGradeBoundary"],
+  "m09_cp02_python": ["M09-CP02-grade-lifecycle","M09-CP02-grade-boundary"],
+  "external_gates": ["LEARNER_RELEASE_POLICY_M09_CP03", "LEGACY_GRADE_RECONCILIATION_M09_CP04", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION"]
+}

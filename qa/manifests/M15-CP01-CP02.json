@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "module": "M15",
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m15_cp01_go": ["lmsv3/internal/migration/foundation:TestSyntheticPreflight"],
+  "m15_cp02_go": ["lmsv3/internal/migration/foundation:TestSyntheticProvenance"],
+  "m15_python": ["M15-CP01-no-public-migration-route", "M15-CP02-no-landing-leak"],
+  "checkpoints": [
+    {"id":"M15-CP01","module":"M15","deliverables":["M15-D01"],"cases":["lmsv3/internal/migration/foundation:TestSyntheticPreflight","M15-CP01-no-public-migration-route"]},
+    {"id":"M15-CP02","module":"M15","deliverables":["M15-D02"],"cases":["lmsv3/internal/migration/foundation:TestSyntheticProvenance","M15-CP02-no-landing-leak"]}
+  ],
+  "external_gates": ["REAL_SOURCE_IDENTITY_CA_SCHEMA", "REAL_SOURCE_INVENTORY_AND_FILES", "APPROVED_SOURCE_ADAPTER", "SHARED_DATABASE_BACKUP", "REMOTE_CI_EXECUTION"]
+}

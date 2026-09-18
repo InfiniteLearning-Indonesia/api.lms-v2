@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M13-CP01","module":"M13","deliverables":["M13-D01","M13-D02"],"cases":["lmsv3/internal/notifications:TestSyntheticDurableDeliveryLifecycle","lmsv3/internal/notifications:TestSyntheticDurableDeliveryBoundary","M13-CP01-delivery-lifecycle","M13-CP01-delivery-boundary"]},
+    {"id":"M13-CP02","module":"M13","deliverables":["M13-D03","M13-D05"],"cases":["lmsv3/internal/notifications:TestSyntheticNotificationLifecycle","lmsv3/internal/notifications:TestSyntheticNotificationBoundary","M13-CP02-notification-lifecycle","M13-CP02-notification-boundary"]}
+  ],
+  "m13_cp01_go": ["lmsv3/internal/notifications:TestSyntheticDurableDeliveryLifecycle","lmsv3/internal/notifications:TestSyntheticDurableDeliveryBoundary"],
+  "m13_cp01_python": ["M13-CP01-delivery-lifecycle","M13-CP01-delivery-boundary"],
+  "m13_cp02_go": ["lmsv3/internal/notifications:TestSyntheticNotificationLifecycle","lmsv3/internal/notifications:TestSyntheticNotificationBoundary"],
+  "m13_cp02_python": ["M13-CP02-notification-lifecycle","M13-CP02-notification-boundary"],
+  "external_gates": ["ACTUAL_PROVIDER_ADAPTER", "ACTUAL_SECRET_MANAGER", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION", "PRODUCTION_RECIPIENT_POLICY"]
+}

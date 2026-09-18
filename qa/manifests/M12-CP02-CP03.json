@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M12-CP02","module":"M12","deliverables":["M12-D02"],"cases":["lmsv3/internal/logbook:TestSyntheticLogbookEntryLifecycle","lmsv3/internal/logbook:TestSyntheticLogbookEntryBoundary","M12-CP02-entry-lifecycle","M12-CP02-entry-boundary"]},
+    {"id":"M12-CP03","module":"M12","deliverables":["M12-D03","M12-D04"],"cases":["lmsv3/internal/logbook:TestSyntheticLogbookReviewLifecycle","lmsv3/internal/logbook:TestSyntheticLogbookReviewBoundary","M12-CP03-review-lifecycle","M12-CP03-review-boundary"]}
+  ],
+  "m12_cp02_go": ["lmsv3/internal/logbook:TestSyntheticLogbookEntryLifecycle","lmsv3/internal/logbook:TestSyntheticLogbookEntryBoundary"],
+  "m12_cp02_python": ["M12-CP02-entry-lifecycle","M12-CP02-entry-boundary"],
+  "m12_cp03_go": ["lmsv3/internal/logbook:TestSyntheticLogbookReviewLifecycle","lmsv3/internal/logbook:TestSyntheticLogbookReviewBoundary"],
+  "m12_cp03_python": ["M12-CP03-review-lifecycle","M12-CP03-review-boundary"],
+  "external_gates": ["ACTUAL_LOGBOOK_POLICY", "ACTUAL_OBJECT_PROVIDER", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION", "LEGACY_MAPPING"]
+}

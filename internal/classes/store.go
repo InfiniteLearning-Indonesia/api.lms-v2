@@ -41,6 +41,12 @@ type Command struct {
 	Role          string
 	UpdateProgram bool
 	UpdateCohort  bool
+	GroupID       string
+	MentorID      string
+	InvitationID  string
+	EpisodeKind   string
+	OriginEpisode string
+	Policy        string
 }
 type Store struct {
 	pool       *pgxpool.Pool
@@ -197,6 +203,31 @@ func validate(c Command) error {
 		if !idPattern.MatchString(c.UserID) {
 			return ErrInvalid
 		}
+	case "create_group":
+		if strings.TrimSpace(c.Name) == "" || len(c.Name) > 120 {
+			return ErrInvalid
+		}
+	case "assign_group":
+		if !idPattern.MatchString(c.UserID) || !idPattern.MatchString(c.GroupID) {
+			return ErrInvalid
+		}
+	case "assign_mentor":
+		if !idPattern.MatchString(c.UserID) || !idPattern.MatchString(c.MentorID) || c.UserID == c.MentorID {
+			return ErrInvalid
+		}
+	case "invite":
+		if !idPattern.MatchString(c.UserID) || (c.Role != "teacher" && c.Role != "student") {
+			return ErrInvalid
+		}
+	case "accept_invitation":
+		if !idPattern.MatchString(c.InvitationID) {
+			return ErrInvalid
+		}
+	case "start_episode":
+		policies := map[string]string{"RETAKE": "SEPARATE_HISTORY", "TRANSFER": "REVIEW_REQUIRED", "EQUIVALENCE": "REFERENCE_ONLY"}
+		if !idPattern.MatchString(c.UserID) || !idPattern.MatchString(c.OriginEpisode) || policies[c.EpisodeKind] != c.Policy {
+			return ErrInvalid
+		}
 	case "publish", "archive", "close", "reopen":
 	default:
 		return ErrInvalid
@@ -222,6 +253,12 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 	}
 	if !s.contextual && (cmd.Action == "close" || cmd.Action == "reopen" || cmd.Action == "suspend" || cmd.Action == "reactivate") {
 		return nil, ErrInvalid
+	}
+	if participationAction(cmd.Action) {
+		if !s.contextual {
+			return nil, ErrInvalid
+		}
+		return s.executeParticipation(ctx, token, key, requestID, cmd)
 	}
 	raw, _ := json.Marshal(cmd)
 	hash := identity.TokenHash(string(raw))
@@ -405,7 +442,23 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 				if err != nil {
 					return err
 				}
-				if _, err = tx.Exec(ctx, "INSERT INTO v3.episodes(id,enrollment_id) VALUES($1,$2)", episode, enrollment); err != nil {
+				installed, e := provenanceInstalled(ctx, tx)
+				if e != nil {
+					return e
+				}
+				if installed && !fresh {
+					var origin string
+					if err = tx.QueryRow(ctx, "SELECT id FROM v3.episodes WHERE enrollment_id=$1 ORDER BY opened_at DESC,id DESC LIMIT 1 FOR UPDATE", enrollment).Scan(&origin); err != nil {
+						return err
+					}
+					if _, err = tx.Exec(ctx, "INSERT INTO v3.episodes(id,enrollment_id,kind,origin_episode_id,recognition_policy,created_by) VALUES($1,$2,'REJOIN',$3,'SEPARATE_HISTORY',$4)", episode, enrollment, origin, actor.ID); err != nil {
+						return err
+					}
+				} else if installed {
+					if _, err = tx.Exec(ctx, "INSERT INTO v3.episodes(id,enrollment_id,created_by) VALUES($1,$2,$3)", episode, enrollment, actor.ID); err != nil {
+						return err
+					}
+				} else if _, err = tx.Exec(ctx, "INSERT INTO v3.episodes(id,enrollment_id) VALUES($1,$2)", episode, enrollment); err != nil {
 					return err
 				}
 			}
@@ -475,6 +528,11 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 			}
 			if err != nil {
 				return err
+			}
+			if s.contextual {
+				if err = s.closeParticipation(ctx, tx, enrollment); err != nil {
+					return err
+				}
 			}
 			if s.contextual {
 				if err = tx.QueryRow(ctx, `SELECT CASE WHEN EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=e.id AND x.suspended_at IS NOT NULL) THEN 'SUSPENDED' ELSE e.status END FROM v3.enrollments e WHERE e.id=$1`, enrollment).Scan(&previousState); err != nil {

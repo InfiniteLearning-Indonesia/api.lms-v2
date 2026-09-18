@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -105,6 +106,9 @@ func ServeApplicationTLS(ctx context.Context, c config.Config, listener net.List
 
 func serve(ctx context.Context, c config.Config, listener net.Listener, handler http.Handler, logger *slog.Logger, withTLS bool) error {
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: c.ReadHeaderTimeout, ReadTimeout: c.ReadTimeout, WriteTimeout: c.WriteTimeout, IdleTimeout: c.IdleTimeout, MaxHeaderBytes: 16 * 1024}
+	if withTLS {
+		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 	done := make(chan error, 1)
 	go func() {
 		if withTLS {

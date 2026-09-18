@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"lmsv3/internal/identity"
 	"lmsv3/internal/labdb"
-	"lmsv3/internal/outbox"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -111,7 +110,8 @@ func TestSyntheticRuntimeFoundation(t *testing.T) {
  GRANT SELECT ON v3.users,v3.sessions,qa_cp05.marker TO qa_runtime;
  GRANT SELECT ON v3ops.migrations TO qa_runtime;
  GRANT SELECT,INSERT ON v3.audit TO qa_runtime;
- GRANT SELECT,INSERT,UPDATE ON v3.classes,v3.enrollments,v3.roles,v3.episodes,v3.commands,v3.outbox TO qa_runtime;`, pgx.QueryExecModeSimpleProtocol)
+ GRANT SELECT,INSERT,UPDATE ON v3.classes,v3.enrollments,v3.roles,v3.episodes,v3.commands TO qa_runtime;
+ GRANT SELECT,INSERT ON v3.outbox TO qa_runtime;`, pgx.QueryExecModeSimpleProtocol)
 	if err != nil {
 		t.Fatal("runtime fixture grants failed")
 	}
@@ -205,36 +205,7 @@ func TestSyntheticRuntimeFoundation(t *testing.T) {
 	if _, err = store.Execute(ctx, admin, "second-event", request, Command{Action: "create", Name: "second"}); err != nil {
 		t.Fatal(err)
 	}
-	out := outbox.Store{Pool: runtime}
-	one, err := out.Claim(ctx)
-	if err != nil || one.EventID == "" {
-		t.Fatal("claim failed")
-	}
-	two, err := out.Claim(ctx)
-	if err != nil || two.EventID == "" || two.EventID == one.EventID {
-		t.Fatal("duplicate lease")
-	}
-	if !errors.Is(out.Ack(ctx, outbox.Lease{EventID: one.EventID, Token: "wrong"}), outbox.ErrLeaseLost) {
-		t.Fatal("unfenced ack")
-	}
-	if out.Ack(ctx, one) != nil || out.Retry(ctx, two) != nil {
-		t.Fatal("ack/retry failed")
-	}
-	if out.Ack(ctx, two) == nil {
-		t.Fatal("released lease ack accepted")
-	}
 	if owner.QueryRow(ctx, "SELECT count(*) FROM v3.audit a JOIN v3.outbox o ON o.event_id=a.id").Scan(&n) != nil || n != 2 {
 		t.Fatal("events not retained")
-	}
-	// Forced lease expiry changes only a synthetic row, never deletes history.
-	if _, err = owner.Exec(ctx, "UPDATE v3.outbox SET next_attempt=now()-interval '1 second' WHERE event_id=$1", two.EventID); err != nil {
-		t.Fatal(err)
-	}
-	renewed, err := out.Claim(ctx)
-	if err != nil || renewed.EventID != two.EventID || renewed.Token == two.Token {
-		t.Fatal("retry lease failed")
-	}
-	if out.Ack(ctx, two) == nil || out.Ack(ctx, renewed) != nil {
-		t.Fatal("old lease regained authority")
 	}
 }

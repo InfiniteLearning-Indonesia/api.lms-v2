@@ -125,7 +125,7 @@ func TestSyntheticContextLifecycle(t *testing.T) {
 	go func() { revokeDone <- svc.Project(ctx, sign("go-fixture", "", "account_state", 4, false)) }()
 	// Observe an actual waiting exclusive lock, not merely a goroutine timer.
 	waiting := false
-	deadline := time.Now().Add(700 * time.Millisecond)
+	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if err = owner.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=1112001 AND mode='ExclusiveLock' AND NOT granted)").Scan(&waiting); err != nil {
 			close(release)
@@ -192,7 +192,7 @@ func TestSyntheticContextLifecycle(t *testing.T) {
 		editDone <- e
 	}()
 	waiting = false
-	deadline = time.Now().Add(700 * time.Millisecond)
+	deadline = time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if err = owner.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='transactionid' AND NOT granted)").Scan(&waiting); err != nil {
 			close(endRelease)

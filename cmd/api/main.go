@@ -63,6 +63,11 @@ func main() {
 	}
 	service := &identity.Lifecycle{Pool: identityPool, Verifier: identity.Verifier{Issuer: "https://synthetic-issuer.invalid", Audience: "lms-v3-local", Keys: map[string]ed25519.PublicKey{"fixture-1": key}}}
 	business := identity.Gateway(service, c.Origin, classes.Handler(classes.NewContextual(pool), logger), logger)
+	catalogue, err := labdb.SyntheticCatalogueScope(os.Getenv("QA_CATALOGUE_SCOPE"))
+	if err != nil {
+		logger.Error("catalogue_scope_rejected")
+		os.Exit(1)
+	}
 	ready := func(check context.Context) error {
 		if err := pool.Ping(check); err != nil {
 			return err
@@ -70,7 +75,7 @@ func main() {
 		if err := identityPool.Ping(check); err != nil {
 			return err
 		}
-		if err := runner.Ready(check, pool, labdb.Catalogue()); err != nil {
+		if err := runner.Ready(check, pool, catalogue); err != nil {
 			return err
 		}
 		var ok bool

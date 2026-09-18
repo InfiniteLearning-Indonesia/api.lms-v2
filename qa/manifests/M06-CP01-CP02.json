@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "module": "M06",
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "full_module_verified": false,
+  "m06_cp01_go": ["lmsv3/internal/files:TestSyntheticPrivateFileOwnership"],
+  "m06_cp02_go": ["lmsv3/internal/files:TestSyntheticFileDeliveryLifecycle"],
+  "m06_python": [
+    "M06-CP01-private-asset",
+    "M06-CP01-class-ownership",
+    "M06-CP01-idempotency-authority",
+    "M06-CP02-upload-validation",
+    "M06-CP02-quarantine",
+    "M06-CP02-download-authority",
+    "M06-CP02-download-expiry-retry"
+  ],
+  "checkpoints": [
+    {
+      "id": "M06-CP01",
+      "deliverables": ["M06-D01"],
+      "cases": [
+        "M06-CP01-private-asset",
+        "M06-CP01-class-ownership",
+        "M06-CP01-idempotency-authority",
+        "lmsv3/internal/files:TestSyntheticPrivateFileOwnership"
+      ]
+    },
+    {
+      "id": "M06-CP02",
+      "deliverables": ["M06-D02", "M06-D03"],
+      "cases": [
+        "M06-CP02-upload-validation",
+        "M06-CP02-quarantine",
+        "M06-CP02-download-authority",
+        "M06-CP02-download-expiry-retry",
+        "lmsv3/internal/files:TestSyntheticFileDeliveryLifecycle"
+      ]
+    }
+  ],
+  "external_gates": ["MALWARE_SCANNER_PROVIDER", "PRIVATE_OBJECT_PROVIDER", "SHARED_DATABASE_BACKUP", "REMOTE_CI_EXECUTION"]
+}

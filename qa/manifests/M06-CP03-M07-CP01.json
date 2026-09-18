@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m06_cp03_go": ["lmsv3/internal/files:TestSyntheticBoundedRemoteImport"],
+  "m07_cp01_go": ["lmsv3/internal/content:TestSyntheticContentStructure"],
+  "m06_cp03_python": [
+    "M06-CP03-private-address",
+    "M06-CP03-allowlist-url",
+    "M06-CP03-authority-failclosed"
+  ],
+  "m07_cp01_python": [
+    "M07-CP01-section-structure",
+    "M07-CP01-activity-structure",
+    "M07-CP01-context-authority",
+    "M07-CP01-version-order-conflict"
+  ],
+  "checkpoints": [
+    {
+      "id": "M06-CP03",
+      "module": "M06",
+      "deliverables": ["M06-D04"],
+      "cases": [
+        "lmsv3/internal/egress:TestPolicyRejectsPrivateArbitraryAndRedirectTargets",
+        "lmsv3/internal/egress:TestFetchBoundsBytesTimeoutConcurrencyAndHeaders",
+        "lmsv3/internal/egress:TestConfigurationFailsClosed",
+        "lmsv3/internal/files:TestSyntheticBoundedRemoteImport",
+        "M06-CP03-private-address",
+        "M06-CP03-allowlist-url",
+        "M06-CP03-authority-failclosed"
+      ]
+    },
+    {
+      "id": "M07-CP01",
+      "module": "M07",
+      "deliverables": ["M07-D01"],
+      "cases": [
+        "lmsv3/internal/content:TestContentInputAndRouteBoundaries",
+        "lmsv3/internal/content:TestSyntheticContentStructure",
+        "M07-CP01-section-structure",
+        "M07-CP01-activity-structure",
+        "M07-CP01-context-authority",
+        "M07-CP01-version-order-conflict"
+      ]
+    }
+  ],
+  "external_gates": [
+    "ACTUAL_EGRESS_PROVIDER_DNS",
+    "MALWARE_SCANNER_PROVIDER",
+    "PRIVATE_OBJECT_PROVIDER",
+    "SHARED_DATABASE_BACKUP",
+    "REMOTE_CI_EXECUTION"
+  ]
+}

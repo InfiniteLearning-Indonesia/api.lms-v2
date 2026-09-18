@@ -125,16 +125,37 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			switch parts[3] {
 			case "participants":
 				cmd.Action = "add"
+			case "groups":
+				cmd.Action = "create_group"
+			case "mentors":
+				cmd.Action = "assign_mentor"
+			case "invitations":
+				cmd.Action = "invite"
 			case "publish", "archive", "close", "reopen":
 				cmd.Action = parts[3]
 			default:
 				fail(ErrNotFound)
 				return
 			}
-		} else if len(parts) == 6 && parts[3] == "participants" && (parts[5] == "end" || parts[5] == "suspend" || parts[5] == "reactivate") && r.Method == "POST" {
-			cmd.Action = parts[5]
+		} else if len(parts) == 6 && r.Method == "POST" {
 			cmd.ClassID = parts[2]
-			cmd.UserID = parts[4]
+			switch {
+			case parts[3] == "participants" && (parts[5] == "end" || parts[5] == "suspend" || parts[5] == "reactivate"):
+				cmd.Action = parts[5]
+				cmd.UserID = parts[4]
+			case parts[3] == "participants" && parts[5] == "episodes":
+				cmd.Action = "start_episode"
+				cmd.UserID = parts[4]
+			case parts[3] == "groups" && parts[5] == "members":
+				cmd.Action = "assign_group"
+				cmd.GroupID = parts[4]
+			case parts[3] == "invitations" && parts[5] == "accept":
+				cmd.Action = "accept_invitation"
+				cmd.InvitationID = parts[4]
+			default:
+				fail(ErrNotFound)
+				return
+			}
 		} else {
 			fail(ErrNotFound)
 			return
@@ -178,6 +199,52 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			if err = decode(&v); err == nil {
 				cmd.UserID = v.User
 				cmd.Role = v.Role
+			}
+		case "create_group":
+			var v struct {
+				Name string `json:"name"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.Name = v.Name
+			}
+		case "assign_group":
+			var v struct {
+				User string `json:"user_id"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.UserID = v.User
+			}
+		case "assign_mentor":
+			var v struct {
+				Student string `json:"student_user_id"`
+				Teacher string `json:"teacher_user_id"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.UserID = v.Student
+				cmd.MentorID = v.Teacher
+			}
+		case "invite":
+			var v struct {
+				User string `json:"user_id"`
+				Role string `json:"role"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.UserID = v.User
+				cmd.Role = v.Role
+			}
+		case "accept_invitation":
+			var v struct{}
+			err = decode(&v)
+		case "start_episode":
+			var v struct {
+				Kind   string `json:"kind"`
+				Origin string `json:"origin_episode_id"`
+				Policy string `json:"recognition_policy"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.EpisodeKind = v.Kind
+				cmd.OriginEpisode = v.Origin
+				cmd.Policy = v.Policy
 			}
 		case "publish", "archive", "close", "reopen":
 			var v struct {

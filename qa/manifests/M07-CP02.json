@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m07_cp02_go": ["lmsv3/internal/content:TestSyntheticSafeContentAvailability"],
+  "m07_cp02_python": [
+    "M07-CP02-canonical-source-boundary",
+    "M07-CP02-lifecycle-authority",
+    "M07-CP02-availability-boundary",
+    "M07-CP02-schedule-validation"
+  ],
+  "checkpoints": [
+    {
+      "id": "M07-CP02",
+      "module": "M07",
+      "deliverables": ["M07-D02", "M07-D03"],
+      "cases": [
+        "lmsv3/internal/content:TestSafeCanonicalContentAndSchedule",
+        "lmsv3/internal/content:TestSyntheticSafeContentAvailability",
+        "M07-CP02-canonical-source-boundary",
+        "M07-CP02-lifecycle-authority",
+        "M07-CP02-availability-boundary",
+        "M07-CP02-schedule-validation"
+      ]
+    }
+  ],
+  "external_gates": [
+    "FRONTEND_RENDERER_SECURITY",
+    "SHARED_DATABASE_BACKUP",
+    "REMOTE_CI_EXECUTION",
+    "M08_REVISION_CONSUMER"
+  ]
+}

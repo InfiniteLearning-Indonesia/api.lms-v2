@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m08_cp01_go": ["lmsv3/internal/submissions:TestSyntheticSubmissionFoundation"],
+  "m08_cp02_go": ["lmsv3/internal/submissions:TestSyntheticSubmissionRevisionLifecycle"],
+  "m08_cp01_python": [
+    "M08-CP01-server-derived-context",
+    "M08-CP01-cross-context-denial"
+  ],
+  "m08_cp02_python": [
+    "M08-CP02-retained-revisions-files",
+    "M08-CP02-lock-return-resubmit",
+    "M08-CP02-optimistic-conflict"
+  ],
+  "checkpoints": [
+    {
+      "id": "M08-CP01",
+      "module": "M08",
+      "deliverables": ["M08-D01"],
+      "cases": [
+        "lmsv3/internal/submissions:TestCommandBoundary",
+        "lmsv3/internal/submissions:TestSyntheticSubmissionFoundation",
+        "M08-CP01-server-derived-context",
+        "M08-CP01-cross-context-denial"
+      ]
+    },
+    {
+      "id": "M08-CP02",
+      "module": "M08",
+      "deliverables": ["M08-D02"],
+      "cases": [
+        "lmsv3/internal/submissions:TestCommandBoundary",
+        "lmsv3/internal/submissions:TestSyntheticSubmissionRevisionLifecycle",
+        "M08-CP02-retained-revisions-files",
+        "M08-CP02-lock-return-resubmit",
+        "M08-CP02-optimistic-conflict"
+      ]
+    }
+  ],
+  "external_gates": ["M08_CP03_HANDIN_RECEIPT_DEADLINES", "SHARED_DATABASE_BACKUP", "REMOTE_CI_EXECUTION", "FRONTEND_CONTRACT_HANDOFF"]
+}

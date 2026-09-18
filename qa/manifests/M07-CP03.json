@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m07_cp03_go": ["lmsv3/internal/content:TestSyntheticAssignmentRevisionStability"],
+  "m07_cp03_python": [
+    "M07-CP03-assignment-contract-validation",
+    "M07-CP03-published-revision-immutable",
+    "M07-CP03-exact-historical-reference",
+    "M07-CP03-reference-context-boundary"
+  ],
+  "checkpoints": [
+    {
+      "id": "M07-CP03",
+      "module": "M07",
+      "deliverables": ["M07-D04"],
+      "cases": [
+        "lmsv3/internal/content:TestAssignmentRevisionContractBoundary",
+        "lmsv3/internal/content:TestSyntheticAssignmentRevisionStability",
+        "M07-CP03-assignment-contract-validation",
+        "M07-CP03-published-revision-immutable",
+        "M07-CP03-exact-historical-reference",
+        "M07-CP03-reference-context-boundary"
+      ]
+    }
+  ],
+  "external_gates": [
+    "M08_REAL_SUBMISSION_CONSUMER",
+    "SHARED_DATABASE_BACKUP",
+    "REMOTE_CI_EXECUTION",
+    "FRONTEND_CONTRACT_HANDOFF"
+  ]
+}

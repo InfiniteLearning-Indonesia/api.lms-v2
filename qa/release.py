@@ -30,26 +30,37 @@ def main():
         source = source_fingerprint(ROOT)
         env = clean_environment(ROOT, os.environ)
         env.update(GOOS="linux", GOARCH="amd64", CGO_ENABLED="0")
-        binaries = []
-        for name in ("api", "api-repeat"):
-            command = run_command(["go", "build", "-trimpath", "-buildvcs=false", "-o", str(directory / name), "./cmd/api"], env, directory, name)
-            if command["return_code"] != 0:
-                write_new_json(directory / "summary.json", {"run_id": run_id, "status": "FAIL_BUILD", "source_hash": source})
-                return 1
-            binaries.append((directory / name).read_bytes())
-        dockerfile = (ROOT / "deploy/Dockerfile").read_bytes()
-        passed = binaries[0] == binaries[1] and static_amd64(binaries[0]) and source == source_fingerprint(ROOT)
-        with (directory / "Dockerfile").open("xb") as handle:
-            handle.write(dockerfile)
+        binaries = {}
+        for target in ("api", "worker"):
+            copies = []
+            for name in (target, target + "-repeat"):
+                command = run_command(["go", "build", "-trimpath", "-buildvcs=false", "-o", str(directory / name), "./cmd/" + target], env, directory, name)
+                if command["return_code"] != 0:
+                    write_new_json(directory / "summary.json", {"run_id": run_id, "status": "FAIL_BUILD", "source_hash": source})
+                    return 1
+                copies.append((directory / name).read_bytes())
+            binaries[target] = copies
+        dockerfiles = {"Dockerfile": (ROOT / "deploy/Dockerfile").read_bytes(),
+                       "Dockerfile.worker": (ROOT / "deploy/Dockerfile.worker").read_bytes()}
+        passed = (all(copies[0] == copies[1] and static_amd64(copies[0]) for copies in binaries.values())
+                  and source == source_fingerprint(ROOT))
+        for name, data in dockerfiles.items():
+            with (directory / name).open("xb") as handle:
+                handle.write(data)
         # Explicit allowlist; deterministic UID/mode/mtime, no env/CA/source tree.
         with tarfile.open(directory / "backend-bootstrap-linux-amd64.tar", "x", format=tarfile.USTAR_FORMAT) as archive:
-            for name, data, mode in (("api", binaries[0], 0o555), ("Dockerfile", dockerfile, 0o444)):
+            contents = (("api", binaries["api"][0], 0o555),
+                        ("worker", binaries["worker"][0], 0o555),
+                        ("Dockerfile", dockerfiles["Dockerfile"], 0o444),
+                        ("Dockerfile.worker", dockerfiles["Dockerfile.worker"], 0o444))
+            for name, data, mode in contents:
                 info = tarfile.TarInfo(name)
                 info.size, info.mode, info.uid, info.gid, info.mtime = len(data), mode, 65532, 65532, 0
                 archive.addfile(info, io.BytesIO(data))
         result = dict(run_id=run_id, status="PASS_BUILD_ONLY" if passed else "FAIL", source_hash=source,
-                      binary_sha256=sha256(binaries[0]).hexdigest(), deterministic_repeat=binaries[0] == binaries[1],
-                      static_linux_amd64=static_amd64(binaries[0]), container_execution="NOT_RUN",
+                      binary_sha256={name: sha256(copies[0]).hexdigest() for name, copies in binaries.items()},
+                      deterministic_repeat=all(copies[0] == copies[1] for copies in binaries.values()),
+                      static_linux_amd64=all(static_amd64(copies[0]) for copies in binaries.values()), container_execution="NOT_RUN",
                       non_root_runtime="NOT_VERIFIED", deployment="NOT_EXECUTED")
         write_new_json(directory / "summary.json", result)
         print(result)

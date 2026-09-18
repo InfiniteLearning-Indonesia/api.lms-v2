@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "module": "M15",
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "m15_cp03_go": [
+    "lmsv3/internal/migration/foundation:TestSyntheticMappingDecisions",
+    "lmsv3/internal/migration/foundation:TestSyntheticMappingConflict"
+  ],
+  "m15_cp04_go": [
+    "lmsv3/internal/migration/foundation:TestSyntheticAtomicBackfill",
+    "lmsv3/internal/migration/foundation:TestSyntheticOwnerFenceReplay"
+  ],
+  "m15_cp03_python": ["M15-CP03-no-public-mapping-route"],
+  "m15_cp04_python": ["M15-CP04-shadow-not-operational"],
+  "checkpoints": [
+    {"id":"M15-CP03","module":"M15","deliverables":["M15-D03"],"cases":["lmsv3/internal/migration/foundation:TestSyntheticMappingDecisions","lmsv3/internal/migration/foundation:TestSyntheticMappingConflict","M15-CP03-no-public-mapping-route"]},
+    {"id":"M15-CP04","module":"M15","deliverables":["M15-D04","M15-D06"],"cases":["lmsv3/internal/migration/foundation:TestSyntheticAtomicBackfill","lmsv3/internal/migration/foundation:TestSyntheticOwnerFenceReplay","M15-CP04-shadow-not-operational"]}
+  ],
+  "external_gates": ["APPROVED_REAL_SOURCE_ADAPTER", "ACADEMIC_DATA_OWNER_REVIEW", "REAL_SOURCE_BACKUP_AND_CA", "TARGET_DOMAIN_PUBLISH_CONTRACT", "REMOTE_CI_EXECUTION"]
+}

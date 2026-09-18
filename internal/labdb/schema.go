@@ -119,7 +119,7 @@ func Config(runtime bool) (*pgx.ConnConfig, error) {
 	cfg.Fallbacks = nil
 	cfg.RuntimeParams = map[string]string{"search_path": "pg_catalog", "statement_timeout": "5000", "lock_timeout": "1000"}
 	cfg.DefaultQueryExecMode = pgx.QueryExecModeExec
-	cfg.ConnectTimeout = 3 * time.Second
+	cfg.ConnectTimeout = 10 * time.Second
 	return cfg, nil
 }
 func Owner(ctx context.Context) (*pgxpool.Pool, error) {

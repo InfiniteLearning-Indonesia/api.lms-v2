@@ -55,3 +55,33 @@ jobs:
       # No production/staging secrets, DB services, import, deployment, write
       # token, report auto-commit, or raw artifact upload. A green bootstrap job
       # is NOT BACKEND_VERIFIED and does not satisfy M00 environment checks.
+
+  fresh-postgres-backend:
+    runs-on: ubuntu-24.04
+    needs: synthetic-checks
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned QA dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r qa/requirements.lock
+      - name: Fresh loopback PostgreSQL, backup/restore and backend dependency journey through M09-CP02
+        run: .venv/bin/python -m qa.postgres_lab --create-local-synthetic-cluster --pg-bin "$(pg_config --bindir)" --gradebook-journey
+        env:
+          GOTOOLCHAIN: go1.27.1
+          GOPROXY: 'off'
+          GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
+          GOCACHE: ${{ github.workspace }}/.cache/go-build
+      # The harness accepts no DSN/env file and creates a fresh loopback cluster.
+      # This job has no staging/live credentials, artifact upload, deploy, or
+      # shared migration authority. A workflow definition is not execution proof.

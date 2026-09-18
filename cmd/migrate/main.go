@@ -37,7 +37,13 @@ func main() {
 		}
 		return nil
 	}
-	result, err := runner.Apply(ctx, pool, labdb.Catalogue(), gate, labdb.Target(os.Getenv("QA_PG_PORT"), os.Getenv("QA_PG_MARKER")), verify)
+	// Test-only prefix scope preserves the backup-before-each-installment proof.
+	// This process is already fenced to a newly created synthetic cluster.
+	catalogue, err := labdb.SyntheticCatalogueScope(os.Getenv("QA_CATALOGUE_SCOPE"))
+	if err != nil {
+		os.Exit(1)
+	}
+	result, err := runner.Apply(ctx, pool, catalogue, gate, labdb.Target(os.Getenv("QA_PG_PORT"), os.Getenv("QA_PG_MARKER")), verify)
 	if err != nil {
 		os.Exit(1)
 	}

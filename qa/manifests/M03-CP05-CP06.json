@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "module": "M03",
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "full_module_verified": false,
+  "m03_cp05_go": ["lmsv3/internal/outbox:TestSyntheticWorkerLifecycle"],
+  "m03_cp06_go": ["lmsv3/internal/outbox:TestSyntheticWorkerConcurrentReplay"],
+  "checkpoints": [
+    {
+      "id": "M03-CP05",
+      "deliverables": ["M03-D03"],
+      "cases": [
+        "lmsv3/internal/outbox:TestWorkerConfiguration",
+        "lmsv3/internal/outbox:TestStoreInputBoundary",
+        "lmsv3/internal/outbox:TestWorkerRetryConcurrencyAndShutdown",
+        "lmsv3/internal/outbox:TestSyntheticWorkerLifecycle"
+      ]
+    },
+    {
+      "id": "M03-CP06",
+      "deliverables": ["M03-D01", "M03-D02", "M03-D03", "M03-D04", "M03-D05"],
+      "cases": [
+        "M03-CP06-checkpoint-registry",
+        "Q00-release-contract",
+        "lmsv3/internal/migration/runner:TestSyntheticForwardRunner",
+        "lmsv3/internal/outbox:TestSyntheticWorkerConcurrentReplay"
+      ]
+    }
+  ],
+  "external_gates": ["REMOTE_CI_EXECUTION", "CONTAINER_EXECUTION", "SHARED_RUNTIME_IDENTITY", "M00_M01_APPROVAL"]
+}

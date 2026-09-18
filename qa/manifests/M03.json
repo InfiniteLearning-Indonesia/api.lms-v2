@@ -11,16 +11,16 @@
     "M01-T01-backup-predicate", "Q00-evidence-missing-cases",
     "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero",
     "Q00-render-preserves-human-section", "Q00-runner-lock-and-env",
-    "Q00-runner-plugin-evidence", "M03-T01-health-contract",
+    "Q00-runner-plugin-evidence", "M03-CP06-checkpoint-registry", "M03-T01-health-contract",
     "M03-T01-request-boundary", "M03-T01-no-business-authority",
     "M03-T01-config-refusal", "M00-T02-db-cli-offline-gates"
   ],
   "deliverables": [
     {"id": "M03-D01", "checks": ["Q00-go-format", "Q00-go-build", "Q00-go-unit", "Q00-go-vet", "Q00-release-contract", "M03-T01-health-contract", "M03-T01-request-boundary", "M03-T01-no-business-authority", "M03-T01-config-refusal"], "pending_evidence": ["NON_ROOT_CONTAINER_EXECUTION_NOT_VERIFIED", "INTERNAL_PUBLIC_DEPLOYMENT_SEPARATION_NOT_VERIFIED"]},
-    {"id": "M03-D02", "checks": ["M03-T01-config-refusal", "M00-T02-db-cli-offline-gates", "Q00-go-unit"], "pending_evidence": ["RUNTIME_POOL_NAMESPACE_AND_LEAST_PRIVILEGE_NOT_IMPLEMENTED", "ACTUAL_PROVIDER_DB_TLS_EVIDENCE_SEPARATE_FROM_SYNTHETIC_QA"]},
-    {"id": "M03-D03", "checks": [], "pending_evidence": ["REAL_DATABASE_TRANSACTION_AUDIT_OUTBOX_NOT_IMPLEMENTED"]},
-    {"id": "M03-D04", "checks": ["M01-T01-backup-predicate"], "pending_evidence": ["MIGRATION_LEDGER_SQL_REVIEW_LOCK_AND_REAL_BACKUP_GATE_NOT_IMPLEMENTED"]},
-    {"id": "M03-D05", "checks": ["Q00-evidence-missing-cases", "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero", "Q00-render-preserves-human-section", "Q00-runner-lock-and-env", "Q00-runner-plugin-evidence"], "pending_evidence": ["CI_EXECUTION_NOT_VERIFIED", "FULL_REGRESSION_AND_QG_ACCEPTANCE_NOT_IMPLEMENTED"]}
+    {"id": "M03-D02", "checks": ["M03-T01-config-refusal", "M00-T02-db-cli-offline-gates", "Q00-go-unit"], "pending_evidence": ["SHARED_RUNTIME_DB_TLS_NAMESPACE_AND_LEAST_PRIVILEGE_NOT_VERIFIED"]},
+    {"id": "M03-D03", "checks": ["Q00-go-unit"], "pending_evidence": ["SHARED_RUNTIME_ATOMICITY_AND_PROVIDER_SINK_NOT_VERIFIED"]},
+    {"id": "M03-D04", "checks": ["M01-T01-backup-predicate"], "pending_evidence": ["SHARED_OPERATOR_MODE_AND_ACTUAL_TARGET_BACKUP_GATE_NOT_VERIFIED", "TAGGED_DB_RACE_REMOTE_NOT_EXECUTED"]},
+    {"id": "M03-D05", "checks": ["Q00-evidence-missing-cases", "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero", "Q00-render-preserves-human-section", "Q00-runner-lock-and-env", "Q00-runner-plugin-evidence", "M03-CP06-checkpoint-registry"], "pending_evidence": ["CI_EXECUTION_NOT_VERIFIED", "FULL_REGRESSION_AND_QG_ACCEPTANCE_NOT_IMPLEMENTED"]}
   ],
   "required_gates": [
     {"id": "M00-environment-baseline", "status": "BLOCKED"},
