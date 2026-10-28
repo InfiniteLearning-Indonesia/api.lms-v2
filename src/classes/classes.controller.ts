@@ -62,6 +62,15 @@ export class ClassesController {
     return this.classesService.getAllBatches();
   }
 
+  @Get('batches/:batchId/recap-classes')
+  @Roles('admin', 'mentor', 'facilitator')
+  async getBatchRecapClasses(
+    @Param('batchId') batchId: string,
+    @Req() req: any,
+  ) {
+    return this.classesService.findBatchRecapClasses(batchId, req.user);
+  }
+
   @Post('batches')
   @Roles('admin')
   async createGlobalBatch(
