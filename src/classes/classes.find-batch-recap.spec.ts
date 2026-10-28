@@ -139,10 +139,11 @@ describe('ClassesService.findBatchRecapClasses', () => {
     },
   );
 
-  it('returns all batch classes for a mentor teaching in the batch', async () => {
+  it('returns all batch classes for a professional mentor teaching in the batch', async () => {
     const result = await service.findBatchRecapClasses(batch.id, {
       id: 'mentor-1',
       roles: ['mentor'],
+      specialization: 'Professional',
     });
 
     expect(result.map((cls) => cls.id)).toEqual(['class-1', 'class-2']);
