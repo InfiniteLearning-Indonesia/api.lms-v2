@@ -430,6 +430,87 @@ export class ClassesService {
     };
   }
 
+  async findBatchRecapClasses(batchId: string, caller: any) {
+    const batch = await this.batchRepository.findOne({ where: { id: batchId } });
+    if (!batch) throw new NotFoundException('Batch tidak ditemukan.');
+
+    const roles = (caller?.roles ?? []).map((r: any) => String(r).toLowerCase());
+    const isAdmin = roles.includes('admin');
+    const isFacilitator = roles.includes('facilitator');
+
+    const classes = await this.classRepository.find({
+      where: { batchId },
+      relations: { program: true, batch: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    if (!isAdmin && !isFacilitator) {
+      const teaches =
+        !!caller?.id && classes.some((c) => c.mentorId === caller.id);
+      if (!teaches) {
+        throw new ForbiddenException('Kamu tidak mengajar di batch ini.');
+      }
+    }
+
+    if (classes.length === 0) return [];
+
+    const enrollments = await this.enrollmentRepository.find({
+      where: { classId: In(classes.map((c) => c.id)) },
+      relations: { student: true },
+    });
+
+    const studentsByClass = new Map<
+      string,
+      Pick<User, 'id' | 'name' | 'email' | 'avatarUrl' | 'status'>[]
+    >();
+
+    for (const enrollment of enrollments) {
+      const student = enrollment.student;
+      if (!student) continue;
+
+      const studentRoles = [
+        ...(student.roles ?? []),
+        student.role,
+      ].map((role) => String(role).toLowerCase());
+      if (
+        !studentRoles.includes('student') ||
+        studentRoles.some((role) =>
+          ['admin', 'mentor', 'facilitator'].includes(role),
+        )
+      ) {
+        continue;
+      }
+
+      const students = studentsByClass.get(enrollment.classId) ?? [];
+      students.push({
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        avatarUrl: student.avatarUrl,
+        status: student.status,
+      });
+      studentsByClass.set(enrollment.classId, students);
+    }
+
+    return classes.map((c) => ({
+      id: c.id,
+      programId: c.programId,
+      batchId: c.batchId,
+      program: {
+        id: c.program?.id ?? c.programId,
+        name: c.program?.name ?? null,
+      },
+      batch: {
+        id: c.batch?.id ?? c.batchId,
+        name: c.batch?.name ?? null,
+        status: c.batch?.status ?? null,
+      },
+      enrolledStudents: (studentsByClass.get(c.id) ?? []).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    }));
+  }
+
   async findMentorClasses(mentorId: string) {
     await this.healEnrollments();
     const mentor = await this.userRepository.findOne({
