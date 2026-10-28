@@ -6,7 +6,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   UseGuards,
   ParseUUIDPipe,
   Req,
@@ -73,13 +72,18 @@ export class UsersController {
 
   @Get()
   @Roles('admin')
-  async findAll(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const p = Math.max(1, parseInt(page || '1', 10));
-    const l = Math.min(100, Math.max(1, parseInt(limit || '50', 10)));
-    return this.usersService.findAll(p, l);
+  async findAll() {
+    console.log('[USERS DIAGNOSTIC] GET /users called by admin');
+    try {
+      const result = await this.usersService.findAll();
+      console.log(
+        `[USERS DIAGNOSTIC SUCCESS] GET /users returned ${result?.length || 0} user records.`,
+      );
+      return result;
+    } catch (err: any) {
+      console.error('[USERS DIAGNOSTIC ERROR] GET /users error:', err);
+      throw err;
+    }
   }
 
   @Get(':id')

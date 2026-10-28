@@ -33,7 +33,6 @@ export class ClassesController {
   }
 
   @Post('programs/:programId/release-transcript')
-  @Roles('admin')
   async releaseTranscript(
     @Param('programId') programId: string,
     @Req() req: any,
@@ -42,7 +41,6 @@ export class ClassesController {
   }
 
   @Post('programs/:programId/release-certificate')
-  @Roles('admin')
   async releaseCertificate(
     @Param('programId') programId: string,
     @Req() req: any,
@@ -612,7 +610,6 @@ export class ClassesController {
   @Post(':classId/assignment/:assignmentId/submit')
   async submitAssignment(
     @Req() req: any,
-    @Param('classId') classId: string,
     @Param('assignmentId') assignmentId: string,
     @Body() body: { link: string },
   ) {
@@ -620,7 +617,6 @@ export class ClassesController {
       req.user.id,
       assignmentId,
       body.link,
-      classId,
     );
   }
 

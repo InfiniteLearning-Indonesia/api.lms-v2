@@ -60,12 +60,14 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 step*.ps1
 graphify-out/
 
-# One-off migration & debug scripts
 fix_ai_users.sql
-sync-ra.ts
-test_db*.js
-test_grep.sh
 
-# Runtime data files
+# Status history runtime file
 status-history.json
-database.sqlite
+test_db.js
+test_grep.sh
+test_db2.js
+test_db3.js
+test_db4.js
+test_db5.js
+test_db6.js

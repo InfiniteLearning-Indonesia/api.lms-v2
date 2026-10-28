@@ -15,7 +15,10 @@ export class StorageService {
     bucketName: string;
     publicDomain: string;
   } {
-    const accountId = this.configService.get<string>('R2_ACCOUNT_ID', '');
+    const accountId = this.configService.get<string>(
+      'R2_ACCOUNT_ID',
+      '649b8b8a633c02a6a059be8140fe254d',
+    );
     const accessKeyId = this.configService.get<string>(
       'R2_ACCESS_KEY_ID',
       process.env.R2_ACCESS_KEY_ID || '',

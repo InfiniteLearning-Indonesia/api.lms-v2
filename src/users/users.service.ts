@@ -13,7 +13,6 @@ import { UpdateUserDto } from './dto/update-user.dto.js';
 import { BulkInviteDto } from './dto/bulk-invite.dto.js';
 import { MailService } from './mail.service.js';
 import { StorageService } from '../storage/storage.service.js';
-import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -136,14 +135,17 @@ export class UsersService {
     }
   }
 
-  async findAll(page = 1, limit = 50): Promise<{ data: any[]; total: number; page: number; totalPages: number }> {
+  async findAll(): Promise<any[]> {
     try {
-      const skip = (page - 1) * limit;
-      const [users, total] = await this.usersRepository.findAndCount({
+      console.log(
+        '[DB DIAGNOSTIC] Fetching all users from Supabase PostgreSQL...',
+      );
+      const users = await this.usersRepository.find({
         order: { createdAt: 'DESC' },
-        skip,
-        take: limit,
       });
+      console.log(
+        `[DB DIAGNOSTIC] Found ${users.length} raw user entities in DB.`,
+      );
 
       await this.autoRepairMissingStudentEnrollments(users);
 
@@ -217,14 +219,15 @@ export class UsersService {
         };
       });
 
-      return {
-        data: result,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit),
-      };
+      console.log(
+        `[DB DIAGNOSTIC SUCCESS] Formatted ${result.length} user records.`,
+      );
+      return result;
     } catch (dbError: any) {
-      console.error(`Failed to fetch users: ${dbError.message}`);
+      console.error(
+        '[DB DIAGNOSTIC ERROR] Failed to fetch users from database:',
+        dbError,
+      );
       throw dbError;
     }
   }
@@ -292,8 +295,9 @@ export class UsersService {
     }
 
     const isGmail = email.endsWith('@gmail.com');
-    const randomPassword = crypto.randomBytes(16).toString('hex');
-    const defaultPassword = isGmail ? null : await bcrypt.hash(randomPassword, 10);
+    const defaultPassword = isGmail
+      ? null
+      : await bcrypt.hash('Student123!', 10);
     const isPasswordChanged = isGmail ? true : false;
 
     const user = this.usersRepository.create({
@@ -683,7 +687,6 @@ export class UsersService {
           await this.usersRepository.update(user.id, {
             avatarUrl: r2Url,
             lastLoginAt: new Date(),
-            status: user.status,
           });
           // 🛡️ Auto-repair mentor class linkage after updating avatar
           if (user.roles?.includes(UserRole.MENTOR)) {
@@ -701,7 +704,6 @@ export class UsersService {
 
     await this.usersRepository.update(user.id, {
       lastLoginAt: new Date(),
-      status: user.status,
     });
   }
 
@@ -1107,42 +1109,43 @@ export class UsersService {
     }
 
     // Clean up relational foreign keys before deleting user to prevent FK constraint error 23503
-    await this.dataSource.transaction(async (manager) => {
-      await manager.query(
-        'UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = $1',
-        [id],
-      );
-      await manager.query(
-        'UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1',
-        [id],
-      );
-      await manager.query(
-        'UPDATE rubrik_assessments SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1',
-        [id],
-      );
-      await manager.query(
-        'DELETE FROM enrollments WHERE "studentId" = $1',
-        [id],
-      );
-      await manager.query(
-        'DELETE FROM attendances WHERE "studentId" = $1',
-        [id],
-      );
-      await manager.query(
-        'DELETE FROM permission_requests WHERE "studentId" = $1',
-        [id],
-      );
-      await manager.query('DELETE FROM logbooks WHERE "studentId" = $1', [id]);
-      await manager.query(
-        'DELETE FROM submissions WHERE "studentId" = $1',
-        [id],
-      );
-      await manager.query(
-        'DELETE FROM rubrik_assessment_scores WHERE "studentId" = $1',
-        [id],
-      );
-      await manager.remove(User, user);
-    });
+    await this.dataSource.query(
+      'UPDATE classes SET "mentorId" = NULL WHERE "mentorId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'UPDATE competencies SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'UPDATE rubrik_assessments SET "creatorMentorId" = NULL WHERE "creatorMentorId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'DELETE FROM enrollments WHERE "studentId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'DELETE FROM attendances WHERE "studentId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'DELETE FROM permission_requests WHERE "studentId" = $1',
+      [id],
+    );
+    await this.dataSource.query('DELETE FROM logbooks WHERE "studentId" = $1', [
+      id,
+    ]);
+    await this.dataSource.query(
+      'DELETE FROM submissions WHERE "studentId" = $1',
+      [id],
+    );
+    await this.dataSource.query(
+      'DELETE FROM rubrik_assessment_scores WHERE "studentId" = $1',
+      [id],
+    );
+
+    await this.usersRepository.remove(user);
   }
 
   async bulkDelete(ids: string[]): Promise<{ deletedCount: number }> {
