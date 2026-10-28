@@ -466,6 +466,22 @@ export class AttendanceService {
     const mentorAsyncDays = await this.mentorAsyncDayRepository.find();
     const asyncDateStrings = mentorAsyncDays.map((a) => a.date);
 
+    const { days, activeDateStrings } = this.buildActiveDays(
+      start,
+      end,
+      holidayDates,
+      asyncDateStrings,
+    );
+
+    return { total: activeDateStrings.length, days, activeDateStrings };
+  }
+
+  private buildActiveDays(
+    start: Date,
+    end: Date,
+    holidayDates: string[],
+    asyncDateStrings: string[],
+  ): { days: Date[]; activeDateStrings: string[] } {
     const activeDays: Date[] = [];
     const activeDateStrings: string[] = [];
 
@@ -491,7 +507,7 @@ export class AttendanceService {
       current.setDate(current.getDate() + 1);
     }
 
-    return { total: activeDays.length, days: activeDays, activeDateStrings };
+    return { days: activeDays, activeDateStrings };
   }
 
   async calculateStudentPhaseScore(
@@ -599,27 +615,143 @@ export class AttendanceService {
       massiveStart = new Date(midTime + 86400000);
     }
 
-    // Get all attendances in this batch
+    const phaseDates = {
+      microStartDate: microStart,
+      microEndDate: microEnd,
+      massiveStartDate: massiveStart,
+      massiveEndDate: massiveEnd,
+    };
+
+    // Load shared data once per request, rather than once per student and phase.
     const attendances = await this.attendanceRepository.find({
       where: { batchId },
     });
-    const studentIds = Array.from(new Set(attendances.map((a) => a.studentId)));
+    if (attendances.length === 0) return { scores: {}, phaseDates };
 
-    const scoresMap: Record<string, any> = {};
+    const mentorAsyncDays = await this.mentorAsyncDayRepository.find();
+    const asyncDateStrings = mentorAsyncDays.map((a) => a.date);
+    const holidayCache = new Map<number, string[]>();
+    const getHolidayDateStrings = async (year: number): Promise<string[]> => {
+      const cached = holidayCache.get(year);
+      if (cached) return cached;
+      const holidays = await this.getHolidays(year);
+      const dates = holidays.map((h) => {
+        const d = new Date(h.date);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      });
+      holidayCache.set(year, dates);
+      return dates;
+    };
 
-    for (const studentId of studentIds) {
-      const microRes = await this.calculateStudentPhaseScore(
-        batchId,
-        studentId,
-        microStart,
-        microEnd,
+    const today = new Date();
+    const buildPhase = async (
+      startInput?: Date | null,
+      endInput?: Date | null,
+    ) => {
+      const start = startInput
+        ? new Date(startInput)
+        : batch.startDate
+          ? new Date(batch.startDate)
+          : null;
+      if (!start) return null;
+
+      const effectiveEnd =
+        endInput && new Date(endInput) < today ? new Date(endInput) : today;
+      const holidayDates = await getHolidayDateStrings(start.getFullYear());
+      const { activeDateStrings } = this.buildActiveDays(
+        start,
+        effectiveEnd,
+        holidayDates,
+        asyncDateStrings,
       );
-      const massiveRes = await this.calculateStudentPhaseScore(
-        batchId,
-        studentId,
-        massiveStart,
-        massiveEnd,
+
+      // Preserve the original attendance query bounds, including null fallbacks.
+      const attendanceStart = startInput ? new Date(startInput) : new Date(0);
+      const attendanceEnd = endInput
+        ? new Date(endInput)
+        : new Date(2099, 11, 31);
+      attendanceStart.setHours(0, 0, 0, 0);
+      attendanceEnd.setHours(23, 59, 59, 999);
+
+      return {
+        totalSyncDays: activeDateStrings.length,
+        activeDateSet: new Set(activeDateStrings),
+        attendanceStart,
+        attendanceEnd,
+      };
+    };
+
+    const microPhase = await buildPhase(microStart, microEnd);
+    const massivePhase = await buildPhase(massiveStart, massiveEnd);
+    const byStudent = new Map<string, Attendance[]>();
+    for (const attendance of attendances) {
+      const rows = byStudent.get(attendance.studentId);
+      if (rows) rows.push(attendance);
+      else byStudent.set(attendance.studentId, [attendance]);
+    }
+
+    const scoreFor = (
+      phase: Awaited<ReturnType<typeof buildPhase>>,
+      rows: Attendance[],
+    ) => {
+      if (!phase || phase.totalSyncDays === 0) {
+        return {
+          totalSyncDays: 0,
+          alphaDays: 0,
+          cleanAttendance: 0,
+          score: 65.0,
+          oncamDays: 0,
+          oncamScore: 65.0,
+        };
+      }
+
+      let alphaDays = 0;
+      let oncamDays = 0;
+      for (const attendance of rows) {
+        const d = new Date(attendance.date);
+        if (d < phase.attendanceStart || d > phase.attendanceEnd) continue;
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (!phase.activeDateSet.has(ds)) continue;
+        if (attendance.status === AttendanceStatus.ALPHA) alphaDays++;
+        else if (attendance.status === AttendanceStatus.HADIR_ON_CAM)
+          oncamDays++;
+      }
+
+      const cleanAttendance = Math.max(0, phase.totalSyncDays - alphaDays);
+      const rawScore = (cleanAttendance / phase.totalSyncDays) * 95;
+      const score = Math.max(
+        65.0,
+        Math.min(95.0, Math.round(rawScore * 10) / 10),
       );
+
+      const rawOncamScore = 65.0 + (oncamDays / phase.totalSyncDays) * 30;
+      const oncamScore = Math.max(
+        65.0,
+        Math.min(95.0, Math.round(rawOncamScore * 10) / 10),
+      );
+
+      return {
+        totalSyncDays: phase.totalSyncDays,
+        alphaDays,
+        cleanAttendance,
+        score,
+        oncamDays,
+        oncamScore,
+      };
+    };
+
+    const scoresMap: Record<
+      string,
+      {
+        microScore: number;
+        massiveScore: number;
+        microDetails: ReturnType<typeof scoreFor>;
+        massiveDetails: ReturnType<typeof scoreFor>;
+      }
+    > = {};
+    for (const [studentId, rows] of byStudent) {
+      const microRes = scoreFor(microPhase, rows);
+      const massiveRes = scoreFor(massivePhase, rows);
 
       scoresMap[studentId] = {
         microScore: microRes.score,
@@ -631,12 +763,7 @@ export class AttendanceService {
 
     return {
       scores: scoresMap,
-      phaseDates: {
-        microStartDate: microStart,
-        microEndDate: microEnd,
-        massiveStartDate: massiveStart,
-        massiveEndDate: massiveEnd,
-      },
+      phaseDates,
     };
   }
 
