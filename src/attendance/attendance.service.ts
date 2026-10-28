@@ -17,6 +17,7 @@ import { CreatePermissionRequestDto } from './dto/permission-request.dto';
 
 import { StorageService } from '../storage/storage.service';
 import { ConfigService } from '@nestjs/config';
+import { resolveMentorProgramScope } from '../classes/mentor-program-scope';
 
 @Injectable()
 export class AttendanceService {
@@ -304,7 +305,10 @@ export class AttendanceService {
   }
 
   async getAttendances(
-    caller: any,
+    caller:
+      | { id: string; roles?: string[]; specialization?: string | null }
+      | null
+      | undefined,
     batchId?: string,
     studentId?: string,
     mentorId?: string,
@@ -314,8 +318,10 @@ export class AttendanceService {
       .leftJoinAndSelect('attendance.student', 'student')
       .leftJoinAndSelect('attendance.batch', 'batch');
 
+    const isStudent = caller?.roles?.includes('student');
+
     // Role-based data filtering
-    if (caller && caller.roles && caller.roles.includes('student')) {
+    if (caller && isStudent) {
       // Students can only see their own attendance
       query.andWhere('attendance.studentId = :callerId', { callerId: caller.id });
     } else if (studentId) {
@@ -326,8 +332,49 @@ export class AttendanceService {
       query.andWhere('attendance.batchId = :batchId', { batchId });
     }
 
-    // If mentorId is provided, we need to filter students that are assigned to this mentor.
-    if (mentorId) {
+    const isMentor =
+      caller?.roles?.includes('mentor') &&
+      !caller.roles.includes('admin') &&
+      !caller.roles.includes('facilitator');
+
+    if (!isStudent && isMentor && caller) {
+      const scope = resolveMentorProgramScope(caller.specialization);
+      if (scope.mode === 'own') {
+        query.andWhere(
+          `EXISTS (
+            SELECT 1 FROM enrollments scope_en
+            JOIN classes scope_cls ON scope_cls.id = scope_en."classId"
+            WHERE scope_en."studentId" = attendance."studentId"
+              AND scope_cls."batchId" = attendance."batchId"
+              AND scope_cls."mentorId" = :scopeMentorId
+          )`,
+          { scopeMentorId: caller.id },
+        );
+      } else if (scope.mode === 'programs') {
+        const programConditions = scope.patterns.map(
+          (_, index) =>
+            `LOWER(scope_program.name) LIKE :scopeProgramPattern${index}`,
+        );
+        const parameters = Object.fromEntries(
+          scope.patterns.map((pattern, index) => [
+            `scopeProgramPattern${index}`,
+            `%${pattern}%`,
+          ]),
+        );
+        query.andWhere(
+          `EXISTS (
+            SELECT 1 FROM enrollments scope_en
+            JOIN classes scope_cls ON scope_cls.id = scope_en."classId"
+            JOIN programs scope_program ON scope_program.id = scope_cls."programId"
+            WHERE scope_en."studentId" = attendance."studentId"
+              AND scope_cls."batchId" = attendance."batchId"
+              AND (${programConditions.join(' OR ')})
+          )`,
+          parameters,
+        );
+      }
+    } else if (!isStudent && mentorId) {
+      // Preserve the requested mentor filter for staff.
       const user = await this.userRepository.findOne({
         where: { id: mentorId },
       });

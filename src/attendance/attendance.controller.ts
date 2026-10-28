@@ -18,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 
 import { CreatePermissionRequestDto } from './dto/permission-request.dto';
+import { User } from '../users/entities/user.entity';
 
 @Controller('attendance')
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -74,7 +75,7 @@ export class AttendanceController {
 
   @Get()
   async getAllAttendances(
-    @Req() req: any,
+    @Req() req: { user: User },
     @Query('batchId') batchId?: string,
     @Query('studentId') studentId?: string,
     @Query('mentorId') mentorId?: string,

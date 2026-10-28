@@ -29,6 +29,7 @@ import { CompetencyScore } from './entities/competency-score.entity.js';
 import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
 import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
 import { AiEvaluatorService } from './services/ai-evaluator.service.js';
+import { resolveMentorProgramScope } from './mentor-program-scope';
 
 @Injectable()
 export class ClassesService {
@@ -327,7 +328,7 @@ export class ClassesService {
     const isAdmin = roles.includes('admin');
     const isFacilitator = roles.includes('facilitator');
 
-    const classes = await this.classRepository.find({
+    let classes = await this.classRepository.find({
       where: { batchId },
       relations: { program: true, batch: true },
       order: { createdAt: 'ASC' },
@@ -338,6 +339,17 @@ export class ClassesService {
         !!caller?.id && classes.some((c) => c.mentorId === caller.id);
       if (!teaches) {
         throw new ForbiddenException('Kamu tidak mengajar di batch ini.');
+      }
+
+      const scope = resolveMentorProgramScope(caller.specialization);
+      if (scope.mode === 'own') {
+        classes = classes.filter((c) => c.mentorId === caller.id);
+      } else if (scope.mode === 'programs') {
+        classes = classes.filter((c) =>
+          scope.patterns.some((pattern) =>
+            (c.program?.name ?? '').toLowerCase().includes(pattern),
+          ),
+        );
       }
     }
 
