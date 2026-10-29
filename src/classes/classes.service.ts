@@ -30,6 +30,10 @@ import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
 import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
 import { AiEvaluatorService } from './services/ai-evaluator.service.js';
 import { resolveMentorProgramScope } from './mentor-program-scope';
+import {
+  BulkUpsertCompetencyScoresDto,
+  CompetencyScoreItemDto,
+} from './dto/bulk-upsert-competency-scores.dto';
 
 @Injectable()
 export class ClassesService {
@@ -3885,6 +3889,63 @@ Return a JSON object with 'score' (0-100) and 'feedback'.`;
       );
     }
     return scores;
+  }
+
+  async bulkUpsertCompetencyScores(
+    dto: BulkUpsertCompetencyScoresDto,
+  ): Promise<{ saved: number; skipped: number }> {
+    const { scores } = dto;
+    if (!scores.length) return { saved: 0, skipped: 0 };
+    if (scores.length > 5000) {
+      throw new BadRequestException('Maksimal 5000 nilai per permintaan.');
+    }
+
+    const dataSource = this.competencyScoreRepository.manager.dataSource;
+    return dataSource.transaction(async (manager) => {
+      const [students, competencies] = await Promise.all([
+        manager.find(User, {
+          select: { id: true },
+          where: { id: In([...new Set(scores.map((item) => item.studentId))]) },
+        }),
+        manager.find(Competency, {
+          select: { id: true },
+          where: {
+            id: In([...new Set(scores.map((item) => item.competencyId))]),
+          },
+        }),
+      ]);
+      const studentIds = new Set(students.map((student) => student.id));
+      const competencyIds = new Set(competencies.map((item) => item.id));
+      const validScores = new Map<string, CompetencyScoreItemDto>();
+      let skipped = 0;
+
+      for (const item of scores) {
+        const studentId = item.studentId.toLowerCase();
+        const competencyId = item.competencyId.toLowerCase();
+        if (!studentIds.has(studentId) || !competencyIds.has(competencyId)) {
+          skipped++;
+          continue;
+        }
+        // PostgreSQL cannot update the same conflict key twice in one upsert.
+        // Keep the last value while counting each valid input item as saved.
+        validScores.set(`${studentId}:${competencyId}`, {
+          studentId,
+          competencyId,
+          score: item.score,
+        });
+      }
+
+      if (validScores.size) {
+        const updatedAt = new Date();
+        await manager.upsert(
+          CompetencyScore,
+          [...validScores.values()].map((item) => ({ ...item, updatedAt })),
+          ['studentId', 'competencyId'],
+        );
+      }
+
+      return { saved: scores.length - skipped, skipped };
+    });
   }
 
   async upsertCompetencyScore(
