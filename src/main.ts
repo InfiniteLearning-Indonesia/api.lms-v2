@@ -3,13 +3,13 @@ import { json, urlencoded } from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import session from 'express-session';
-import connectPgSimple from 'connect-pg-simple';
 import pg from 'pg';
 import passport from 'passport';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { DataSource } from 'typeorm';
 import { User, UserRole, UserStatus } from './users/entities/user.entity.js';
+import { ThrottledSessionStore } from './common/throttled-session-store.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -154,14 +154,14 @@ async function bootstrap() {
         ? { rejectUnauthorized: false }
         : false,
   });
-  const PgSession = connectPgSimple(session);
-
   app.use(
     session({
-      store: new PgSession({
+      store: new ThrottledSessionStore({
         pool: pgPool,
         tableName: 'session',
         createTableIfMissing: false,
+        pruneSessionInterval: 900,
+        touchIntervalMs: 300000,
       }),
       secret: sessionSecret,
       resave: false,
