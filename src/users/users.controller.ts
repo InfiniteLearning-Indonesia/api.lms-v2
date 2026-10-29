@@ -73,17 +73,7 @@ export class UsersController {
   @Get()
   @Roles('admin')
   async findAll() {
-    console.log('[USERS DIAGNOSTIC] GET /users called by admin');
-    try {
-      const result = await this.usersService.findAll();
-      console.log(
-        `[USERS DIAGNOSTIC SUCCESS] GET /users returned ${result?.length || 0} user records.`,
-      );
-      return result;
-    } catch (err: any) {
-      console.error('[USERS DIAGNOSTIC ERROR] GET /users error:', err);
-      throw err;
-    }
+    return this.usersService.findAll();
   }
 
   @Get(':id')
