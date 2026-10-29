@@ -16,6 +16,7 @@ import { ClassesService } from './classes.service';
 import { SessionAuthGuard } from '../auth/guards/session-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { BulkUpsertCompetencyScoresDto } from './dto/bulk-upsert-competency-scores.dto';
 
 @Controller('classes')
 @UseGuards(SessionAuthGuard, RolesGuard)
@@ -449,6 +450,12 @@ export class ClassesController {
   @Get('competencies/scores')
   async getGlobalCompetencyScores() {
     return this.classesService.getCompetencyScores();
+  }
+
+  @Post('competencies/scores/bulk')
+  @Roles('admin', 'mentor', 'facilitator')
+  async bulkUpsertCompetencyScores(@Body() dto: BulkUpsertCompetencyScoresDto) {
+    return this.classesService.bulkUpsertCompetencyScores(dto);
   }
 
   @UseGuards(SessionAuthGuard)
