@@ -33,6 +33,7 @@ export interface GradingItem {
   category: 'Soft Skill' | 'Hard Skill';
   phase: 'Micro' | 'Massive';
   score: number;
+  hasScore: boolean;
 }
 
 export interface GradingResult {
@@ -44,6 +45,8 @@ export interface GradingResult {
   predicate: 'With Distinction' | 'Very Good' | 'Good' | 'Satisfactory';
   missingMassiveCount: number;
 }
+
+export const MISSING_SCORE_FLOOR = 75;
 
 function ensureMin(value: number): number {
   if (!value || Number.isNaN(value) || value < 65) return 65;
@@ -58,7 +61,7 @@ export function computeGrading(input: GradingInput): GradingResult {
   );
   const cache = new Map<string, { score: number; hasScore: boolean }>();
 
-  // Keep raw component values until the displayed item is clamped, as in my-grades.
+  // Keep raw component values until the displayed item is rounded and clamped.
   const calculate = (
     ra: GradingAssessment,
     visiting = new Set<string>(),
@@ -66,7 +69,9 @@ export function computeGrading(input: GradingInput): GradingResult {
     if (input.externalScores.has(ra.id)) {
       return { score: Number(input.externalScores.get(ra.id)), hasScore: true };
     }
-    if (visiting.has(ra.id)) return { score: 65, hasScore: false };
+    if (visiting.has(ra.id)) {
+      return { score: MISSING_SCORE_FLOOR, hasScore: false };
+    }
     const cached = cache.get(ra.id);
     if (cached) return cached;
     const path = new Set(visiting).add(ra.id);
@@ -76,21 +81,25 @@ export function computeGrading(input: GradingInput): GradingResult {
     const children = ra.subAssessments ?? [];
     for (const item of components) {
       const name = (item.name ?? item.competency?.name ?? '').toLowerCase();
-      const value = direct.has(item.competencyId)
-        ? direct.get(item.competencyId)
-        : input.assignmentScores.get(name);
-      if (value !== undefined && value !== null) hasScore = true;
-      score += Number(value ?? 65) * (parseFloat(String(item.weight)) || 0);
+      const value =
+        direct.get(item.competencyId) ?? input.assignmentScores.get(name);
+      if (value === undefined || value === null) continue;
+      hasScore = true;
+      score += Number(value) * (parseFloat(String(item.weight)) || 0);
     }
-    for (const item of children) {
-      const target = byId.get(item.assessmentId);
-      if (!target) continue;
-      const child = calculate(target, path);
-      score += child.score * (parseFloat(String(item.weight)) || 0);
-      hasScore ||= child.hasScore;
+    // Subassessments are a fallback when no competency component has a score.
+    if (!hasScore) {
+      for (const item of children) {
+        const target = byId.get(item.assessmentId);
+        if (!target) continue;
+        const child = calculate(target, path);
+        if (!child.hasScore) continue;
+        score += child.score * (parseFloat(String(item.weight)) || 0);
+        hasScore = true;
+      }
     }
     const result = {
-      score: components.length || children.length ? score : 65,
+      score: hasScore ? score : MISSING_SCORE_FLOOR,
       hasScore,
     };
     cache.set(ra.id, result);
@@ -113,28 +122,31 @@ export function computeGrading(input: GradingInput): GradingResult {
         'project management',
         'leadership',
       ].some((keyword) => name.includes(keyword));
+    const { score, hasScore } = calculate(ra);
     return {
       id: ra.id,
       name: ra.name,
       category: soft ? 'Soft Skill' : 'Hard Skill',
       phase,
-      score: ensureMin(calculate(ra).score),
+      score: hasScore ? ensureMin(score) : MISSING_SCORE_FLOOR,
+      hasScore,
     };
   };
   const microItems = assessments
     .filter((ra) => !ra.phase || ra.phase === 'Micro')
     .map((ra) => makeItem(ra, 'Micro'));
-  const massive = assessments.filter((ra) => ra.phase === 'Massive');
-  const massiveItems = massive.map((ra) => makeItem(ra, 'Massive'));
+  const massiveItems = assessments
+    .filter((ra) => ra.phase === 'Massive')
+    .map((ra) => makeItem(ra, 'Massive'));
   const average = (items: GradingItem[]): number =>
     ensureMin(
       items.length
         ? items.reduce((total, item) => total + item.score, 0) / items.length
-        : 65,
+        : MISSING_SCORE_FLOOR,
     );
   const totalMicroScore = average(microItems);
   const totalMassiveScore = average(massiveItems);
-  const finalScore = ensureMin(totalMicroScore * 0.4 + totalMassiveScore * 0.6);
+  const finalScore = average([...microItems, ...massiveItems]);
   const predicate =
     finalScore >= 90
       ? 'With Distinction'
@@ -150,6 +162,6 @@ export function computeGrading(input: GradingInput): GradingResult {
     totalMassiveScore,
     finalScore,
     predicate,
-    missingMassiveCount: massive.filter((ra) => !calculate(ra).hasScore).length,
+    missingMassiveCount: massiveItems.filter((item) => !item.hasScore).length,
   };
 }
