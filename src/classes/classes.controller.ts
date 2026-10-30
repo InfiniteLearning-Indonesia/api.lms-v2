@@ -54,6 +54,15 @@ export class ClassesController {
     return this.classesService.findMentorClasses(req.user.id);
   }
 
+  @Get('programs/:programId/recap')
+  @Roles('admin', 'facilitator', 'mentor')
+  async getProgramRecap(
+    @Param('programId') programId: string,
+    @Req() req: any,
+  ) {
+    return this.classesService.findProgramRecap(programId, req.user);
+  }
+
   @Get('programs-list')
   async getProgramsList() {
     return this.classesService.getProgramsWithDetails();

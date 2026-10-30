@@ -33,6 +33,8 @@ import { Logbook, LogbookStatus } from './entities/logbook.entity.js';
 import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
 import { AiEvaluatorService } from './services/ai-evaluator.service.js';
 import { resolveMentorProgramScope } from './mentor-program-scope';
+import { ProgramHead } from './entities/program-head.entity';
+import { computeGrading, GradingAssessment } from './grading';
 import {
   BulkUpsertCompetencyScoresDto,
   CompetencyScoreItemDto,
@@ -432,6 +434,302 @@ export class ClassesService {
       success: true,
       isTranscriptReleased: classes[0].isTranscriptReleased,
       isCertificateReleased: nextState,
+    };
+  }
+
+  async findProgramRecap(
+    programId: string,
+    caller: { id: string; roles?: string[] },
+  ) {
+    const roles = (caller.roles ?? []).map((role) => role.toLowerCase());
+    const isAdmin = roles.includes('admin');
+    const isFacilitator = roles.includes('facilitator');
+    if (
+      !roles.some((role) => ['admin', 'facilitator', 'mentor'].includes(role))
+    ) {
+      throw new ForbiddenException('Kamu tidak memiliki akses rekap program.');
+    }
+
+    // Query 1: program, head membership and classes, including fallback batches.
+    // Map joins use the existing program repository; no extra head lookup.
+    const program = (await this.programRepository
+      .createQueryBuilder('program')
+      .leftJoinAndMapMany(
+        'program.recapHeads',
+        ProgramHead,
+        'head',
+        'head.programId = program.id AND head.userId = :callerId',
+        { callerId: caller.id },
+      )
+      .leftJoinAndMapMany(
+        'program.recapClasses',
+        Class,
+        'cls',
+        'cls.programId = program.id',
+      )
+      .leftJoinAndSelect('cls.batch', 'batch')
+      .leftJoin('cls.mentor', 'mentor')
+      .addSelect(['mentor.id', 'mentor.name'])
+      .where('program.id = :programId', { programId })
+      .orderBy('cls.createdAt', 'ASC')
+      .getOne()) as
+      (Program & { recapHeads: ProgramHead[]; recapClasses: Class[] }) | null;
+    if (!program) throw new NotFoundException('Program tidak ditemukan.');
+    const canRelease = isAdmin || program.recapHeads.length > 0;
+    if (!canRelease && !isFacilitator) {
+      throw new ForbiddenException(
+        'Hanya Head Program, admin, atau facilitator yang dapat melihat rekap program ini.',
+      );
+    }
+    const activeClasses = program.recapClasses.filter(
+      (cls) => cls.batch?.status === BatchStatus.ACTIVE,
+    );
+    const classes = activeClasses.length ? activeClasses : program.recapClasses;
+    if (!classes.length) {
+      throw new NotFoundException('Kelas program tidak ditemukan.');
+    }
+    const classById = new Map(classes.map((cls) => [cls.id, cls]));
+    const batchIds = [...new Set(classes.map((cls) => cls.batchId))];
+
+    // Queries 2 and 3: program/global competency definitions and rubric graph.
+    const competencies = await this.competencyRepository.find({
+      where: [{ programId }, { isGlobal: true }],
+      order: { createdAt: 'ASC' },
+    });
+    const rubrikAssessments = await this.rubrikAssessmentRepository.find({
+      where: [{ programId }, { isGlobal: true }],
+      relations: { programCompetency: true },
+      order: { createdAt: 'ASC' },
+      relationLoadStrategy: 'join',
+    });
+    const competencyById = new Map(competencies.map((comp) => [comp.id, comp]));
+    const assessments: GradingAssessment[] = rubrikAssessments.map((ra) => ({
+      ...ra,
+      competencies: (
+        (ra.competencies ?? []) as NonNullable<
+          GradingAssessment['competencies']
+        >
+      ).map((item) => ({
+        ...item,
+        name: competencyById.get(item.competencyId)?.name,
+      })),
+    }));
+
+    interface RecapEnrollment {
+      studentId: string;
+      name: string;
+      roles: string[];
+      classId: string;
+      competencyScores: { competencyId: string; score: number }[];
+      externalScores: { rubrikAssessmentId: string; score: number }[];
+      logbooks: { monthIndex: number; status: string }[];
+    }
+    // Query 4: independent JSON aggregates avoid multiplying scores by logbooks
+    // and imported scores. All students are fetched in one SQL statement.
+    const enrollments = await this.enrollmentRepository
+      .createQueryBuilder('enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .innerJoin('enrollment.class', 'recapClass')
+      .select('student.id', 'studentId')
+      .addSelect('student.name', 'name')
+      .addSelect('CAST(student.roles AS jsonb)', 'roles')
+      .addSelect('enrollment.classId', 'classId')
+      .addSelect(
+        (qb) =>
+          qb
+            .select(
+              `COALESCE(jsonb_agg(jsonb_build_object('competencyId', cs."competencyId", 'score', cs.score)), '[]'::jsonb)`,
+            )
+            .from(CompetencyScore, 'cs')
+            .where('cs.studentId = student.id')
+            .andWhere('cs.competencyId IN (:...competencyIds)'),
+        'competencyScores',
+      )
+      .addSelect(
+        (qb) =>
+          qb
+            .select(
+              `COALESCE(jsonb_agg(jsonb_build_object('rubrikAssessmentId', es."rubrikAssessmentId", 'score', es.score)), '[]'::jsonb)`,
+            )
+            .from(RubrikAssessmentScore, 'es')
+            .where('es.studentId = student.id')
+            .andWhere('es.rubrikAssessmentId IN (:...assessmentIds)'),
+        'externalScores',
+      )
+      .addSelect(
+        (qb) =>
+          qb
+            .select(
+              `COALESCE(jsonb_agg(jsonb_build_object('monthIndex', lb."monthIndex", 'status', lb.status)), '[]'::jsonb)`,
+            )
+            .from(Logbook, 'lb')
+            .where('lb.studentId = student.id')
+            .andWhere('lb.batchId = recapClass.batchId'),
+        'logbooks',
+      )
+      .where('enrollment.classId IN (:...classIds)', {
+        classIds: classes.map((cls) => cls.id),
+      })
+      .setParameters({
+        // Empty IN lists are invalid SQL; these UUIDs cannot match real rows.
+        competencyIds: competencies.length
+          ? competencies.map((comp) => comp.id)
+          : ['00000000-0000-0000-0000-000000000000'],
+        assessmentIds: assessments.length
+          ? assessments.map((ra) => ra.id)
+          : ['00000000-0000-0000-0000-000000000000'],
+      })
+      .orderBy('student.name', 'ASC')
+      .getRawMany<RecapEnrollment>();
+    const studentEnrollments = enrollments.filter((enrollment) => {
+      const studentRoles = enrollment.roles.map((role) => role.toLowerCase());
+      return (
+        studentRoles.includes('student') &&
+        !studentRoles.some((role) =>
+          ['admin', 'mentor', 'facilitator'].includes(role),
+        )
+      );
+    });
+    const studentIds = [...new Set(studentEnrollments.map((e) => e.studentId))];
+
+    // Query 5: graded assignments across the selected batches, matching the
+    // existing assignment-to-competency aggregation, including shared classes.
+    const submissions = studentIds.length
+      ? await this.submissionRepository
+          .createQueryBuilder('submission')
+          .innerJoinAndSelect('submission.assignment', 'assignment')
+          .innerJoinAndSelect('assignment.class', 'assignmentClass')
+          .where('submission.studentId IN (:...studentIds)', { studentIds })
+          .andWhere('assignmentClass.batchId IN (:...batchIds)', { batchIds })
+          .andWhere('submission.status = :graded', { graded: 'graded' })
+          .andWhere('submission.score IS NOT NULL')
+          .getMany()
+      : [];
+    const assignmentTotals = new Map<
+      string,
+      Map<string, { total: number; weight: number }>
+    >();
+    for (const submission of submissions) {
+      const assignment = submission.assignment;
+      const batchId = assignment.class?.batchId;
+      const key = `${submission.studentId}:${batchId}`;
+      const totals = assignmentTotals.get(key) ?? new Map();
+      const name = (assignment.competency ?? '').toLowerCase();
+      const weight = assignment.weight || 0.1;
+      const current = totals.get(name) ?? { total: 0, weight: 0 };
+      current.total += submission.score * weight;
+      current.weight += weight;
+      totals.set(name, current);
+      assignmentTotals.set(key, totals);
+    }
+
+    const students = studentEnrollments.map((enrollment) => {
+      const cls = classById.get(enrollment.classId)!;
+      const batch = cls.batch;
+      const totals = assignmentTotals.get(
+        `${enrollment.studentId}:${cls.batchId}`,
+      );
+      const grading = computeGrading({
+        rubrikAssessments: assessments,
+        competencyScores: enrollment.competencyScores,
+        assignmentScores: new Map(
+          [...(totals ?? [])].map(([name, value]) => [
+            name,
+            value.total / value.weight,
+          ]),
+        ),
+        externalScores: new Map(
+          enrollment.externalScores.map((score) => [
+            score.rubrikAssessmentId,
+            score.score,
+          ]),
+        ),
+      });
+      let totalRequired = 4;
+      if (batch?.startDate && batch?.endDate) {
+        const start = new Date(batch.startDate);
+        const end = new Date(batch.endDate);
+        totalRequired =
+          (end.getFullYear() - start.getFullYear()) * 12 +
+          end.getMonth() -
+          start.getMonth() +
+          1;
+      }
+      totalRequired = Math.max(1, totalRequired);
+      const accepted = new Set(
+        enrollment.logbooks
+          .filter((lb) => lb.status === LogbookStatus.ACCEPTED)
+          .map((lb) => lb.monthIndex),
+      );
+      const months = Array.from({ length: totalRequired }, (_, i) => i + 1);
+      const totalAccepted = months.filter((month) =>
+        accepted.has(month),
+      ).length;
+      return {
+        id: enrollment.studentId,
+        name: enrollment.name,
+        classId: cls.id,
+        className: `${program.name} - ${batch?.name ?? ''}`,
+        mentorName: cls.mentor?.name ?? null,
+        ...grading,
+        logbookCompletionStatus: {
+          allAccepted: totalAccepted >= totalRequired,
+          month1Accepted: accepted.has(1),
+          totalRequired,
+          totalAccepted,
+          firstIncompleteMonth:
+            months.find((month) => !accepted.has(month)) ?? null,
+        },
+      };
+    });
+    const releaseState = (kind: 'transcript' | 'certificate') => {
+      const released = classes.every((cls) =>
+        kind === 'transcript'
+          ? cls.isTranscriptReleased
+          : cls.isCertificateReleased,
+      );
+      const dates = classes.map((cls) =>
+        kind === 'transcript'
+          ? cls.transcriptReleasedAt
+          : cls.certificateReleasedAt,
+      );
+      const actors = classes.map((cls) =>
+        kind === 'transcript'
+          ? cls.transcriptReleasedBy
+          : cls.certificateReleasedBy,
+      );
+      return {
+        value: released,
+        at:
+          released && dates.every((at) => at && +at === +dates[0]!)
+            ? dates[0]
+            : null,
+        by:
+          released && actors.every((by) => by && by === actors[0])
+            ? actors[0]
+            : null,
+      };
+    };
+    const complete = students.filter((s) => s.missingMassiveCount === 0).length;
+    const batches = [
+      ...new Map(classes.map((cls) => [cls.batchId, cls.batch])).values(),
+    ];
+    return {
+      program: { id: program.id, name: program.name },
+      // Fallback can span batches; avoid claiming one batch for mixed data.
+      batch:
+        batches.length === 1
+          ? { id: batches[0].id, name: batches[0].name }
+          : null,
+      canRelease,
+      transcriptReleased: releaseState('transcript'),
+      certificateReleased: releaseState('certificate'),
+      completeness: {
+        totalStudents: students.length,
+        studentsWithMassiveComplete: complete,
+        studentsWithMassiveIncomplete: students.length - complete,
+      },
+      students,
     };
   }
 

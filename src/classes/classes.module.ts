@@ -5,6 +5,7 @@ import { ClassesController } from './classes.controller';
 import { Program } from './entities/program.entity';
 import { Batch } from './entities/batch.entity';
 import { Class } from './entities/class.entity';
+import { ProgramHead } from './entities/program-head.entity';
 import { Enrollment } from './entities/enrollment.entity';
 import { Material } from './entities/material.entity';
 import { Assignment } from './entities/assignment.entity';
@@ -27,6 +28,7 @@ import { AiEvaluatorService } from './services/ai-evaluator.service';
       Program,
       Batch,
       Class,
+      ProgramHead,
       Enrollment,
       Material,
       Assignment,

@@ -67,6 +67,24 @@ async function bootstrap() {
     console.warn(`⚠️ Bootstrap: Schema update note:`, err?.message);
   }
 
+  // Ensure program heads and release metadata exist (idempotent).
+  try {
+    await dataSource.query(
+      `CREATE TABLE IF NOT EXISTS "program_heads" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), "programId" uuid NOT NULL, "userId" uuid NOT NULL, "createdAt" timestamp NOT NULL DEFAULT now(), CONSTRAINT uq_program_heads UNIQUE ("programId","userId"))`,
+    );
+    await dataSource.query(
+      `ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "transcriptReleasedAt" timestamp, ADD COLUMN IF NOT EXISTS "transcriptReleasedBy" uuid, ADD COLUMN IF NOT EXISTS "certificateReleasedAt" timestamp, ADD COLUMN IF NOT EXISTS "certificateReleasedBy" uuid`,
+    );
+    console.log(
+      `✅ Bootstrap: 'program_heads' table & 'classes' release metadata verified.`,
+    );
+  } catch (err: unknown) {
+    console.warn(
+      `⚠️ Bootstrap: Program release schema update note:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   // Ensure session table exists for connect-pg-simple
   try {
     await dataSource.query(`

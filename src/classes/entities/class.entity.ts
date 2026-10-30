@@ -34,6 +34,18 @@ export class Class {
   @Column({ type: 'boolean', default: false })
   isCertificateReleased: boolean;
 
+  @Column({ type: 'timestamp', nullable: true })
+  transcriptReleasedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  transcriptReleasedBy: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  certificateReleasedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  certificateReleasedBy: string | null;
+
   @Column({ type: 'jsonb', nullable: true, default: [] })
   importantLinks?: {
     id: string;
