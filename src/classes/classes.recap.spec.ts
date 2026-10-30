@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, SelectQueryBuilder } from 'typeorm';
+import { DataSource, In, SelectQueryBuilder } from 'typeorm';
 import { ClassesController } from './classes.controller';
 import { ClassesService } from './classes.service';
 import { computeGrading, GradingAssessment, GradingInput } from './grading';
@@ -367,8 +367,10 @@ describe('ClassesService.findProgramRecap', () => {
     mentor: { id: 'mentor-1', name: 'Mentor' },
     isTranscriptReleased: true,
     transcriptReleasedAt: releasedAt,
-    transcriptReleasedBy: 'admin-1',
+    transcriptReleasedBy: 'admin-1' as string | null,
     isCertificateReleased: false,
+    certificateReleasedAt: null as Date | null,
+    certificateReleasedBy: null as string | null,
   });
   const makeEnrollment = (index = 1) => ({
     studentId: `student-${index}`,
@@ -387,6 +389,8 @@ describe('ClassesService.findProgramRecap', () => {
   } | null;
   let enrollments: ReturnType<typeof makeEnrollment>[];
   let submissions: unknown[];
+  let releaseUsers: Pick<User, 'id' | 'name'>[];
+  let usersFind: jest.SpyInstance;
   let service: ClassesService;
   let queries: string[];
   let enrollmentQuery: SelectQueryBuilder<Enrollment>;
@@ -403,6 +407,7 @@ describe('ClassesService.findProgramRecap', () => {
     };
     enrollments = [makeEnrollment()];
     submissions = [];
+    releaseUsers = [{ id: 'admin-1', name: 'Admin Satu' }];
     const programRepository = dataSource.getRepository(Program);
     jest
       .spyOn(programRepository, 'createQueryBuilder')
@@ -454,6 +459,12 @@ describe('ClassesService.findProgramRecap', () => {
           assessment('massive', 'Massive', 'coding'),
         ] as RubrikAssessment[]);
       });
+    usersFind = jest
+      .spyOn(dataSource.getRepository(User), 'find')
+      .mockImplementation(() => {
+        queries.push('users.find');
+        return Promise.resolve(releaseUsers as User[]);
+      });
     // Unexpected repository SQL fails immediately; only instrumented calls above
     // can run. This also catches writes or hidden per-student repository lookups.
     jest.spyOn(dataSource, 'createQueryRunner').mockImplementation(() => {
@@ -473,7 +484,7 @@ describe('ClassesService.findProgramRecap', () => {
   });
 
   afterEach(() => {
-    expect(queries.length).toBeLessThanOrEqual(5);
+    expect(queries.length).toBeLessThanOrEqual(6);
     jest.restoreAllMocks();
   });
 
@@ -501,8 +512,13 @@ describe('ClassesService.findProgramRecap', () => {
       program: { id: 'program-1', name: 'Web' },
       batch: { id: batch.id, name: batch.name },
       canRelease: true,
-      transcriptReleased: { value: true, at: releasedAt, by: 'admin-1' },
-      certificateReleased: { value: false, at: null, by: null },
+      transcriptReleased: {
+        value: true,
+        at: releasedAt,
+        by: 'admin-1',
+        byName: 'Admin Satu',
+      },
+      certificateReleased: { value: false, at: null, by: null, byName: null },
       completeness: {
         totalStudents: 1,
         studentsWithMassiveComplete: 1,
@@ -530,10 +546,76 @@ describe('ClassesService.findProgramRecap', () => {
         },
       ],
     });
-    expect(queries).toHaveLength(5);
+    expect(queries).toHaveLength(6);
     expect(queries[3]).toContain('CAST("student"."roles" AS jsonb)');
     expect(queries[3]).toContain('"lb"."batchId" = "recapClass"."batchId"');
     expect(queries[0]).toContain('"head"."userId" = $1');
+  });
+
+  it.each(['admin-1', 'head-2'])(
+    'resolves both document names with one deduplicated query when certificate actor is %s',
+    async (certificateActor) => {
+      Object.assign(context!.recapClasses[0], {
+        isCertificateReleased: true,
+        certificateReleasedAt: releasedAt,
+        certificateReleasedBy: certificateActor,
+      });
+      releaseUsers.push({ id: 'head-2', name: 'Head Dua' });
+      const result = await service.findProgramRecap('program-1', {
+        id: 'admin-1',
+        roles: ['admin'],
+      });
+      expect(result.transcriptReleased.byName).toBe('Admin Satu');
+      expect(result.certificateReleased).toEqual({
+        value: true,
+        at: releasedAt,
+        by: certificateActor,
+        byName: certificateActor === 'admin-1' ? 'Admin Satu' : 'Head Dua',
+      });
+      expect(usersFind).toHaveBeenCalledTimes(1);
+      expect(usersFind).toHaveBeenCalledWith({
+        where: { id: In([...new Set(['admin-1', certificateActor])]) },
+        select: { id: true, name: true },
+      });
+      expect(queries).toHaveLength(6);
+    },
+  );
+
+  it('returns null names for missing users while preserving release metadata', async () => {
+    releaseUsers = [];
+    Object.assign(context!.recapClasses[0], {
+      isCertificateReleased: true,
+      certificateReleasedAt: releasedAt,
+      certificateReleasedBy: 'deleted-head',
+    });
+    const result = await service.findProgramRecap('program-1', {
+      id: 'admin-1',
+      roles: ['admin'],
+    });
+    expect(result.transcriptReleased).toEqual({
+      value: true,
+      at: releasedAt,
+      by: 'admin-1',
+      byName: null,
+    });
+    expect(result.certificateReleased).toEqual({
+      value: true,
+      at: releasedAt,
+      by: 'deleted-head',
+      byName: null,
+    });
+  });
+
+  it('skips the user lookup when both document actors are null', async () => {
+    context!.recapClasses[0].transcriptReleasedBy = null;
+    const result = await service.findProgramRecap('program-1', {
+      id: 'admin-1',
+      roles: ['admin'],
+    });
+    expect(result.transcriptReleased.byName).toBeNull();
+    expect(result.certificateReleased.byName).toBeNull();
+    expect(usersFind).not.toHaveBeenCalled();
+    expect(queries).toHaveLength(5);
   });
 
   it('allows mentor head to release', async () => {
@@ -556,7 +638,7 @@ describe('ClassesService.findProgramRecap', () => {
       roles: ['mentor'],
     });
     expect(result).toEqual({ ...headResult, canRelease: false });
-    expect(queries).toHaveLength(5);
+    expect(queries).toHaveLength(6);
   });
 
   it.each([[], ['student'], ['unknown']])(
@@ -583,14 +665,15 @@ describe('ClassesService.findProgramRecap', () => {
     },
   );
 
-  it('keeps the query count at five for 64 students and calculates completeness', async () => {
+  it('adds only one user query for 64 students and calculates completeness', async () => {
     enrollments = Array.from({ length: 64 }, (_, i) => makeEnrollment(i + 1));
     enrollments[0].competencyScores = [];
     const result = await service.findProgramRecap('program-1', {
       id: 'admin',
       roles: ['admin'],
     });
-    expect(queries).toHaveLength(5);
+    expect(queries).toHaveLength(6);
+    expect(usersFind).toHaveBeenCalledTimes(1);
     expect(result.completeness).toEqual({
       totalStudents: 64,
       studentsWithMassiveComplete: 63,
@@ -694,7 +777,7 @@ describe('ClassesService.findProgramRecap', () => {
     expect(
       result.students.map((s) => s.logbookCompletionStatus.month1Accepted),
     ).toEqual([true, false]);
-    expect(queries).toHaveLength(5);
+    expect(queries).toHaveLength(6);
   });
 
   it('does not report a program released if only some classes are released', async () => {
@@ -710,6 +793,7 @@ describe('ClassesService.findProgramRecap', () => {
       value: false,
       at: null,
       by: null,
+      byName: null,
     });
   });
 
@@ -738,7 +822,7 @@ describe('ClassesService.findProgramRecap', () => {
       roles: ['admin'],
     });
     expect(result.students).toEqual([]);
-    expect(queries).toHaveLength(4);
+    expect(queries).toHaveLength(5);
   });
 
   it('rejects unknown programs and programs without classes', async () => {

@@ -430,7 +430,35 @@ export class ClassesService {
     if (!classes.length) {
       throw new NotFoundException('Kelas program tidak ditemukan.');
     }
-    return this.buildProgramRecap(program, classes, canRelease);
+    const recap = await this.buildProgramRecap(program, classes, canRelease);
+    const releasedByIds = [
+      ...new Set(
+        [recap.transcriptReleased.by, recap.certificateReleased.by].filter(
+          (id): id is string => id != null,
+        ),
+      ),
+    ];
+    // Query 6: resolve both document actors in one lookup, independent of students.
+    const releaseUsers = releasedByIds.length
+      ? await this.userRepository.find({
+          where: { id: In(releasedByIds) },
+          select: { id: true, name: true },
+        })
+      : [];
+    const releaseNames = new Map(
+      releaseUsers.map((user) => [user.id, user.name]),
+    );
+    return {
+      ...recap,
+      transcriptReleased: {
+        ...recap.transcriptReleased,
+        byName: releaseNames.get(recap.transcriptReleased.by!) ?? null,
+      },
+      certificateReleased: {
+        ...recap.certificateReleased,
+        byName: releaseNames.get(recap.certificateReleased.by!) ?? null,
+      },
+    };
   }
 
   private async buildProgramRecap(
