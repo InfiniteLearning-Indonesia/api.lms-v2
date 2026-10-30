@@ -8,7 +8,15 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull, Between, Like } from 'typeorm';
+import {
+  Repository,
+  EntityManager,
+  In,
+  Not,
+  IsNull,
+  Between,
+  Like,
+} from 'typeorm';
 import { Enrollment } from './entities/enrollment.entity';
 import { Class } from './entities/class.entity.js';
 import { Material } from './entities/material.entity.js';
@@ -34,6 +42,7 @@ import { MentorAsyncDay } from './entities/mentor-async-day.entity.js';
 import { AiEvaluatorService } from './services/ai-evaluator.service.js';
 import { resolveMentorProgramScope } from './mentor-program-scope';
 import { ProgramHead } from './entities/program-head.entity';
+import { AuditLog } from '../audit/entities/audit-log.entity';
 import { computeGrading, GradingAssessment } from './grading';
 import {
   BulkUpsertCompetencyScoresDto,
@@ -153,288 +162,227 @@ export class ClassesService {
       },
     });
 
-    const results: any[] = [];
+    const results = await Promise.all(
+      enrollments.map(async (enroll) => {
+        const cls = enroll.class;
+        if (!cls || !cls.program) return null;
 
-    for (const enroll of enrollments) {
-      const cls = enroll.class;
-      if (!cls || !cls.program) continue;
+        const program = cls.program;
+        const batch = cls.batch;
 
-      const program = cls.program;
-      const batch = cls.batch;
+        // Reuse the recap loader so definitions, score sources and batch scope match.
+        const recap = await this.buildProgramRecap(
+          program,
+          [cls],
+          false,
+          undefined,
+          studentId,
+        );
+        const grades = recap.students[0];
+        if (!grades) return null;
+        const { logbookCompletionStatus } = grades;
+        const isTranscriptReleased = !!cls.isTranscriptReleased;
+        const isCertificateReleased = !!cls.isCertificateReleased;
+        const lockReason = !isTranscriptReleased
+          ? 'TRANSCRIPT_NOT_RELEASED'
+          : !logbookCompletionStatus.month1Accepted
+            ? 'LOGBOOK_MONTH1_INCOMPLETE'
+            : null;
+        const certificateLockReason = !isCertificateReleased
+          ? 'CERTIFICATE_NOT_RELEASED'
+          : !logbookCompletionStatus.allAccepted
+            ? 'LOGBOOK_INCOMPLETE'
+            : lockReason;
+        const locked = lockReason !== null;
+        const certificateLocked = certificateLockReason !== null;
+        const showCertificateGrades = !locked && !certificateLocked;
 
-      // 1. Fetch competencies
-      const competencies = await this.competencyRepository.find({
-        where: [{ programId: program.id }, { isGlobal: true }],
-        order: { createdAt: 'ASC' },
-      });
-
-      // 2. Fetch rubrik assessments
-      const rubrikAssessments = await this.rubrikAssessmentRepository.find({
-        where: [{ programId: program.id }, { isGlobal: true }],
-        relations: { programCompetency: true },
-        order: { createdAt: 'ASC' },
-      });
-
-      // 3. Fetch imported external scores
-      const externalScores = await this.rubrikAssessmentScoreRepository.find({
-        where: { studentId, rubrikAssessment: { programId: program.id } },
-        relations: { rubrikAssessment: true },
-      });
-
-      // 3.5 Fetch actual competency scores derived from assignments
-      const competencyScores = await this.competencyScoreRepository.find({
-        where: { studentId },
-      });
-
-      // Helper for minimum score 65.0
-      const ensureMin = (val: number) => {
-        if (!val || isNaN(val) || val < 65) return 65.0;
-        return Math.min(100, Math.round(val * 10) / 10);
-      };
-
-      // Helper to calculate RA score from competencies and subAssessments
-      const calculateRAScore = (ra: any): number => {
-        let total = 0;
-        let hasComponents = false;
-
-        if (ra.competencies && Array.isArray(ra.competencies) && ra.competencies.length > 0) {
-          hasComponents = true;
-          for (const item of ra.competencies) {
-            const match = competencyScores.find(cs => cs.competencyId === item.competencyId);
-            const compScore = match ? match.score : 65.0;
-            const weight = parseFloat(item.weight) || 0;
-            total += compScore * weight;
-          }
-        }
-
-        if (ra.subAssessments && Array.isArray(ra.subAssessments) && ra.subAssessments.length > 0) {
-          hasComponents = true;
-          for (const subItem of ra.subAssessments) {
-            const targetRa = rubrikAssessments.find(r => r.id === subItem.assessmentId);
-            if (targetRa) {
-              const subScore = calculateRAScore(targetRa);
-              const weight = parseFloat(subItem.weight) || 0;
-              total += subScore * weight;
-            }
-          }
-        }
-
-        return hasComponents ? total : 65.0;
-      };
-
-      const resolveCategory = (ra: any) => {
-        const cat = (ra.programCompetency?.category || '').toLowerCase();
-        const name = (ra.name || '').toLowerCase();
-        if (
-          cat.includes('soft') ||
-          name.includes('cca') ||
-          name.includes('communication') ||
-          name.includes('collaboration') ||
-          name.includes('adaptive') ||
-          name.includes('project management') ||
-          name.includes('leadership')
-        ) {
-          return 'Soft Skill';
-        }
-        return 'Hard Skill';
-      };
-
-      // 4. Calculate Micro Phase Items (for Transcript)
-      const microRAs = rubrikAssessments.filter(
-        (r) => !r.phase || r.phase === 'Micro',
-      );
-      const microItems = microRAs.map((ra) => {
-        const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
-        const rawScore = ext ? parseFloat(ext.score as any) : calculateRAScore(ra);
         return {
-          id: ra.id,
-          name: ra.name,
-          category: resolveCategory(ra),
-          phase: 'Micro',
-          score: ensureMin(rawScore),
+          student: {
+            id: student.id,
+            name: student.name,
+            email: student.email,
+            institution: student.institution || 'Infinite Learning Partner',
+            studyProgram: student.studyProgram || 'Studi Independen',
+          },
+          program: {
+            id: program.id,
+            name: program.name,
+            batchName: batch?.name || 'Batch Active',
+          },
+          mentor: cls.mentor
+            ? { name: cls.mentor.name, email: cls.mentor.email }
+            : null,
+          microItems: locked ? [] : grades.microItems,
+          totalMicroScore: locked ? 0 : grades.totalMicroScore,
+          massiveItems: showCertificateGrades ? grades.massiveItems : [],
+          totalMassiveScore: showCertificateGrades
+            ? grades.totalMassiveScore
+            : 0,
+          finalScore: showCertificateGrades ? grades.finalScore : 0,
+          predicate: showCertificateGrades ? grades.predicate : '',
+          locked,
+          lockReason,
+          certificateLocked,
+          certificateLockReason,
+          isTranscriptReleased,
+          isCertificateReleased,
+          logbookCompletionStatus,
         };
-      });
+      }),
+    );
 
-      const totalMicroScore =
-        microItems.length > 0
-          ? ensureMin(
-              microItems.reduce((acc, curr) => acc + curr.score, 0) /
-                microItems.length,
-            )
-          : 65.0;
-
-      // 5. Calculate Massive Phase Items (for Certificate)
-      const massiveRAs = rubrikAssessments.filter((r) => r.phase === 'Massive');
-      const massiveItems = massiveRAs.map((ra) => {
-        const ext = externalScores.find((s) => s.rubrikAssessmentId === ra.id);
-        const rawScore = ext ? parseFloat(ext.score as any) : calculateRAScore(ra);
-        return {
-          id: ra.id,
-          name: ra.name,
-          category: resolveCategory(ra),
-          phase: 'Massive',
-          score: ensureMin(rawScore),
-        };
-      });
-
-      const totalMassiveScore =
-        massiveItems.length > 0
-          ? ensureMin(
-              massiveItems.reduce((acc, curr) => acc + curr.score, 0) /
-                massiveItems.length,
-            )
-          : 65.0;
-
-      const finalScore = ensureMin(
-        totalMicroScore * 0.4 + totalMassiveScore * 0.6,
-      );
-      let predicate = 'Satisfactory';
-      if (finalScore >= 90) predicate = 'With Distinction';
-      else if (finalScore >= 80) predicate = 'Very Good';
-      else if (finalScore >= 70) predicate = 'Good';
-
-      // 6. Calculate Logbook Completion Status
-      let totalMonths = 4;
-      if (batch?.startDate && batch?.endDate) {
-        const start = new Date(batch.startDate);
-        const end = new Date(batch.endDate);
-        totalMonths =
-          (end.getFullYear() - start.getFullYear()) * 12 +
-          (end.getMonth() - start.getMonth()) +
-          1;
-      }
-      if (totalMonths <= 0) totalMonths = 1;
-
-      const logbooks = await this.logbookRepository.find({
-        where: { studentId, batchId: batch.id },
-      });
-
-      let totalAccepted = 0;
-      let month1Accepted = false;
-      let firstIncompleteMonth: number | null = null;
-
-      for (let i = 1; i <= totalMonths; i++) {
-        const lb = logbooks.find((l) => l.monthIndex === i);
-        if (lb && lb.status === LogbookStatus.ACCEPTED) {
-          totalAccepted++;
-          if (i === 1) month1Accepted = true;
-        } else {
-          if (firstIncompleteMonth === null) {
-            firstIncompleteMonth = i;
-          }
-        }
-      }
-
-      const logbookCompletionStatus = {
-        allAccepted: totalAccepted >= totalMonths,
-        month1Accepted,
-        totalRequired: totalMonths,
-        totalAccepted,
-        firstIncompleteMonth,
-      };
-
-      results.push({
-        student: {
-          id: student.id,
-          name: student.name,
-          email: student.email,
-          institution: student.institution || 'Infinite Learning Partner',
-          studyProgram: student.studyProgram || 'Studi Independen',
-        },
-        program: {
-          id: program.id,
-          name: program.name,
-          batchName: batch?.name || 'Batch Active',
-        },
-        mentor: cls.mentor
-          ? { name: cls.mentor.name, email: cls.mentor.email }
-          : null,
-        microItems,
-        totalMicroScore,
-        massiveItems,
-        totalMassiveScore,
-        finalScore,
-        predicate,
-        isTranscriptReleased: cls.isTranscriptReleased || false,
-        isCertificateReleased: cls.isCertificateReleased || false,
-        logbookCompletionStatus,
-      });
-    }
-
-    return results;
+    return results.filter((result) => result !== null);
   }
 
   async releaseTranscript(mentorId: string, programId: string) {
-    const activeBatches = await this.batchRepository.find({
-      where: { status: BatchStatus.ACTIVE },
-    });
-    const activeBatchIds = activeBatches.map((b) => b.id);
-
-    let classes = await this.classRepository.find({
-      where: activeBatchIds.length > 0 
-        ? { programId, batchId: In(activeBatchIds) }
-        : { programId },
-    });
-    if (classes.length === 0) {
-      classes = await this.classRepository.find({ where: { programId } });
-      if (classes.length === 0)
-        throw new NotFoundException('Kelas program tidak ditemukan.');
-    }
-
-    const nextState = !classes[0].isTranscriptReleased;
-    for (const cls of classes) {
-      cls.isTranscriptReleased = nextState;
-      if (!nextState) {
-        cls.isCertificateReleased = false;
-      }
-      await this.classRepository.save(cls);
-    }
-
-    return {
-      success: true,
-      isTranscriptReleased: nextState,
-      isCertificateReleased: nextState
-        ? classes[0].isCertificateReleased
-        : false,
-    };
+    return this.toggleProgramRelease(mentorId, programId, 'transcript');
   }
 
   async releaseCertificate(mentorId: string, programId: string) {
-    const activeBatches = await this.batchRepository.find({
-      where: { status: BatchStatus.ACTIVE },
-    });
-    const activeBatchIds = activeBatches.map((b) => b.id);
+    return this.toggleProgramRelease(mentorId, programId, 'certificate');
+  }
 
-    let classes = await this.classRepository.find({
-      where: activeBatchIds.length > 0 
-        ? { programId, batchId: In(activeBatchIds) }
-        : { programId },
-    });
-    if (classes.length === 0) {
-      classes = await this.classRepository.find({ where: { programId } });
-      if (classes.length === 0)
+  private async toggleProgramRelease(
+    callerId: string,
+    programId: string,
+    kind: 'transcript' | 'certificate',
+  ) {
+    const dataSource = this.classRepository.manager.dataSource;
+    return dataSource.transaction(async (manager) => {
+      const caller = await manager
+        .getRepository(User)
+        .findOne({ where: { id: callerId } });
+      const isAdmin = caller?.roles.includes(UserRole.ADMIN);
+      const isHead =
+        caller &&
+        (isAdmin ||
+          (await manager.getRepository(ProgramHead).exists({
+            where: { programId, userId: callerId },
+          })));
+      if (!isHead) {
+        throw new ForbiddenException(
+          'Hanya Head Program untuk program ini atau admin yang dapat merilis atau menarik rilis dokumen.',
+        );
+      }
+
+      const activeBatches = await manager.getRepository(Batch).find({
+        where: { status: BatchStatus.ACTIVE },
+      });
+      const activeBatchIds = activeBatches.map((batch) => batch.id);
+      const classRepository = manager.getRepository(Class);
+      // Lock the selected rows in a stable order before reading their release state.
+      const findClasses = (activeOnly: boolean) =>
+        classRepository.find({
+          where: activeOnly
+            ? { programId, batchId: In(activeBatchIds) }
+            : { programId },
+          order: { id: 'ASC' },
+          lock: { mode: 'pessimistic_write' },
+        });
+      let classes = await findClasses(activeBatchIds.length > 0);
+      if (!classes.length && activeBatchIds.length)
+        classes = await findClasses(false);
+      if (!classes.length)
         throw new NotFoundException('Kelas program tidak ditemukan.');
-    }
 
-    const nextState = !classes[0].isCertificateReleased;
-
-    // Constraint: Require Transkrip (Micro Phase) to be released first before Sertifikat (Massive Phase) can be released!
-    if (nextState && !classes[0].isTranscriptReleased) {
-      throw new BadRequestException(
-        'Gagal! Transkrip Nilai (Fase Micro) harus dirilis terlebih dahulu sebelum Sertifikat (Fase Massive) dapat dirilis.',
+      const nextState = !classes.every((cls) =>
+        kind === 'transcript'
+          ? cls.isTranscriptReleased
+          : cls.isCertificateReleased,
       );
-    }
+      if (
+        kind === 'certificate' &&
+        nextState &&
+        !classes.every((cls) => cls.isTranscriptReleased)
+      ) {
+        throw new BadRequestException(
+          'Gagal! Transkrip Nilai (Fase Micro) harus dirilis terlebih dahulu sebelum Sertifikat (Fase Massive) dapat dirilis.',
+        );
+      }
 
-    for (const cls of classes) {
-      cls.isCertificateReleased = nextState;
-      await this.classRepository.save(cls);
-    }
+      let incompleteStudents: {
+        id: string;
+        name: string;
+        missingCount: number;
+      }[] = [];
+      if (kind === 'certificate' && nextState) {
+        const program = await manager
+          .getRepository(Program)
+          .findOne({ where: { id: programId } });
+        if (!program) throw new NotFoundException('Program tidak ditemukan.');
+        const recap = await this.buildProgramRecap(
+          program,
+          classes,
+          true,
+          manager,
+        );
+        // A student may have more than one enrollment in the fallback scope.
+        const incompleteById = new Map<
+          string,
+          { id: string; name: string; missingCount: number }
+        >();
+        for (const student of recap.students) {
+          if (student.missingMassiveCount > 0) {
+            const previous = incompleteById.get(student.id);
+            incompleteById.set(student.id, {
+              id: student.id,
+              name: student.name,
+              missingCount: Math.max(
+                previous?.missingCount ?? 0,
+                student.missingMassiveCount,
+              ),
+            });
+          }
+        }
+        incompleteStudents = [...incompleteById.values()];
+      }
 
-    return {
-      success: true,
-      isTranscriptReleased: classes[0].isTranscriptReleased,
-      isCertificateReleased: nextState,
-    };
+      const now = new Date();
+      const releasedAt = nextState ? now : null;
+      const releasedBy = nextState ? callerId : null;
+      for (const cls of classes) {
+        if (kind === 'transcript') {
+          cls.isTranscriptReleased = nextState;
+          cls.transcriptReleasedAt = releasedAt;
+          cls.transcriptReleasedBy = releasedBy;
+          if (!nextState) {
+            cls.isCertificateReleased = false;
+            cls.certificateReleasedAt = null;
+            cls.certificateReleasedBy = null;
+          }
+        } else {
+          cls.isCertificateReleased = nextState;
+          cls.certificateReleasedAt = releasedAt;
+          cls.certificateReleasedBy = releasedBy;
+        }
+      }
+      await classRepository.save(classes);
+      // Insert through the transaction repository: release and its audit commit together.
+      await manager.getRepository(AuditLog).insert({
+        level: 'INFO',
+        category: 'RELEASE',
+        timestampWib: now.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+        userId: callerId,
+        userEmail: caller.email,
+        userRole: caller.roles.join(','),
+        action: `${nextState ? 'RELEASE' : 'WITHDRAW'}_${kind.toUpperCase()}`,
+        details: {
+          programId,
+          classCount: classes.length,
+        } as AuditLog['details'],
+      });
+      return {
+        success: true,
+        isTranscriptReleased: classes.every((cls) => cls.isTranscriptReleased),
+        isCertificateReleased: classes.every(
+          (cls) => cls.isCertificateReleased,
+        ),
+        releasedAt,
+        releasedBy,
+        ...(kind === 'certificate' ? { incompleteStudents } : {}),
+      };
+    });
   }
 
   async findProgramRecap(
@@ -443,7 +391,6 @@ export class ClassesService {
   ) {
     const roles = (caller.roles ?? []).map((role) => role.toLowerCase());
     const isAdmin = roles.includes('admin');
-    const isFacilitator = roles.includes('facilitator');
     if (
       !roles.some((role) => ['admin', 'facilitator', 'mentor'].includes(role))
     ) {
@@ -476,11 +423,6 @@ export class ClassesService {
       (Program & { recapHeads: ProgramHead[]; recapClasses: Class[] }) | null;
     if (!program) throw new NotFoundException('Program tidak ditemukan.');
     const canRelease = isAdmin || program.recapHeads.length > 0;
-    if (!canRelease && !isFacilitator) {
-      throw new ForbiddenException(
-        'Hanya Head Program, admin, atau facilitator yang dapat melihat rekap program ini.',
-      );
-    }
     const activeClasses = program.recapClasses.filter(
       (cls) => cls.batch?.status === BatchStatus.ACTIVE,
     );
@@ -488,15 +430,35 @@ export class ClassesService {
     if (!classes.length) {
       throw new NotFoundException('Kelas program tidak ditemukan.');
     }
+    return this.buildProgramRecap(program, classes, canRelease);
+  }
+
+  private async buildProgramRecap(
+    program: Program,
+    classes: Class[],
+    canRelease: boolean,
+    manager?: EntityManager,
+    studentId?: string,
+  ) {
+    const programId = program.id;
+    const competencyRepository =
+      manager?.getRepository(Competency) ?? this.competencyRepository;
+    const rubrikAssessmentRepository =
+      manager?.getRepository(RubrikAssessment) ??
+      this.rubrikAssessmentRepository;
+    const enrollmentRepository =
+      manager?.getRepository(Enrollment) ?? this.enrollmentRepository;
+    const submissionRepository =
+      manager?.getRepository(Submission) ?? this.submissionRepository;
     const classById = new Map(classes.map((cls) => [cls.id, cls]));
     const batchIds = [...new Set(classes.map((cls) => cls.batchId))];
 
     // Queries 2 and 3: program/global competency definitions and rubric graph.
-    const competencies = await this.competencyRepository.find({
+    const competencies = await competencyRepository.find({
       where: [{ programId }, { isGlobal: true }],
       order: { createdAt: 'ASC' },
     });
-    const rubrikAssessments = await this.rubrikAssessmentRepository.find({
+    const rubrikAssessments = await rubrikAssessmentRepository.find({
       where: [{ programId }, { isGlobal: true }],
       relations: { programCompetency: true },
       order: { createdAt: 'ASC' },
@@ -526,7 +488,7 @@ export class ClassesService {
     }
     // Query 4: independent JSON aggregates avoid multiplying scores by logbooks
     // and imported scores. All students are fetched in one SQL statement.
-    const enrollments = await this.enrollmentRepository
+    const enrollmentQuery = enrollmentRepository
       .createQueryBuilder('enrollment')
       .innerJoin('enrollment.student', 'student')
       .innerJoin('enrollment.class', 'recapClass')
@@ -579,8 +541,10 @@ export class ClassesService {
           ? assessments.map((ra) => ra.id)
           : ['00000000-0000-0000-0000-000000000000'],
       })
-      .orderBy('student.name', 'ASC')
-      .getRawMany<RecapEnrollment>();
+      .orderBy('student.name', 'ASC');
+    if (studentId)
+      enrollmentQuery.andWhere('student.id = :studentId', { studentId });
+    const enrollments = await enrollmentQuery.getRawMany<RecapEnrollment>();
     const studentEnrollments = enrollments.filter((enrollment) => {
       const studentRoles = enrollment.roles.map((role) => role.toLowerCase());
       return (
@@ -595,7 +559,7 @@ export class ClassesService {
     // Query 5: graded assignments across the selected batches, matching the
     // existing assignment-to-competency aggregation, including shared classes.
     const submissions = studentIds.length
-      ? await this.submissionRepository
+      ? await submissionRepository
           .createQueryBuilder('submission')
           .innerJoinAndSelect('submission.assignment', 'assignment')
           .innerJoinAndSelect('assignment.class', 'assignmentClass')
@@ -719,7 +683,7 @@ export class ClassesService {
       // Fallback can span batches; avoid claiming one batch for mixed data.
       batch:
         batches.length === 1
-          ? { id: batches[0].id, name: batches[0].name }
+          ? { id: classes[0].batchId, name: batches[0]?.name }
           : null,
       canRelease,
       transcriptReleased: releaseState('transcript'),

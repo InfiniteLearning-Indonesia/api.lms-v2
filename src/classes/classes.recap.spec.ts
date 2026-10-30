@@ -545,16 +545,32 @@ describe('ClassesService.findProgramRecap', () => {
     expect(result.canRelease).toBe(true);
   });
 
-  it('rejects mentor non-head before loading student data', async () => {
-    await expect(
-      service.findProgramRecap('program-1', { id: 'other', roles: ['mentor'] }),
-    ).rejects.toEqual(
-      new ForbiddenException(
-        'Hanya Head Program, admin, atau facilitator yang dapat melihat rekap program ini.',
-      ),
-    );
-    expect(queries).toHaveLength(1);
+  it('allows mentor non-head to view the same recap with canRelease false', async () => {
+    const headResult = await service.findProgramRecap('program-1', {
+      id: 'admin',
+      roles: ['admin'],
+    });
+    queries = [];
+    const result = await service.findProgramRecap('program-1', {
+      id: 'other',
+      roles: ['mentor'],
+    });
+    expect(result).toEqual({ ...headResult, canRelease: false });
+    expect(queries).toHaveLength(5);
   });
+
+  it.each([[], ['student'], ['unknown']])(
+    'rejects unsupported roles %j',
+    async (...roles) => {
+      await expect(
+        service.findProgramRecap('program-1', {
+          id: 'other',
+          roles,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(queries).toHaveLength(0);
+    },
+  );
 
   it.each([['facilitator'], ['mentor', 'facilitator']])(
     'allows %j to view without release rights',
