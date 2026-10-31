@@ -591,6 +591,40 @@ describe('ClassesService release flow and grade locks', () => {
     },
   );
 
+  it.each([null, '2001020029'])(
+    'returns raw NIM %s without an email fallback and explicit null mentor identity',
+    async (nim) => {
+      repo(User).findOne.mockResolvedValue({
+        id: 'student-1',
+        name: 'Student',
+        email: '2001020029@student.umrah.ac.id',
+        nim,
+      });
+      const [result] = await service.findMyGrades('student-1');
+      expect(result.student.nim).toBe(nim);
+      expect(result.mentor).toEqual({
+        name: 'Mentor',
+        fullNameWithTitle: null,
+        signatureUrl: null,
+        email: 'mentor@example.test',
+      });
+    },
+  );
+
+  it('returns the personal mentor identity from the student class', async () => {
+    Object.assign(classes[0].mentor, {
+      fullNameWithTitle: 'Arifian Saputra, S. T.',
+      signatureUrl: '/signatures/arifian-saputra.png',
+    });
+    const [result] = await service.findMyGrades('student-1');
+    expect(result.mentor).toEqual({
+      name: 'Mentor',
+      fullNameWithTitle: 'Arifian Saputra, S. T.',
+      signatureUrl: '/signatures/arifian-saputra.png',
+      email: 'mentor@example.test',
+    });
+  });
+
   it('matches recap grades exactly for five students once both documents and logbooks are unlocked', async () => {
     markCertificateReleased();
     enrollments = Array.from({ length: 5 }, (_, index) =>

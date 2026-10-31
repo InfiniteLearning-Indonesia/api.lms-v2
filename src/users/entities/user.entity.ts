@@ -42,6 +42,15 @@ export class User {
   name: string;
 
   @Column({ type: 'varchar', nullable: true })
+  nim: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  fullNameWithTitle: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  signatureUrl: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
   googleId: string | null;
 
   @Column({ type: 'varchar', nullable: true, select: false })

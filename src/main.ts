@@ -33,6 +33,17 @@ async function bootstrap() {
 
   // Bootstrap: ensure bootstrap admin exists (idempotent upsert)
   const dataSource = app.get(DataSource);
+  // These columns must exist before the first User entity query.
+  try {
+    await dataSource.query(
+      `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "nim" varchar NULL, ADD COLUMN IF NOT EXISTS "fullNameWithTitle" varchar NULL, ADD COLUMN IF NOT EXISTS "signatureUrl" varchar NULL`,
+    );
+  } catch (err: unknown) {
+    console.warn(
+      '⚠️ Bootstrap: User transcript identity schema update note:',
+      err instanceof Error ? err.message : err,
+    );
+  }
   const userRepo = dataSource.getRepository(User);
   const adminEmail = configService.get<string>(
     'ADMIN_EMAIL',

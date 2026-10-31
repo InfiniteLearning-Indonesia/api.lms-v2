@@ -364,7 +364,11 @@ describe('ClassesService.findProgramRecap', () => {
     programId: 'program-1',
     batchId: batch.id,
     batch,
-    mentor: { id: 'mentor-1', name: 'Mentor' },
+    mentor: {
+      id: 'mentor-1',
+      name: 'Mentor',
+      fullNameWithTitle: null as string | null,
+    },
     isTranscriptReleased: true,
     transcriptReleasedAt: releasedAt,
     transcriptReleasedBy: 'admin-1' as string | null,
@@ -375,6 +379,7 @@ describe('ClassesService.findProgramRecap', () => {
   const makeEnrollment = (index = 1) => ({
     studentId: `student-${index}`,
     name: `Student ${index}`,
+    nim: null as string | null,
     roles: ['student'],
     classId: 'class-1',
     competencyScores: [{ competencyId: 'coding', score: 80 }],
@@ -502,6 +507,82 @@ describe('ClassesService.findProgramRecap', () => {
       'mentor',
     ]);
   });
+
+  it.each([null, '2001020029'])(
+    'returns the raw student NIM %s and nullable mentor title in the recap',
+    async (nim) => {
+      enrollments[0].nim = nim;
+      const result = await service.findProgramRecap('program-1', {
+        id: 'admin-1',
+        roles: ['admin'],
+      });
+      expect(result.students[0].nim).toBe(nim);
+      expect(result.students[0].mentor).toEqual({
+        name: 'Mentor',
+        fullNameWithTitle: null,
+      });
+      expect(queries[0]).toContain('"mentor"."fullNameWithTitle"');
+      expect(queries[3]).toContain('"student"."nim"');
+    },
+  );
+
+  it('includes the class mentor title on every student', async () => {
+    context!.recapClasses[0].mentor.fullNameWithTitle = 'Mentor, S. Kom';
+    enrollments.push(makeEnrollment(2));
+    const result = await service.findProgramRecap('program-1', {
+      id: 'admin-1',
+      roles: ['admin'],
+    });
+    expect(result.students).toHaveLength(2);
+    for (const student of result.students) {
+      expect(student.mentor?.fullNameWithTitle).toBe('Mentor, S. Kom');
+    }
+  });
+
+  it.each(['AI', 'Game'])(
+    'includes global professional rubrics in the %s recap exactly once',
+    async (programName) => {
+      context!.name = programName;
+      const names = ['CCA', 'Product Research', 'Career Coaching'];
+      const competencies = names.map((name) => ({
+        id: name,
+        name,
+        isGlobal: true,
+        programId: null,
+      }));
+      const rubrics = names.map((name) => ({
+        ...assessment(name),
+        isGlobal: true,
+        programId: null,
+      }));
+      const competenciesFind = jest
+        .spyOn(dataSource.getRepository(Competency), 'find')
+        .mockResolvedValue(competencies as Competency[]);
+      const rubricsFind = jest
+        .spyOn(dataSource.getRepository(RubrikAssessment), 'find')
+        .mockResolvedValue(rubrics as RubrikAssessment[]);
+      const result = await service.findProgramRecap('program-1', {
+        id: 'admin-1',
+        roles: ['admin'],
+      });
+      for (const find of [competenciesFind, rubricsFind]) {
+        expect(find).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: [{ programId: 'program-1' }, { isGlobal: true }],
+          }),
+        );
+      }
+      expect(result.students[0].microItems.map((item) => item.name)).toEqual(
+        names,
+      );
+      expect(result.students[0].microItems[2]).toMatchObject({
+        name: 'Career Coaching',
+        category: 'Hard Skill',
+        score: 75,
+        hasScore: false,
+      });
+    },
+  );
 
   it('allows admin to release and returns the recap, release metadata and batch logbooks', async () => {
     const result = await service.findProgramRecap('program-1', {

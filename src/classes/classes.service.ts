@@ -202,6 +202,7 @@ export class ClassesService {
             id: student.id,
             name: student.name,
             email: student.email,
+            nim: student.nim ?? null,
             institution: student.institution || 'Infinite Learning Partner',
             studyProgram: student.studyProgram || 'Studi Independen',
           },
@@ -211,7 +212,12 @@ export class ClassesService {
             batchName: batch?.name || 'Batch Active',
           },
           mentor: cls.mentor
-            ? { name: cls.mentor.name, email: cls.mentor.email }
+            ? {
+                name: cls.mentor.name,
+                fullNameWithTitle: cls.mentor.fullNameWithTitle ?? null,
+                signatureUrl: cls.mentor.signatureUrl ?? null,
+                email: cls.mentor.email,
+              }
             : null,
           microItems: locked ? [] : grades.microItems,
           totalMicroScore: locked ? 0 : grades.totalMicroScore,
@@ -416,7 +422,7 @@ export class ClassesService {
       )
       .leftJoinAndSelect('cls.batch', 'batch')
       .leftJoin('cls.mentor', 'mentor')
-      .addSelect(['mentor.id', 'mentor.name'])
+      .addSelect(['mentor.id', 'mentor.name', 'mentor.fullNameWithTitle'])
       .where('program.id = :programId', { programId })
       .orderBy('cls.createdAt', 'ASC')
       .getOne()) as
@@ -508,6 +514,7 @@ export class ClassesService {
     interface RecapEnrollment {
       studentId: string;
       name: string;
+      nim: string | null;
       roles: string[];
       classId: string;
       competencyScores: { competencyId: string; score: number }[];
@@ -522,6 +529,7 @@ export class ClassesService {
       .innerJoin('enrollment.class', 'recapClass')
       .select('student.id', 'studentId')
       .addSelect('student.name', 'name')
+      .addSelect('student.nim', 'nim')
       .addSelect('CAST(student.roles AS jsonb)', 'roles')
       .addSelect('enrollment.classId', 'classId')
       .addSelect(
@@ -660,9 +668,16 @@ export class ClassesService {
       return {
         id: enrollment.studentId,
         name: enrollment.name,
+        nim: enrollment.nim ?? null,
         classId: cls.id,
         className: `${program.name} - ${batch?.name ?? ''}`,
         mentorName: cls.mentor?.name ?? null,
+        mentor: cls.mentor
+          ? {
+              name: cls.mentor.name,
+              fullNameWithTitle: cls.mentor.fullNameWithTitle ?? null,
+            }
+          : null,
         ...grading,
         logbookCompletionStatus: {
           allAccepted: totalAccepted >= totalRequired,
