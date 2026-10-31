@@ -625,6 +625,50 @@ describe('ClassesService release flow and grade locks', () => {
     });
   });
 
+  it('hides AI design rows in both recap and student grades without changing totals', async () => {
+    markCertificateReleased();
+    const aiProgram = { ...program, name: 'AI Development' };
+    classes[0].program = aiProgram;
+    const programQuery = queryBuilder();
+    programQuery.getOne.mockResolvedValue({
+      ...aiProgram,
+      recapHeads: [],
+      recapClasses: classes,
+    });
+    repo(Program).createQueryBuilder.mockReturnValue(programQuery);
+    repo(RubrikAssessment).find.mockResolvedValue([
+      { id: 'ui', name: 'UI/UX Design', phase: 'Micro' },
+      { id: 'cca', name: 'CCA', phase: 'Micro' },
+      { id: 'career', name: 'Career Coaching', phase: 'Micro' },
+      { id: 'ml', name: 'Machine Learning', phase: 'Micro' },
+      { id: 'ux', name: 'UX Design', phase: 'Massive' },
+      { id: 'project', name: 'Machine Learning Project', phase: 'Massive' },
+    ]);
+    enrollments[0].externalScores = [
+      { rubrikAssessmentId: 'ui', score: 100 },
+      { rubrikAssessmentId: 'ux', score: 95 },
+    ];
+    const recap = await service.findProgramRecap(program.id, {
+      id: caller.id,
+      roles: ['admin'],
+    });
+    const [grades] = await service.findMyGrades('student-1');
+    for (const result of [recap.students[0], grades]) {
+      expect(result.microItems.map((item) => item.name)).toEqual([
+        'CCA',
+        'Career Coaching',
+        'Machine Learning',
+      ]);
+      expect(result.massiveItems.map((item) => item.name)).toEqual([
+        'Machine Learning Project',
+      ]);
+      expect(result.totalMicroScore).toBe(81.3);
+      expect(result.totalMassiveScore).toBe(85);
+      expect(result.finalScore).toBe(82.5);
+    }
+    expect(repo(RubrikAssessment).save).not.toHaveBeenCalled();
+  });
+
   it('matches recap grades exactly for five students once both documents and logbooks are unlocked', async () => {
     markCertificateReleased();
     enrollments = Array.from({ length: 5 }, (_, index) =>

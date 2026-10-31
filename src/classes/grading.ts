@@ -1,4 +1,7 @@
+import { isHiddenItem } from './grading-visibility';
+
 export interface GradingInput {
+  programName?: string | null;
   rubrikAssessments: any[];
   competencyScores: { competencyId: string; score: number }[];
   assignmentScores: Map<string, number>;
@@ -156,8 +159,13 @@ export function computeGrading(input: GradingInput): GradingResult {
           ? 'Good'
           : 'Satisfactory';
   return {
-    microItems,
-    massiveItems,
+    // Visibility affects returned rows only; aggregates retain all rubric items.
+    microItems: microItems.filter(
+      (item) => !isHiddenItem(input.programName, item.name),
+    ),
+    massiveItems: massiveItems.filter(
+      (item) => !isHiddenItem(input.programName, item.name),
+    ),
     totalMicroScore,
     totalMassiveScore,
     finalScore,

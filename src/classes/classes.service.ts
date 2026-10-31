@@ -630,6 +630,7 @@ export class ClassesService {
         `${enrollment.studentId}:${cls.batchId}`,
       );
       const grading = computeGrading({
+        programName: program.name,
         rubrikAssessments: assessments,
         competencyScores: enrollment.competencyScores,
         assignmentScores: new Map(
