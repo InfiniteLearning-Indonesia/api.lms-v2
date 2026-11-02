@@ -258,7 +258,10 @@ export class ClassesController {
   @UseGuards(SessionAuthGuard)
   @Get('competencies')
   async getCompetencies(@Req() req: any) {
-    return this.classesService.getCompetencies(req.query?.programId);
+    return this.classesService.getCompetencies(
+      req.query?.programId,
+      req.query?.scope,
+    );
   }
 
   @Post('competencies')
