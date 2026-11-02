@@ -2380,7 +2380,18 @@ export class ClassesService {
     };
   }
 
-  async getCompetencies(programId?: string) {
+  async getCompetencies(programId?: string, scope?: string) {
+    if (scope === 'all') {
+      return this.competencyRepository.find({
+        relations: {
+          program: true,
+          creatorMentor: true,
+          programCompetency: true,
+        },
+        order: { name: 'ASC' },
+      });
+    }
+
     const whereClause =
       programId && programId !== 'all'
         ? [{ programId }, { isGlobal: true }]
