@@ -87,6 +87,36 @@ describe('computeGrading', () => {
     expect(result.predicate).toBe('Very Good');
   });
 
+  it.each(['direct', 'assignment'])(
+    'uses 65 for missing CCA components alongside an entered %s score',
+    (source) => {
+      const result = grade({
+        rubrikAssessments: [
+          {
+            id: 'cca',
+            name: 'CCA',
+            competencies: [
+              { competencyId: 'communication', weight: 0.15 },
+              { competencyId: 'collaboration', weight: '0.10' },
+              { competencyId: 'adaptive', name: 'Adaptive', weight: 0.75 },
+            ],
+          },
+        ],
+        competencyScores:
+          source === 'direct' ? [{ competencyId: 'adaptive', score: 88 }] : [],
+        assignmentScores:
+          source === 'assignment' ? new Map([['adaptive', 88]]) : new Map(),
+      });
+      const weightedScore = 0.15 * 65 + 0.1 * 65 + 0.75 * 88;
+      expect(weightedScore).toBe(82.25);
+      expect(result.microItems[0]).toMatchObject({
+        score: 82.3,
+        hasScore: true,
+      });
+      expect(result.finalScore).toBe(82.3);
+    },
+  );
+
   it('uses external scores before direct and assignment scores', () => {
     const result = grade({
       rubrikAssessments: [assessment('coding')],
@@ -186,8 +216,8 @@ describe('computeGrading', () => {
       ]),
     });
     expect(result.totalMicroScore).toBe(80);
-    expect(result.totalMassiveScore).toBe(75);
-    expect(result.finalScore).toBe(78.3);
+    expect(result.totalMassiveScore).toBe(65);
+    expect(result.finalScore).toBe(75);
     expect(result.predicate).toBe('Good');
     expect(result.missingMassiveCount).toBe(1);
   });
@@ -214,7 +244,7 @@ describe('computeGrading', () => {
     expect(result.predicate).toBe(predicate);
   });
 
-  it('defaults unscored rubrics and empty phases to 75 with hasScore false', () => {
+  it('defaults missing components to 65 and empty rubrics and phases to 75', () => {
     expect(grade()).toMatchObject({
       totalMicroScore: 75,
       totalMassiveScore: 75,
@@ -228,12 +258,12 @@ describe('computeGrading', () => {
         { id: 'empty', name: 'empty', phase: 'Massive' },
       ],
     });
-    expect(result.microItems[0]).toMatchObject({ score: 75, hasScore: false });
+    expect(result.microItems[0]).toMatchObject({ score: 65, hasScore: false });
     expect(result.massiveItems[0]).toMatchObject({
       score: 75,
       hasScore: false,
     });
-    expect(result.finalScore).toBe(75);
+    expect(result.finalScore).toBe(70);
     expect(result.missingMassiveCount).toBe(1);
   });
 
@@ -290,13 +320,13 @@ describe('computeGrading', () => {
     expect(
       result.massiveItems.map(({ score, hasScore }) => ({ score, hasScore })),
     ).toEqual([
-      { score: 75, hasScore: false },
+      { score: 65, hasScore: false },
       { score: 65, hasScore: true },
       { score: 65, hasScore: true },
       { score: 65, hasScore: true },
       { score: 65, hasScore: true },
     ]);
-    expect(result.microItems[0]).toMatchObject({ score: 75, hasScore: false });
+    expect(result.microItems[0]).toMatchObject({ score: 65, hasScore: false });
   });
 
   it('handles cyclic and dangling subassessment references without recursion errors', () => {
@@ -578,7 +608,7 @@ describe('ClassesService.findProgramRecap', () => {
       expect(result.students[0].microItems[2]).toMatchObject({
         name: 'Career Coaching',
         category: 'Hard Skill',
-        score: 75,
+        score: 65,
         hasScore: false,
       });
     },
@@ -854,7 +884,7 @@ describe('ClassesService.findProgramRecap', () => {
       roles: ['admin'],
     });
     expect(result.batch).toBeNull();
-    expect(result.students.map((s) => s.finalScore)).toEqual([80, 75]);
+    expect(result.students.map((s) => s.finalScore)).toEqual([80, 65]);
     expect(
       result.students.map((s) => s.logbookCompletionStatus.month1Accepted),
     ).toEqual([true, false]);

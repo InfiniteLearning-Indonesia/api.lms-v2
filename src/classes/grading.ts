@@ -86,23 +86,27 @@ export function computeGrading(input: GradingInput): GradingResult {
       const name = (item.name ?? item.competency?.name ?? '').toLowerCase();
       const value =
         direct.get(item.competencyId) ?? input.assignmentScores.get(name);
-      if (value === undefined || value === null) continue;
-      hasScore = true;
-      score += Number(value) * (parseFloat(String(item.weight)) || 0);
+      const hasValue = value !== undefined && value !== null;
+      if (hasValue) hasScore = true;
+      score +=
+        (hasValue ? Number(value) : 65) *
+        (parseFloat(String(item.weight)) || 0);
     }
     // Subassessments are a fallback when no competency component has a score.
     if (!hasScore) {
+      let childScore = 0;
       for (const item of children) {
         const target = byId.get(item.assessmentId);
         if (!target) continue;
         const child = calculate(target, path);
         if (!child.hasScore) continue;
-        score += child.score * (parseFloat(String(item.weight)) || 0);
+        childScore += child.score * (parseFloat(String(item.weight)) || 0);
         hasScore = true;
       }
+      if (hasScore) score = childScore;
     }
     const result = {
-      score: hasScore ? score : MISSING_SCORE_FLOOR,
+      score: hasScore || components.length ? score : MISSING_SCORE_FLOOR,
       hasScore,
     };
     cache.set(ra.id, result);
@@ -131,7 +135,7 @@ export function computeGrading(input: GradingInput): GradingResult {
       name: ra.name,
       category: soft ? 'Soft Skill' : 'Hard Skill',
       phase,
-      score: hasScore ? ensureMin(score) : MISSING_SCORE_FLOOR,
+      score: ensureMin(score),
       hasScore,
     };
   };
