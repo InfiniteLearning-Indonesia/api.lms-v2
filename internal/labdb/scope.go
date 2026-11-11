@@ -28,6 +28,13 @@ func SyntheticCatalogueScope(scope string) ([]runner.Migration, error) {
 		"pre-m13-cp02": 20,
 		"pre-m09-cp01": 21,
 		"pre-m09-cp02": 22,
+		"pre-m09-cp03": 23,
+		"pre-m09-cp04": 24,
+		"pre-m10-cp01": 25,
+		"pre-m10-cp02": 26,
+		"pre-m10-cp03": 27,
+		"pre-m10-cp04": 28,
+		"pre-m13-cp03": 29,
 	}
 	n, ok := lengths[scope]
 	if !ok || n < 1 || n > len(all) {

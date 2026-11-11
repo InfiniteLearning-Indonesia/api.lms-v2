@@ -16,7 +16,7 @@ import (
 
 func OwnsPath(path string) bool {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	return len(parts) >= 4 && parts[0] == "v3" && parts[1] == "classes" && parts[3] == "grade-items"
+	return (len(parts) == 2 && parts[0] == "v3" && parts[1] == "grade-reconciliations") || (len(parts) >= 4 && parts[0] == "v3" && parts[1] == "classes" && parts[3] == "grade-items")
 }
 
 func Handler(store *Store, logger *slog.Logger) http.Handler {
@@ -61,6 +61,46 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) == 2 && parts[0] == "v3" && parts[1] == "grade-reconciliations" {
+			route = "gradebook.historical.reconcile"
+			if r.Method != http.MethodPost {
+				fail(ErrNotFound)
+				return
+			}
+			kind, _, parseErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if parseErr != nil || kind != "application/json" {
+				fail(ErrInvalid)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
+			decoder := json.NewDecoder(r.Body)
+			decoder.DisallowUnknownFields()
+			var command ReconciliationCommand
+			if decoder.Decode(&command) != nil {
+				fail(ErrInvalid)
+				return
+			}
+			var extra any
+			if decoder.Decode(&extra) != io.EOF {
+				fail(ErrInvalid)
+				return
+			}
+			value, replayed, executeErr := store.ReconcileHistorical(ctx, session, r.Header.Get("Idempotency-Key"), requestID, command)
+			if executeErr != nil {
+				fail(executeErr)
+				return
+			}
+			if replayed {
+				w.Header().Set("Idempotency-Replayed", "true")
+			}
+			var payload any
+			if json.Unmarshal(value, &payload) != nil {
+				fail(errors.New("encode"))
+				return
+			}
+			reply(200, payload)
+			return
+		}
 		if len(parts) < 4 || parts[0] != "v3" || parts[1] != "classes" || parts[3] != "grade-items" {
 			fail(ErrNotFound)
 			return
@@ -96,6 +136,9 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 		key := r.Header.Get("Idempotency-Key")
 		definition := DefinitionCommand{ClassID: parts[2]}
 		grade := GradeCommand{ClassID: parts[2]}
+		importCommand := ImportCommand{ClassID: parts[2]}
+		confirmCommand := ConfirmImportCommand{ClassID: parts[2]}
+		releaseCommand := ReleaseCommand{ClassID: parts[2]}
 		switch {
 		case len(parts) == 4 && r.Method == http.MethodPost:
 			route, definition.Action = "gradebook.definition.create_item", "create_item"
@@ -132,9 +175,32 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 				ExpectedVersion      int64  `json:"expected_version"`
 				ValueMilli           int64  `json:"value_milli"`
 				Reason               string `json:"reason"`
+				AISuggestionID       string `json:"ai_suggestion_id"`
 			}
 			err = decoder.Decode(&body)
-			grade.AggregateID, grade.SubmissionRevisionID, grade.ExpectedVersion, grade.ValueMilli, grade.Reason = body.AggregateID, body.SubmissionRevisionID, body.ExpectedVersion, body.ValueMilli, body.Reason
+			grade.AggregateID, grade.SubmissionRevisionID, grade.ExpectedVersion, grade.ValueMilli, grade.Reason, grade.AISuggestionID = body.AggregateID, body.SubmissionRevisionID, body.ExpectedVersion, body.ValueMilli, body.Reason, body.AISuggestionID
+		case len(parts) == 7 && parts[5] == "imports" && parts[6] == "preview" && r.Method == http.MethodPost:
+			route, importCommand.GradeItemID = "gradebook.import.preview", parts[4]
+			var body struct {
+				Entries []ImportEntry `json:"entries"`
+			}
+			err = decoder.Decode(&body)
+			importCommand.Entries = body.Entries
+		case len(parts) == 7 && parts[5] == "imports" && parts[6] == "confirm" && r.Method == http.MethodPost:
+			route, confirmCommand.GradeItemID = "gradebook.import.confirm", parts[4]
+			var body struct {
+				PreviewID string        `json:"preview_id"`
+				Entries   []ImportEntry `json:"entries"`
+			}
+			err = decoder.Decode(&body)
+			confirmCommand.PreviewID, confirmCommand.Entries = body.PreviewID, body.Entries
+		case len(parts) == 8 && parts[5] == "grades" && parts[7] == "release" && r.Method == http.MethodPost:
+			route, releaseCommand.GradeItemID, releaseCommand.AggregateID = "gradebook.grade.release", parts[4], parts[6]
+			var body struct {
+				ExpectedVersion int64 `json:"expected_version"`
+			}
+			err = decoder.Decode(&body)
+			releaseCommand.ExpectedVersion = body.ExpectedVersion
 		default:
 			fail(ErrNotFound)
 			return
@@ -152,6 +218,16 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 		var replayed bool
 		if route == "gradebook.grade" {
 			value, replayed, err = store.Grade(ctx, session, key, requestID, grade)
+		} else if route == "gradebook.import.preview" {
+			var preview ImportPreview
+			preview, replayed, err = store.PreviewImport(ctx, session, key, requestID, importCommand)
+			value = mustJSON(preview)
+		} else if route == "gradebook.import.confirm" {
+			value, replayed, err = store.ConfirmImport(ctx, session, key, requestID, confirmCommand)
+		} else if route == "gradebook.grade.release" {
+			var release Release
+			release, replayed, err = store.ReleaseGrade(ctx, session, key, requestID, releaseCommand)
+			value = mustJSON(release)
 		} else {
 			value, replayed, err = store.ExecuteDefinition(ctx, session, key, requestID, definition)
 		}

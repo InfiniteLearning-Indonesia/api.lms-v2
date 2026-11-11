@@ -1,0 +1,12 @@
+{
+  "m10_cp03_go": [
+    "lmsv3/internal/completion:TestSyntheticTranscriptProvenance",
+    "lmsv3/internal/completion:TestSyntheticCredentialLifecycle",
+    "lmsv3/internal/completion:TestSyntheticCredentialBoundary"
+  ],
+  "m10_cp03_python": [
+    "M10-CP03-transcript-snapshot",
+    "M10-CP03-credential-lifecycle",
+    "M10-CP03-security-boundary"
+  ]
+}

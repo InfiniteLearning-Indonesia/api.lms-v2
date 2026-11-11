@@ -51,6 +51,8 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 	var mu sync.Mutex
 	window := time.Now()
 	attempts := 0
+	verifyWindow := time.Now()
+	verifyAttempts := 0
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID, err := RandomToken()
 		if err != nil {
@@ -180,6 +182,29 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 				return
 			}
 			reply(200, map[string]any{"id": a.ID, "site_admin": a.Admin})
+		case r.Method == "GET" && func() bool {
+			p := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			return len(p) == 4 && p[0] == "v3" && p[1] == "credentials" && p[2] != "" && p[3] == "verify"
+		}():
+			// Public verification has no identity context. Only this exact GET
+			// path is delegated, with TLS/origin checks above and a bounded
+			// per-process synthetic limit. The response contains no PII.
+			route = "credential.verify.public"
+			mu.Lock()
+			if time.Since(verifyWindow) > time.Minute {
+				verifyWindow = time.Now()
+				verifyAttempts = 0
+			}
+			verifyAttempts++
+			limited := verifyAttempts > 120
+			mu.Unlock()
+			if limited {
+				reply(429, map[string]string{"error": "RATE_LIMITED"})
+				return
+			}
+			observed := &statusWriter{ResponseWriter: w, status: 200}
+			next.ServeHTTP(observed, r.WithContext(ctx))
+			status = observed.status
 		case r.Method == "POST" && (r.URL.Path == "/v3/auth/rotate" || r.URL.Path == "/v3/auth/logout" || r.URL.Path == "/v3/auth/revoke-all"):
 			action := strings.TrimPrefix(r.URL.Path, "/v3/auth/")
 			route = "identity." + action

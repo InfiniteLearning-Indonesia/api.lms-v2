@@ -282,6 +282,15 @@ func Catalogue() []runner.Migration {
 		// is M08; M13 is the immutable migration-history predecessor only.
 		{Version: "m09-cp01-1", SQL: gradeDefinitionSchema, Requires: []string{"m08-cp04-1", "m13-cp02-1"}},
 		{Version: "m09-cp02-1", SQL: scopedGradeSchema, Requires: []string{"m09-cp01-1"}},
+		{Version: "m09-cp03-1", SQL: gradeImportReleaseSchema, Requires: []string{"m09-cp02-1"}},
+		{Version: "m09-cp04-1", SQL: historicalGradeReconciliationSchema, Requires: []string{"m09-cp03-1"}},
+		{Version: "m10-cp01-1", SQL: completionFoundationSchema, Requires: []string{"m09-cp04-1"}},
+		{Version: "m10-cp02-1", SQL: completionCorrectionSchema, Requires: []string{"m10-cp01-1"}},
+		{Version: "m10-cp03-1", SQL: transcriptCredentialSchema, Requires: []string{"m10-cp02-1"}},
+		{Version: "m10-cp04-1", SQL: legacyCompletionObservationSchema, Requires: []string{"m10-cp03-1"}},
+		// M13-CP03 is appended after the already published academic migration
+		// history; the domain dependency is M08/M09, not completion itself.
+		{Version: "m13-cp03-1", SQL: aiSuggestionSchema, Requires: []string{"m10-cp04-1"}},
 	}
 }
 

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "checkpoints": [
+    {"id":"M13-CP03","module":"M13","deliverables":["M13-D04"],"cases":["lmsv3/internal/aisuggestions:TestSyntheticAISuggestionProvenance","lmsv3/internal/aisuggestions:TestSyntheticAISuggestionBoundary","lmsv3/internal/aisuggestions:TestAISuggestionValidation","M13-CP03-provenance","M13-CP03-boundary","M13-CP03-failure-no-grade","M13-CP03-human-grade"]}
+  ],
+  "m13_cp03_go": ["lmsv3/internal/aisuggestions:TestSyntheticAISuggestionProvenance","lmsv3/internal/aisuggestions:TestSyntheticAISuggestionBoundary","lmsv3/internal/aisuggestions:TestAISuggestionValidation"],
+  "m13_cp03_python": ["M13-CP03-provenance","M13-CP03-boundary","M13-CP03-failure-no-grade","M13-CP03-human-grade"],
+  "external_gates": ["REAL_AI_PROVIDER_POLICY", "DATA_EXPORT_PRIVACY_REVIEW", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION", "FRONTEND_REVIEW_UX"]
+}

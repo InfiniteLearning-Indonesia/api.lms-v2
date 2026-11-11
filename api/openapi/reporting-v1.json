@@ -1,0 +1,600 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LMS v3 released grade report slice",
+    "version": "1.1.0",
+    "description": "Backend-only M14 CP01\u201303 released-grade reporting slice; wider API inventory remains outside this contract."
+  },
+  "paths": {
+    "/v3/classes/{class_id}/reports/grades/{learner_user_id}": {
+      "get": {
+        "operationId": "getReleasedGrades",
+        "description": "Active enrolled learner self, assigned active Class Teacher, or Admin. Only canonical released grades. No query parameters. Unknown nested routes return 404. Requires the v3 session cookie.",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "learner_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current canonical release snapshot",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed identifier or query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; the shared gateway also rejects any query string with this status before routing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Actor lacks Class access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target learner/Class absent or not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Read unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "More than 200 visible items or JSON over 256 KiB; no partial report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/reports/grades/{learner_user_id}/pages": {
+      "post": {
+        "operationId": "postGradePages",
+        "description": "Cookie session, CSRF and same-origin POST; strict JSON up to 12 KiB, no query strings. Reauthorizes the CP01 Class/learner boundary. Report limited to 200 items; output max 256 KiB. Session-bound signed cursor expires after ten minutes; handler restart invalidates cursors. Only grade_item_id_asc ordering and exact grade_item_id filter. Changed release snapshot requires restart.",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "learner_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Malformed identifier or query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; the shared gateway also rejects any query string with this status before routing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Actor lacks Class access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target learner/Class absent or not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Read unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "More than 200 visible items or JSON over 256 KiB; no partial report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Bounded stable page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradePage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Snapshot changed or cursor expired; restart pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/classes/{class_id}/reports/grades/{learner_user_id}/exports": {
+      "post": {
+        "operationId": "exportReleasedGradesCSV",
+        "description": "Cookie session, CSRF and same-origin POST; strict JSON up to 12 KiB, no query strings. Reauthorizes the CP01 Class/learner boundary. Report limited to 200 items; output max 256 KiB. Private synchronous CSV, no public URL or stored download. Title formulas escaped. Each successful request commits a distinct access audit/outbox event; retries intentionally create separate audit entries.",
+        "parameters": [
+          {
+            "name": "class_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "learner_user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Malformed identifier or query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session; the shared gateway also rejects any query string with this status before routing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Actor lacks Class access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target learner/Class absent or not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Read unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "More than 200 visible items or JSON over 256 KiB; no partial report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Private audited CSV attachment",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string",
+                  "const": "attachment; filename=\"grades.csv\""
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "X-Export-Audit-ID": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "X-Report-Snapshot": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "maxLength": 262144
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Id": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
+      },
+      "Watermark": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "release_id",
+          "released_at"
+        ],
+        "properties": {
+          "release_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReleasedGrade": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "grade_item_id",
+          "title",
+          "value_milli",
+          "grade_version",
+          "release_id",
+          "released_at"
+        ],
+        "properties": {
+          "grade_item_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "title": {
+            "type": "string"
+          },
+          "value_milli": {
+            "type": "integer"
+          },
+          "grade_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "release_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GradeReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contract_version",
+          "class_id",
+          "learner_user_id",
+          "watermark",
+          "grades"
+        ],
+        "properties": {
+          "contract_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "class_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "learner_user_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "watermark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Watermark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grades": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleasedGrade"
+            },
+            "maxItems": 200
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "INVALID_INPUT",
+              "UNAUTHENTICATED",
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "UNAVAILABLE",
+              "STALE_SNAPSHOT",
+              "REPORT_TOO_LARGE"
+            ]
+          }
+        }
+      },
+      "PageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "page_size"
+        ],
+        "properties": {
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "",
+              "grade_item_id_asc"
+            ]
+          },
+          "grade_item_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "const": ""
+              }
+            ]
+          }
+        }
+      },
+      "ExportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv"
+            ]
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "",
+              "grade_item_id_asc"
+            ]
+          },
+          "grade_item_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "const": ""
+              }
+            ]
+          }
+        }
+      },
+      "GradePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contract_version",
+          "class_id",
+          "learner_user_id",
+          "watermark",
+          "grades",
+          "snapshot",
+          "next_cursor"
+        ],
+        "properties": {
+          "contract_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "class_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "learner_user_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "watermark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Watermark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grades": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleasedGrade"
+            },
+            "maxItems": 50
+          },
+          "snapshot": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 2048
+          }
+        }
+      }
+    }
+  }
+}

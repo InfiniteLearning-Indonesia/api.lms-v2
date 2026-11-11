@@ -13,6 +13,7 @@ type fakeQueue struct {
 	events  []Event
 	acked   []Lease
 	retried []Lease
+	codes   []string
 }
 
 func (q *fakeQueue) ClaimBatch(_ context.Context, limit int, _ time.Duration) ([]Event, error) {
@@ -31,11 +32,59 @@ func (q *fakeQueue) Ack(_ context.Context, lease Lease) error {
 	q.acked = append(q.acked, lease)
 	return nil
 }
-func (q *fakeQueue) RetryWithCode(_ context.Context, lease Lease, _ string) error {
+func (q *fakeQueue) RetryWithCode(_ context.Context, lease Lease, code string) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.retried = append(q.retried, lease)
+	q.codes = append(q.codes, code)
 	return nil
+}
+
+type receiptQueue struct {
+	fakeQueue
+	receipts int
+	fail     bool
+}
+
+func (q *receiptQueue) RecordReceipt(ctx context.Context, _ Lease, _ ProviderReceipt) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	q.receipts++
+	if q.fail {
+		return errors.New("receipt unavailable")
+	}
+	return nil
+}
+
+type deadlineReceiptSink struct{ delay time.Duration }
+
+func (s deadlineReceiptSink) Deliver(ctx context.Context, e Event) error {
+	_, err := s.DeliverWithReceipt(ctx, e)
+	return err
+}
+func (s deadlineReceiptSink) DeliverWithReceipt(_ context.Context, _ Event) (ProviderReceipt, error) {
+	time.Sleep(s.delay)
+	return ProviderReceipt{ProviderKey: "synthetic", Outcome: "CONFIRMED", ReferenceHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, nil
+}
+
+func TestWorkerReceiptDeadline(t *testing.T) {
+	q := &receiptQueue{fakeQueue: fakeQueue{events: []Event{{Lease: Lease{EventID: "event-receipt", Token: "lease-receipt", Attempt: 1}}}}}
+	c := testConfig()
+	c.DeliveryTimeout = 20 * time.Millisecond
+	c.LeaseDuration = 200 * time.Millisecond
+	w := Worker{Queue: q, Sink: deadlineReceiptSink{delay: 25 * time.Millisecond}, Config: c}
+	if n, err := w.RunOnce(context.Background()); err != nil || n != 1 || q.receipts != 1 || len(q.acked) != 1 {
+		t.Fatal("receipt was not recorded after provider deadline", n, err, q.receipts, len(q.acked))
+	}
+}
+
+func TestWorkerUnknownOutcomeRetry(t *testing.T) {
+	q := &receiptQueue{fakeQueue: fakeQueue{events: []Event{{Lease: Lease{EventID: "event-unknown", Token: "lease-unknown", Attempt: 1}}}}, fail: true}
+	w := Worker{Queue: q, Sink: deadlineReceiptSink{}, Config: testConfig()}
+	if n, err := w.RunOnce(context.Background()); err != nil || n != 1 || len(q.acked) != 0 || len(q.retried) != 1 || q.codes[0] != "PROVIDER_OUTCOME_UNKNOWN" {
+		t.Fatal("unknown outcome was not retried safely", n, err, q.codes)
+	}
 }
 
 type fakeSink struct {

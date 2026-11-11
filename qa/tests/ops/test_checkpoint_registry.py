@@ -136,3 +136,17 @@ def test_checkpoint_registry_rejects_missing_duplicate_and_stale_evidence(tmp_pa
         evidence = [{"id": case, "status": "PASS"} for case in checkpoint["cases"]]
         assert reconcile(m09, checkpoint["id"], evidence, "current", "current")["status"] == "PASS"
         assert reconcile(m09, checkpoint["id"], evidence, "stale", "current")["status"] == "BLOCKED"
+
+    for name, module in (("M13-CP04.json", "M13"), ("M14-CP01.json", "M14"), ("M14-CP02.json", "M14")):
+        scoped = load(ROOT / "qa/manifests" / name)
+        declared = set()
+        for key, value in scoped.items():
+            if key.endswith("_go") or key.endswith("_python"):
+                declared.update(value)
+        assert scoped["module"] == module
+        validate(scoped, {f"{module}-D0{i}" for i in range(1, 6)}, declared)
+        checkpoint = scoped["checkpoints"][0]
+        assert set(checkpoint["cases"]) == declared
+        evidence = [{"id": case, "status": "PASS"} for case in checkpoint["cases"]]
+        assert reconcile(scoped, checkpoint["id"], evidence, "current", "current")["status"] == "PASS"
+        assert reconcile(scoped, checkpoint["id"], evidence[:-1], "current", "current")["status"] == "BLOCKED"

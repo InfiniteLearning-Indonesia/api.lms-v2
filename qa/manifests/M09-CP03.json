@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "module": "M09",
+  "checkpoints": [
+    {
+      "id": "M09-CP03",
+      "deliverables": ["M09-D04"],
+      "cases": [
+        "lmsv3/internal/gradebook:TestSyntheticImportLifecycle",
+        "lmsv3/internal/gradebook:TestSyntheticImportBoundary",
+        "lmsv3/internal/gradebook:TestSyntheticReleaseLifecycle",
+        "lmsv3/internal/gradebook:TestSyntheticReleaseBoundary",
+        "M09-CP03-import-lifecycle",
+        "M09-CP03-import-boundary",
+        "M09-CP03-release-lifecycle",
+        "M09-CP03-release-boundary"
+      ]
+    }
+  ],
+  "m09_cp03_go": [
+    "lmsv3/internal/gradebook:TestSyntheticImportLifecycle",
+    "lmsv3/internal/gradebook:TestSyntheticImportBoundary",
+    "lmsv3/internal/gradebook:TestSyntheticReleaseLifecycle",
+    "lmsv3/internal/gradebook:TestSyntheticReleaseBoundary"
+  ],
+  "m09_cp03_python": [
+    "M09-CP03-import-lifecycle",
+    "M09-CP03-import-boundary",
+    "M09-CP03-release-lifecycle",
+    "M09-CP03-release-boundary"
+  ],
+  "external_gates": ["ACADEMIC_RELEASE_POLICY_APPROVAL", "LEGACY_GRADE_RECONCILIATION_M09_CP04", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION"]
+}

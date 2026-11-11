@@ -7,8 +7,10 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	aidomain "lmsv3/internal/aisuggestions"
 	attendancedomain "lmsv3/internal/attendance"
 	"lmsv3/internal/classes"
+	completiondomain "lmsv3/internal/completion"
 	contentdomain "lmsv3/internal/content"
 	"lmsv3/internal/egress"
 	filedomain "lmsv3/internal/files"
@@ -17,6 +19,7 @@ import (
 	"lmsv3/internal/labdb"
 	logbookdomain "lmsv3/internal/logbook"
 	notificationdomain "lmsv3/internal/notifications"
+	reportdomain "lmsv3/internal/reporting"
 	submissiondomain "lmsv3/internal/submissions"
 	"log/slog"
 	"net/http"
@@ -44,8 +47,14 @@ func main() {
 	}
 	service := &identity.Lifecycle{Pool: writer, Verifier: identity.Verifier{Issuer: "https://synthetic-issuer.invalid", Audience: "lms-v3-local", Keys: map[string]ed25519.PublicKey{"fixture-1": key}}}
 	store := classes.NewBridge(pool)
-	checkpoint := os.Getenv("QA_CHECKPOINT")
-	if checkpoint == "cp12" || checkpoint == "m05" || checkpoint == "m06" || checkpoint == "m06cp03" || checkpoint == "m07" || checkpoint == "m07cp02" || checkpoint == "m07cp03" || checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m15cp01" || checkpoint == "m15cp02" || checkpoint == "m15cp03" || checkpoint == "m15cp04" || checkpoint == "m15cp05" || checkpoint == "m11cp01" || checkpoint == "m12cp01" || checkpoint == "m12cp02" || checkpoint == "m12cp03" || checkpoint == "m13cp01" || checkpoint == "m13cp02" || checkpoint == "m09cp01" || checkpoint == "m09cp02" {
+	qaCheckpoint := os.Getenv("QA_CHECKPOINT")
+	checkpoint := qaCheckpoint
+	// Later completion slices reuse the CP01 academic dependency chain while
+	// QA_CHECKPOINT remains exact for isolated state, logs and case selection.
+	if checkpoint == "m10cp02" || checkpoint == "m10cp03" || checkpoint == "m10cp04" || checkpoint == "m05cp05" || checkpoint == "m07cp04" || checkpoint == "m13cp03" || checkpoint == "m13cp04" || checkpoint == "m14cp01" || checkpoint == "m14cp02" || checkpoint == "m14cp03" || checkpoint == "m14cp04" {
+		checkpoint = "m10cp01"
+	}
+	if checkpoint == "cp12" || checkpoint == "m05" || checkpoint == "m06" || checkpoint == "m06cp03" || checkpoint == "m07" || checkpoint == "m07cp02" || checkpoint == "m07cp03" || checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m15cp01" || checkpoint == "m15cp02" || checkpoint == "m15cp03" || checkpoint == "m15cp04" || checkpoint == "m15cp05" || checkpoint == "m11cp01" || checkpoint == "m12cp01" || checkpoint == "m12cp02" || checkpoint == "m12cp03" || checkpoint == "m13cp01" || checkpoint == "m13cp02" || checkpoint == "m09cp01" || checkpoint == "m09cp02" || checkpoint == "m09cp03" || checkpoint == "m09cp04" || checkpoint == "m10cp01" {
 		store = classes.NewContextual(pool)
 	} else if checkpoint != "cp11" {
 		os.Exit(1)
@@ -86,7 +95,7 @@ func main() {
 			classHandler.ServeHTTP(w, r)
 		})
 	}
-	if checkpoint == "m07" || checkpoint == "m07cp02" || checkpoint == "m07cp03" || checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m09cp01" || checkpoint == "m09cp02" {
+	if checkpoint == "m07" || checkpoint == "m07cp02" || checkpoint == "m07cp03" || checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m09cp01" || checkpoint == "m09cp02" || checkpoint == "m09cp03" || checkpoint == "m09cp04" || checkpoint == "m10cp01" {
 		classHandler := business
 		contentHandler := contentdomain.Handler(contentdomain.New(pool), logger)
 		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +106,7 @@ func main() {
 			classHandler.ServeHTTP(w, r)
 		})
 	}
-	if checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m09cp01" || checkpoint == "m09cp02" {
+	if checkpoint == "m08cp01" || checkpoint == "m08cp02" || checkpoint == "m08cp03" || checkpoint == "m08cp04" || checkpoint == "m09cp01" || checkpoint == "m09cp02" || checkpoint == "m09cp03" || checkpoint == "m09cp04" || checkpoint == "m10cp01" {
 		priorHandler := business
 		submissionHandler := submissiondomain.Handler(submissiondomain.New(pool), logger)
 		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,12 +150,56 @@ func main() {
 			priorHandler.ServeHTTP(w, r)
 		})
 	}
-	if checkpoint == "m09cp01" || checkpoint == "m09cp02" {
+	if checkpoint == "m09cp01" || checkpoint == "m09cp02" || checkpoint == "m09cp03" || checkpoint == "m09cp04" || checkpoint == "m10cp01" {
 		priorHandler := business
 		gradebookHandler := gradebookdomain.Handler(gradebookdomain.New(pool), logger)
 		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if gradebookdomain.OwnsPath(r.URL.Path) {
 				gradebookHandler.ServeHTTP(w, r)
+				return
+			}
+			priorHandler.ServeHTTP(w, r)
+		})
+	}
+	if checkpoint == "m10cp01" || checkpoint == "m10cp02" {
+		priorHandler := business
+		completionHandler := completiondomain.Handler(completiondomain.New(pool), logger)
+		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if completiondomain.OwnsPath(r.URL.Path) {
+				completionHandler.ServeHTTP(w, r)
+				return
+			}
+			priorHandler.ServeHTTP(w, r)
+		})
+	}
+	if qaCheckpoint == "m10cp03" || qaCheckpoint == "m10cp04" {
+		priorHandler := business
+		credentialHandler := completiondomain.CredentialHandler(completiondomain.New(pool), logger)
+		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if completiondomain.CredentialOwnsPath(r.URL.Path) {
+				credentialHandler.ServeHTTP(w, r)
+				return
+			}
+			priorHandler.ServeHTTP(w, r)
+		})
+	}
+	if qaCheckpoint == "m13cp03" || qaCheckpoint == "m13cp04" || qaCheckpoint == "m14cp01" || qaCheckpoint == "m14cp02" || qaCheckpoint == "m14cp03" || qaCheckpoint == "m14cp04" {
+		priorHandler := business
+		aiHandler := aidomain.Handler(aidomain.New(pool, aidomain.RehearsalProvider{}), logger)
+		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if aidomain.OwnsPath(r.URL.Path) {
+				aiHandler.ServeHTTP(w, r)
+				return
+			}
+			priorHandler.ServeHTTP(w, r)
+		})
+	}
+	if qaCheckpoint == "m14cp01" || qaCheckpoint == "m14cp02" || qaCheckpoint == "m14cp03" || qaCheckpoint == "m14cp04" {
+		priorHandler := business
+		reportHandler := reportdomain.Handler(reportdomain.Store{Pool: pool}, logger)
+		business = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if reportdomain.OwnsPath(r.URL.Path) {
+				reportHandler.ServeHTTP(w, r)
 				return
 			}
 			priorHandler.ServeHTTP(w, r)

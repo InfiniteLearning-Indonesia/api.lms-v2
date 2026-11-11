@@ -40,7 +40,7 @@ func openGradeFixture(t *testing.T, checkpoint string) *gradeFixture {
 		t.Fatal("definition migration replay", err)
 	}
 	grants := `GRANT SELECT,INSERT ON v3.grade_scales,v3.grade_items,v3.grade_definition_versions,v3.rubric_criteria,v3.grade_definition_publications,v3.grade_definition_commands TO qa_runtime`
-	if checkpoint == "m09-cp02" {
+	if checkpoint == "m09-cp02" || checkpoint == "m09-cp03" || checkpoint == "m09-cp04" {
 		if err = labdb.InstallScopedGrades(ctx, owner); err != nil {
 			owner.Close()
 			t.Fatal(err)
@@ -50,6 +50,28 @@ func openGradeFixture(t *testing.T, checkpoint string) *gradeFixture {
 			t.Fatal("grade migration replay", err)
 		}
 		grants += `; GRANT SELECT,INSERT ON v3.grade_revisions,v3.grade_current,v3.grade_commands TO qa_runtime; GRANT UPDATE(revision_id,version,updated_at) ON v3.grade_current TO qa_runtime`
+	}
+	if checkpoint == "m09-cp03" || checkpoint == "m09-cp04" {
+		if err = labdb.InstallGradeImportRelease(ctx, owner); err != nil {
+			owner.Close()
+			t.Fatal(err)
+		}
+		if err = labdb.InstallGradeImportRelease(ctx, owner); err != nil {
+			owner.Close()
+			t.Fatal("import-release migration replay", err)
+		}
+		grants += `; GRANT SELECT,INSERT ON v3.grade_import_previews,v3.grade_import_confirms,v3.grade_releases TO qa_runtime`
+	}
+	if checkpoint == "m09-cp04" {
+		if err = labdb.InstallHistoricalGradeReconciliation(ctx, owner); err != nil {
+			owner.Close()
+			t.Fatal(err)
+		}
+		if err = labdb.InstallHistoricalGradeReconciliation(ctx, owner); err != nil {
+			owner.Close()
+			t.Fatal("historical reconciliation migration replay", err)
+		}
+		grants += `; GRANT SELECT,INSERT ON v3.legacy_grade_reconciliation_runs,v3.legacy_grade_observations TO qa_runtime`
 	}
 	if _, err = owner.Exec(ctx, grants, pgx.QueryExecModeSimpleProtocol); err != nil {
 		owner.Close()
@@ -61,7 +83,7 @@ func openGradeFixture(t *testing.T, checkpoint string) *gradeFixture {
 		t.Fatal(err)
 	}
 	f := &gradeFixture{owner: owner, store: New(runtime), users: map[string]string{}, tokens: map[string]string{}}
-	for _, subject := range []string{"teacher", "teacher2", "student", "outsider"} {
+	for _, subject := range []string{"admin", "teacher", "teacher2", "student", "outsider"} {
 		var user string
 		var version int64
 		if err = owner.QueryRow(ctx, "SELECT user_id,version FROM v3identity.links WHERE subject=$1", subject).Scan(&user, &version); err != nil {

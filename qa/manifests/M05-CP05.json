@@ -1,0 +1,11 @@
+{
+  "m05_cp05_go": [
+    "lmsv3/internal/classes:TestSyntheticClassAcademicAncestry",
+    "lmsv3/internal/classes:TestSyntheticClassAcademicHistory"
+  ],
+  "m05_cp05_python": [
+    "M05-CP05-publish-authority",
+    "M05-CP05-end-retains-history",
+    "M05-CP05-retake-separate-history"
+  ]
+}

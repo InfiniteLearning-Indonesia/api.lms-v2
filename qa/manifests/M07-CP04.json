@@ -1,0 +1,13 @@
+{
+  "m07_cp04_go": [
+    "lmsv3/internal/content:TestSyntheticContentClosureOwnership",
+    "lmsv3/internal/content:TestSyntheticContentClosureClone",
+    "lmsv3/internal/content:TestLegacyImportantLinksPreview"
+  ],
+  "m07_cp04_python": [
+    "M07-CP04-owner-withdrawn",
+    "M07-CP04-owner-boundary",
+    "M07-CP04-structure-clone",
+    "M07-CP04-clone-boundary"
+  ]
+}

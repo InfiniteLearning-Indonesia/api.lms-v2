@@ -1,5 +1,57 @@
 # LMS v3 backend — Implementation status
 
+> **Accepted 11 November:** [M14 local closure](checkpoints/2026-11-11-m14-local-closure.md), run `20261111T093737Z-postgres-lab-6e4bc487c4d6`, source `cb0a9af604011f90e6bc14844f637e5e0bb094104b509ff03905407feae0a7bc`. **M14 4/4 local CP slices**, 21/21 direct M14 cases (CP04 6/6), 1,080 measured requests, actual query/pool/audit, dependencies and 40 backup/restore receipt sets reviewed. Canonical M14 stays 0/5; project 0/97. No new CP, shared database access, Git or production readiness inferred. Older dated notes are history.
+
+> **Current 2 November:** [M14-CP04 five-step package](checkpoints/2026-11-02-m14-cp04.md) **IMPLEMENTED_PENDING_FULL_QA**. Four of six frozen mandatory cases locally exercised; native actual load and PostgreSQL plan/pool cases pending. Fixed unattended backup/preflight/full-QA/review launcher is ready. Accepted historical counts remain M13 4/4, M14 3/4, canonical unchanged. Current executable source differs from the prior full PASS and must pass the new performance journey. Older status snapshots below are historical.
+
+> **Accepted latest 31 October:** [M14 CP03](checkpoints/2026-10-31-m14-cp03-accepted.md) PASS_LOCAL_SYNTHETIC (7/7 mandatory) on run `20261031T115506Z-postgres-lab-53f7b900538f`; CP01/02/M13 dependencies, source and backup/restore hashes verified. M14 is now 3/4 local slices; CP04 not started, canonical counts unchanged. Older pending notes below are historical.
+
+> **Latest 31 October:** [M14 CP01/02 accepted](checkpoints/2026-10-31-m14-cp01-cp02-accepted.md), M14 2/4 local slices. [CP03 pagination/export implemented](checkpoints/2026-10-31-m14-cp03.md) after scope freeze; Go/local instrumentation checks PASS on new source dc4618a4, full PostgreSQL/Playwright pending. M13 remains 4/4 prior local closure. Canonical counts unchanged; no shared DB or Git operations.
+
+> **Latest M14 verification, 31 October:** [runtime instrumentation and shutdown budget repaired](checkpoints/2026-10-31-m14-qa-runtime-repair.md) after failed run `20261031T103230Z-postgres-lab-e14518526f85`. Six local checks PASS on source `f4819963e757a6afb285a11403459d21c55fa9d80d819803d2ee6eaca33a8303`; fresh full reporting journey pending. M14 stays 0/4 locally verified; CP03 gated. M13's accepted 4/4 local result remains historical evidence on its recorded tested source.
+
+> **Accepted 31 October 2026:** [M13 local closure](checkpoints/2026-10-31-m13-local-closure.md) reviewed on current source; **4/4 CP local synthetic**, direct cases 19/19 PASS, mandatory worker PASS, 39 backup/restore receipts reviewed, all reconciliation PASS. Run `20261031T100520Z-postgres-lab-246c640f9cf1`. M13 canonical stays 0/5; M00–M18 0/97; M14 remains 0/4 local verified. Older failure/unverified snapshots below are history.
+
+> **31 October 2026 — current:** [M13-CP04 runner repair](checkpoints/2026-10-31-m13-cp04-runner-repair.md) passed 5 local checks, including 3 Go cases + 1 new runner regression. Full CP remains unverified until fresh PostgreSQL/Playwright QA on the repaired source. M13 stays 3/4 local slices, M14 0/4; no new schema/shared DB/Git operations. Earlier dated status snapshots below are historical.
+
+> **Update 30 Oktober 2026 — newest work:** M13-CP04 and M14-CP01/02 are [implemented but unverified](checkpoints/2026-10-30-m13-cp04.md). Go unit suite/vet pass. Full synthetic runner stopped before PostgreSQL startup (`initdb` restricted token error 87); M13 stays 3/4 locally verified, M14 stays 0/4, canonical D totals unchanged. Older snapshots below are historical.
+
+## Pembaruan 30 Oktober 2026 — M13-CP03 lulus lokal sintetis
+
+[M13-CP03](checkpoints/2026-10-29-m13-cp03.md) **PASS_LOCAL_SYNTHETIC** pada run `20261030T045432Z-postgres-lab-38ca171bbd9e`, source `d0d9a14313551c0831b1e67ee1437743955c780a1e728f9d06dc03eda2bbf113`: 4/4 Playwright, 3/3 Go, backup SQL/custom plus isolated restore, final DB reconciliation dan dependency regression PASS. M13 kini **3/4 CP lokal teruji**; CP04 belum dikerjakan. Canonical M13 tetap **0/5 D fully verified**, M00–M18 tetap **0/97 D fully verified** karena external/shared gates masih terbuka. Tidak ada akses DB staging/live, delete, commit, push atau deploy. Pembaruan bertanggal sama di bawah merekam run gagal yang sudah digantikan oleh bukti terbaru ini.
+
+## Pembaruan 30 Oktober 2026 — PostgreSQL lokal bekerja, CP03 menunggu ulang QA
+
+Run terminal biasa `20261030T042312Z-postgres-lab-4d9f493c2d96` berhasil memulai cluster sintetis baru, melakukan backup/restore SQL/custom untuk M13-CP03 dan mencapai tes Playwright AI. Tiga dari empat kasus lulus; `M13-CP03-failure-no-grade` gagal karena payload tes memiliki field ekstra yang ditolak endpoint sebelum guard AI diuji. Payload telah diperbaiki dan runner kini mencetak progres berkala. Run tersebut `FAIL` dan source kini berubah; Go/DB mandatory serta final reconciliation CP03 belum dieksekusi. **M13 tetap 2/4 CP lokal teruji, canonical 0/5 D; proyek M00–M18 tetap 0/97 D fully verified.** Jalankan ulang seluruh journey pada cluster sintetis baru sebelum menutup CP03. [Bukti lengkap](checkpoints/2026-10-29-m13-cp03.md). Bagian bertanggal lebih lama di bawah adalah histori.
+
+## Pembaruan 29 Oktober 2026 — M13-CP03 belum ditutup
+
+[M13-CP03](checkpoints/2026-10-29-m13-cp03.md) telah diimplementasikan sebagai suggestion sintetis non-authoritative dengan gradebook tetap human-controlled. `go test ./...`, `go vet ./...`, kompilasi tagged integration dan Playwright collection lulus, tetapi **Playwright/Go-DB/backup/restore/reconciliation tidak dijalankan** karena `initdb`/`pg_ctl` ditolak Windows restricted-token error 87 sebelum migrasi. M13 tetap **2/4 CP lokal teruji**, canonical 0/5 D; M00–M18 tetap **0/97 D fully verified**. Staging/live tidak disentuh; tidak ada delete, commit, push atau deploy. Status bertanggal lebih lama di bawah adalah histori.
+
+## Pembaruan 30 September 2026 — M07-CP04
+
+[M07-CP04](checkpoints/2026-09-30-m07-cp04.md) lulus **4/4 Playwright dan 3/3 Go/DB** pada PostgreSQL lokal sintetis, disertai backup SQL/custom, isolated restore, rekonsiliasi dan dependency regression. M07 kini **4/4 CP slice lokal**, tetapi canonical **0/5 D** dan total M00–M18 **0/97 D fully verified**. Historical owner exact revision dan structure-only clone sudah teruji; real importantLinks import, attachment, frontend/shared/QG dan source mapping belum. Run `20260930T104933Z-postgres-lab-a4ed4b030dc1`, source `52521b0ca62f5846d5af46766bf0e554470fdd103b718c05e33ea17cc75888b6`, `PASS_SYNTHETIC_ONLY`. Staging/live tidak diakses; tidak ada delete, commit, push atau deploy. Status lebih lama di bawah adalah histori.
+
+## Pembaruan 29 September 2026 — M10-CP04 dan M05-CP05
+
+[M10-CP04](checkpoints/2026-09-29-m10-cp04.md) menutup **4/4 CP slice lokal sintetis** M10 (3 Go/DB + 3 Playwright PASS pada run CP04). [M05-CP05](checkpoints/2026-09-29-m05-cp05.md) menutup **5/5 CP slice lokal sintetis** M05 (2 Go/DB + 3 Playwright PASS), dengan Class→content→submission→grade, end/archive dan retake provenance, backup/restore dan reconciliation. Run final M05 `20260929T133707Z-postgres-lab-46f4fba76430`, source `6c0dc6f6a18b62869b056ef7e8c930a29dfed47c699ebe0b4281f549783cb5c9`, `PASS_SYNTHETIC_ONLY`. Canonical M00–M18 tetap **0/97 D fully verified**. Policy Grade historis pasca-archive, academic approval, real source/identity, shared runtime, remote CI, frontend contract dan QG masih terbuka. Tabel/status lama di bawah adalah histori.
+
+## Rekonsiliasi 24 September 2026 — cara membaca status
+
+[Review lintas dokumen](RECONCILIATION_2026-09-24.md) menetapkan M13-CP01/02 **2/4 CP lokal sintetis** setelah memeriksa [manifest dan run QA](checkpoints/2026-09-24-m13-cp01-cp02-evidence-review.md); dashboard lama yang menyebut M13 `NOT_STARTED` tidak berlaku. Run ini adalah regresi pada source CP03 M10, bukan QA baru 24 September. M09 tetap 4/4 CP lokal, M10 3/4, M15 5/5 slice sintetis; seluruh M00–M18 tetap **0/97 D fully verified**. [Baseline database lokal](LOCAL_SYNTHETIC_BASELINE.md) berlaku sampai source live sah tersedia.
+
+## Pembaruan 22 September 2026 — M10-CP03
+
+[Transcript dan credential lifecycle](checkpoints/2026-09-22-m10-cp03.md) lulus **6/6 frozen cases** (3 Go/DB + 3 Playwright), backup SQL/custom + actual isolated restore, reconciliation dan full dependency regression pada PostgreSQL sintetis lokal. Release transcript eksplisit menyimpan provenance grade/policy; credential issue idempotent, revoke/supersede append-only, dan public verification hanya membuka status minimal sesuai visibility. M10 kini **3/4 CP lokal**, canonical **0/5 D**. Run final `20260922T125746Z-postgres-lab-2e3def603dd8`, source `25fb237a09bc2cf81e9e988dfd74646624f6a7485a6ee1da0600aa121db1833c`, `PASS_SYNTHETIC_ONLY`. Staging/production tidak diakses; tidak ada delete, commit, push atau deployment. Berikutnya M10-CP04; academic policy, real mapping, shared runtime dan QG tetap pending.
+
+## Pembaruan 22 September 2026 — M10-CP02
+
+[Progress, override dan reopen](checkpoints/2026-09-22-m10-cp02.md) lulus **6/6 frozen cases** (3 Go/DB + 3 Playwright) dan full dependency regression pada PostgreSQL sintetis lokal, dengan backup SQL/custom serta actual isolated restore sebelum installment. Progress adalah query-time projection dari history; correction append-only, reasoned, versioned, idempotent, scoped, dan audit/outbox atomic. M10 kini **2/4 CP lokal**, canonical **0/5 D**. Run final `20260922T092150Z-postgres-lab-851380abc177`, source `19f1494d5a3448221299747d03110993723388c1e71be051c047f4484b543599`, `PASS_SYNTHETIC_ONLY`. Staging/production tidak diakses; tidak ada delete, commit, push atau deployment. Berikutnya M10-CP03; academic policy dan shared/real gates tetap pending.
+
+## Pembaruan 22 September 2026 — M10-CP01
+
+[Completion-policy foundation](checkpoints/2026-09-22-m10-cp01.md) lulus **6/6 frozen cases** (3 Go/DB + 3 Playwright) setelah backup SQL/custom dan actual isolated restore pada PostgreSQL sintetis lokal. Rule snapshot, explicit learner evidence dan scoped outcome terpisah dari grade; M10 kini **1/4 CP lokal**, canonical **0/5 D**. Run final `20260922T075030Z-postgres-lab-661c9a0a95b9`, source `05fbe4de581eaad03474e2e9b6a9fedde9eecdaf63640d7a905ca0bc6c327a93`, `PASS_SYNTHETIC_ONLY`. Tidak ada staging/production access, delete, commit, push atau deployment. Berikutnya M10-CP02; academic policy dan shared/real gates tetap pending.
+
 ## Pembaruan 15 September 2026 — M12-CP02 dan M12-CP03
 
 [M12-CP02/CP03](checkpoints/2026-09-15-m12-cp02-cp03.md) lulus **8/8 frozen cases** pada PostgreSQL sintetis lokal, dengan backup SQL/custom + actual isolated restore terpisah sebelum masing-masing installment. Entry/revision/file history, exact submit, scoped mentor review, reassignment provenance, CAS concurrency, audit/outbox/idempotency dan DB privilege boundaries teruji. M12 kini **3/4 slice lokal**, canonical **0/5 D**; total M00–M18 tetap **0/97 D**. Run final `20260915T113408Z-postgres-lab-c710a6f77c5f`, source `a008d3be4df930256dbb273576fdac775fbdad199054adc40dada63885b9d4e0`, `PASS_SYNTHETIC_ONLY`. Tidak ada staging/production access, delete, commit, push atau deployment. M12-CP04 menunggu reviewed legacy mapping/authority; lane sintetis berikut yang mungkin adalah M13-CP01.
@@ -25,13 +77,13 @@ Scope dibekukan pada [manifest M15-CP05/M11-CP01](../qa/manifests/M15-CP05-M11-C
 | [M04](modules/M04.md) | 5 | 2/5 | Bridge/session dan Class fence lokal teruji; real owner/provisioning, refresh/browser dan full ancestry tersisa |
 | [M05](modules/M05.md) | 5 | 4/5 | Grouping/mentor/invited/retake/provenance teruji lokal; CP05 content/learner-state closure tersisa |
 | [M06](modules/M06.md) | 4 | 3/4 | Private asset/delivery dan bounded egress teruji lokal; CP04 mapping/closure tersisa |
-| [M07](modules/M07.md) | 4 | 3/4 | Structure, safe content dan producer assignment contract teruji lokal; M08 consumer sudah mem-pin revisi, CP04 historical-owner read/clone tersisa |
+| [M07](modules/M07.md) | 4 | 4/4 sintetis | Structure, safe content, exact assignment reference, historical owner read dan structure-only clone teruji lokal; real import/attachment dan shared gates tersisa |
 | [M08](modules/M08.md) | 4 | 3/4; CP04 parsial | Receipt/deadline, exact revision, retained resubmit dan bounded raw landing teruji lokal; CP04 real chronology/closure menunggu M15 |
 | [M11](modules/M11.md) | 4 | 1/4 sintetis lokal | CP01 meeting/exception Class lulus; policy, attendance/permit/SP/outcome dan shared runtime masih pending |
 | [M12](modules/M12.md) | 4 | 3/4 sintetis lokal | CP01 periods + CP02 entry/revision + CP03 scoped review/reassignment lulus; CP04 legacy mapping/closure dan shared gates pending |
 | [M15](modules/M15.md) | 5 | 5/5 sintetis lokal | Reconciliation fixture juga lulus; real-source adapter/CA/backup/academic approval dan file bytes masih tertahan |
 
-M09 2/4, M10/M13/M14 masing-masing 0/4, M11 1/4, M12 3/4, M16–M17 0/4, M18 0/3; M19 belum frozen (N/A). Ini jumlah potongan scope teruji, **bukan persentase effort atau progress full module**. Tidak menjumlahkan numerator antar M karena shared evidence dan ukuran CP berbeda. Full M00–M18 masih 0/97 D; slice lokal tidak menutup klausa canonical yang masih mempunyai provider/shared/QG gate.
+M09 4/4, M10 3/4, M13 2/4 (review 24 September), M14 0/4, M11 1/4, M12 3/4, M16–M17 0/4, M18 0/3; M19 belum frozen (N/A). Ini jumlah potongan scope teruji, **bukan persentase effort atau progress full module**. Tidak menjumlahkan numerator antar M karena shared evidence dan ukuran CP berbeda. Full M00–M18 masih 0/97 D; slice lokal tidak menutup klausa canonical yang masih mempunyai provider/shared/QG gate.
 
 **Latest M15-CP03/CP04, 13 September:** [dua slice sintetis lokal lulus](checkpoints/2026-09-13-m15-cp03-cp04.md). Run final `20260913T141341Z-postgres-lab-81b971a0ad85` PASS_SYNTHETIC_ONLY pada source `3252177f…`: backup+actual isolated restore per CP, Go/DB 2/2 dan Playwright 1/1 per CP, deterministic Class mapping/quarantine, append-only decisions, atomic unpublished shadow import, rollback/replay/concurrent-owner fence dan full backend regression PASS. M15 kini 4/5 slice lokal, canonical tetap 0/6; CP05, real source adapter/CA/inventory, shared backup, academic approval dan reconciliation belum ada. Tidak ada staging/live access, database deletion, commit atau push.
 
@@ -57,7 +109,7 @@ M09 2/4, M10/M13/M14 masing-masing 0/4, M11 1/4, M12 3/4, M16–M17 0/4, M18 0/3
 
 **Latest CP11–CP12, 8 September:** [VERIFIED_LOCAL_SLICES](checkpoints/2026-09-08-cp11-cp12.md), **4/4 deliverable lokal masing-masing**. CP11 API 6/6; CP12 + CP11 regression 9/9; CP10 API 6/6; M00 20/20; M03 23/23; 23 default Go cases + Linux race/non-root PASS. Measured coverage union: identity 86.01%, Class 83.85%, access 100%, seluruh profile 70.09%. Full M04/M05 gates tetap belum terverifikasi. Root Go dan CP08–CP10 published pada `edac5af`; user kemudian mengotorisasi publikasi CP11–CP12 ke `be-v3` setelah QA, dengan raw artifact tetap lokal. Ringkasan numerik CP08–CP10 di bawah adalah histori, bukan source terbaru.
 
-[Indeks](README.md) · [QA contract](QA_AUTOMATION_PLAN.md) · [Master plan](../../../ImplementationPlan.MD)
+[Indeks](README.md) · [QA contract](QA_AUTOMATION_PLAN.md) · [Master plan](references/ImplementationPlan.MD)
 
 Baseline brief: 5 September 2026; checkpoint implementasi: 6 September 2026 WIB. **M00 inventory source dan M03 Go/QA bootstrap kini executable dan diuji lokal setelah otorisasi pengguna.** Full module, DB identity/backup/migration dan release belum verified. Owner/reviewer operasional belum ditetapkan. Panduan command: [service README](../README.md).
 
@@ -86,14 +138,14 @@ Coverage adalah fully verified D / planned mandatory D, bukan jumlah file/tes ya
 | [M04](modules/M04.md) | IN_PROGRESS (CP11–CP12 slice verified) | LOCAL_IDENTITY_API_DB_PASS | 0/5 full (0%) | Verified synthetic bridge/session/CSRF/projection/local admin/fence; real legacy provisioning/reset/global owner, browser and full QG pending. CP11 slice 4/4. |
 | [M05](modules/M05.md) | IN_PROGRESS (CP12 slice verified) | LOCAL_CAPABILITY_API_DB_PASS | 0/5 full (0%) | Teacher manages Students; close/reopen/suspend/reactivate/end/rejoin/history/last-teacher/concurrency verified locally. Grouping/retake/content readiness/operational QG pending. CP12 slice 4/4. |
 | [M06](modules/M06.md) | IN_PROGRESS (CP01–CP03 local slices) | LOCAL_FILE_EGRESS_API_DB_PASS | 0/5 full (0%) | Bounded egress teruji sintetis; CP04 mapping, actual providers/DNS/shared/QG pending. |
-| [M07](modules/M07.md) | IN_PROGRESS (CP01–CP03 local producer slices) | LOCAL_CONTENT_API_DB_PASS | 0/5 full (0%) | Revision-bound assignment contract dan M08 exact-revision consumer teruji lokal; CP04 historical-owner read/clone serta frontend/shared gates pending. |
+| [M07](modules/M07.md) | IN_PROGRESS (CP01–CP04 local synthetic slices) | LOCAL_CONTENT_API_DB_PASS | 0/5 full (0%) | CP04 historical-owner read dan structure-only clone teruji; real import/attachment, frontend/shared/QG gates pending. |
 | [M08](modules/M08.md) | IN_PROGRESS (CP01–CP03 local slices; CP04 partial) | LOCAL_SUBMISSION_RECEIPT_API_DB_PASS | 0/5 full (0%) | Receipt/deadline dan retained history teruji; CP04 real chronology/M15, M09 consumer, shared/remote/QG pending. |
-| [M09](modules/M09.md) | IN_PROGRESS (CP01–CP02 local slices) | PASS_SYNTHETIC_ONLY (`20260918T043951Z-postgres-lab-60af208590ae`) | 0/5 full; D01–D03 didukung local evidence | Grade definitions, scoped grade, atomic rollback dan concurrent regrade PASS; CP03 import/release, CP04 reconciliation, shared/remote/QG pending. |
-| [M10](modules/M10.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Completion policy dan domain prerequisites belum verified. |
+| [M09](modules/M09.md) | LOCAL_SYNTHETIC_COMPLETE (CP01–CP04) | PASS_SYNTHETIC_ONLY (`20260921T062257Z-postgres-lab-cf154cd61d25`) | 0/5 full canonical; D01–D05 didukung local evidence | Definitions, scoped grade, safe import/release, dan historical reconciliation PASS lokal; academic approval, real inventory, shared/remote/QG pending. |
+| [M10](modules/M10.md) | IN_PROGRESS (CP01–CP03 synthetic PASS) | PASS_SYNTHETIC_ONLY (`20260922T125746Z-postgres-lab-2e3def603dd8`) | 0/5 full canonical; D01–D04 didukung local evidence parsial | Rule/evidence/progress, transcript snapshot dan credential lifecycle teruji lokal; CP04, academic approval, shared/real/remote/QG gates pending. |
 | [M11](modules/M11.md) | IN_PROGRESS (CP01 synthetic slice) | LOCAL_MEETING_GO_DB_PLAYWRIGHT_PASS | 0/5 full (0%) | Attendance/permit policy, CP02–04, shared runtime dan canonical gates pending. |
 | [M12](modules/M12.md) | IN_PROGRESS (CP01–CP03 synthetic slices) | LOCAL_LOGBOOK_GO_DB_PLAYWRIGHT_PASS | 0/5 full (0%) | Period/deadline product policy, CP04 legacy mapping/closure, shared runtime/provider dan canonical gates pending. |
-| [M13](modules/M13.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Worker M03 tersedia; provider/notification contract dan M13-specific harness belum ada. |
-| [M14](modules/M14.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Core modules, benchmark workload/threshold dan actual API belum available. |
+| [M13](modules/M13.md) | LOCAL_SYNTHETIC_CLOSURE (4/4 CP) | PASS_SYNTHETIC_ONLY (`20261031T100520Z-postgres-lab-246c640f9cf1`) | 0/5 full canonical; all D supported by bounded local evidence | Actual provider/secret manager, privacy/recipient policy, shared runtime and remote/QG pending. |
+| [M14](modules/M14.md) | CP01–04 PASS local (4/4) | Full native journey reviewed; 21/21 direct cases, 1,080 requests, DB/pool/audit/dependencies PASS | 0/5 full canonical | Local lane closed; shared-runtime/key/identity, real-source parity, remote/QG and frontend/production evidence remain open. |
 | [M15](modules/M15.md) | LOCAL_SYNTHETIC_SLICES_COMPLETE (CP01–05) | LOCAL_RECONCILIATION_GO_DB_PLAYWRIGHT_PASS | 0/6 full (0%) | Source nyata/CA/backup/academic approval, file bytes dan canonical mapping/backfill belum verified. |
 | [M16](modules/M16.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | BLOCKED_INPUT: source/target identity, backup/CA/access/data-copy approvals. |
 | [M17](modules/M17.md) | NOT_STARTED | NOT_RUN | 0/5 (0%) | Frontend and identity integration, data-owner approvals, rehearsal and deployment readiness pending. |

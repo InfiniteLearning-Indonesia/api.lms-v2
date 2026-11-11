@@ -105,6 +105,7 @@ type Snapshot struct {
 type Command struct {
 	Action        string               `json:"action"`
 	ClassID       string               `json:"class_id"`
+	SourceClassID string               `json:"source_class_id,omitempty"`
 	SectionID     string               `json:"section_id,omitempty"`
 	ActivityID    string               `json:"activity_id,omitempty"`
 	RevisionID    string               `json:"revision_id,omitempty"`
@@ -222,6 +223,9 @@ func normalize(command Command) (Command, error) {
 	}
 	switch command.Action {
 	case "create_section", "update_section", "create_activity", "update_activity":
+		if command.SourceClassID != "" {
+			return command, ErrInvalid
+		}
 		var err error
 		command.Title, err = cleanTitle(command.Title)
 		if err != nil || command.Position < 1 || command.Position > 10000 || command.RevisionID != "" || command.RawBody != "" || command.Timezone != "" || command.AvailableFrom != nil || command.DueAt != nil || command.CutoffAt != nil || command.Assignment != nil {
@@ -246,6 +250,9 @@ func normalize(command Command) (Command, error) {
 			return command, ErrInvalid
 		}
 	case "create_revision", "update_revision":
+		if command.SourceClassID != "" {
+			return command, ErrInvalid
+		}
 		command.RawBody = strings.ReplaceAll(strings.ReplaceAll(command.RawBody, "\r\n", "\n"), "\r", "\n")
 		if command.SectionID != "" || command.ActivityID == "" || !validSchedule(command) || command.Title != "" || command.Position != 0 || command.ActivityType != "" {
 			return command, ErrInvalid
@@ -265,7 +272,11 @@ func normalize(command Command) (Command, error) {
 			return command, ErrInvalid
 		}
 	case "publish_revision", "withdraw_revision":
-		if command.SectionID != "" || command.ActivityID == "" || command.RevisionID == "" || command.Version < 1 || command.Title != "" || command.Position != 0 || command.ActivityType != "" || command.RawBody != "" || command.Timezone != "" || command.AvailableFrom != nil || command.DueAt != nil || command.CutoffAt != nil || command.Assignment != nil {
+		if command.SourceClassID != "" || command.SectionID != "" || command.ActivityID == "" || command.RevisionID == "" || command.Version < 1 || command.Title != "" || command.Position != 0 || command.ActivityType != "" || command.RawBody != "" || command.Timezone != "" || command.AvailableFrom != nil || command.DueAt != nil || command.CutoffAt != nil || command.Assignment != nil {
+			return command, ErrInvalid
+		}
+	case "clone_structure":
+		if command.SourceClassID == "" || command.SourceClassID == command.ClassID || command.SectionID != "" || command.ActivityID != "" || command.RevisionID != "" || command.ActivityType != "" || command.Title != "" || command.Position != 0 || command.Version != 0 || command.RawBody != "" || command.Timezone != "" || command.AvailableFrom != nil || command.DueAt != nil || command.CutoffAt != nil || command.Assignment != nil {
 			return command, ErrInvalid
 		}
 	default:
@@ -410,6 +421,33 @@ func (s *Store) Execute(ctx context.Context, session, key, requestID string, com
 		if err != nil {
 			return err
 		}
+		if command.Action == "clone_structure" {
+			// Lock both Class rows in deterministic order before checking the
+			// idempotency record or source snapshot. Content writers take a
+			// Class FOR SHARE lock, so the source cannot change mid-clone.
+			rows, lockErr := tx.Query(ctx, `SELECT id FROM v3.classes WHERE id IN ($1,$2) ORDER BY id FOR UPDATE`, command.ClassID, command.SourceClassID)
+			if lockErr != nil {
+				return lockErr
+			}
+			count := 0
+			for rows.Next() {
+				var id string
+				if lockErr = rows.Scan(&id); lockErr != nil {
+					break
+				}
+				count++
+			}
+			if lockErr == nil {
+				lockErr = rows.Err()
+			}
+			rows.Close()
+			if lockErr != nil {
+				return lockErr
+			}
+			if count != 2 {
+				return ErrNotFound
+			}
+		}
 		if err = s.context(ctx, tx, actor, command.ClassID, true); err != nil {
 			return err
 		}
@@ -427,6 +465,8 @@ func (s *Store) Execute(ctx context.Context, session, key, requestID string, com
 		}
 		var value any
 		switch command.Action {
+		case "clone_structure":
+			value, err = s.cloneStructure(ctx, tx, actor, command)
 		case "create_section":
 			var id string
 			id, err = token(16)
@@ -719,9 +759,6 @@ func (s *Store) ResolveAssignmentContract(ctx context.Context, session, classID,
 		if err != nil {
 			return err
 		}
-		if err = s.context(ctx, tx, actor, classID, false); err != nil {
-			return err
-		}
 		installed, err := assignmentContractsInstalled(ctx, tx)
 		if err != nil {
 			return err
@@ -733,10 +770,31 @@ func (s *Store) ResolveAssignmentContract(ctx context.Context, session, classID,
 		if err != nil {
 			return err
 		}
+		historicalOwner := false
+		if !author {
+			var submissionsInstalled bool
+			if err = tx.QueryRow(ctx, "SELECT to_regclass('v3.submission_aggregates') IS NOT NULL").Scan(&submissionsInstalled); err != nil {
+				return err
+			}
+			if submissionsInstalled {
+				err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.submission_aggregates s
+					WHERE s.class_id=$1 AND s.activity_id=$2 AND s.assignment_revision_id=$3 AND s.owner_user_id=$4)`, classID, activityID, revisionID, actor.ID).Scan(&historicalOwner)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if !author && !historicalOwner {
+			if err = s.context(ctx, tx, actor, classID, false); err != nil {
+				return err
+			}
+		}
 		query := `SELECT ` + qualifyFields("cr", revisionFields) + `,` + qualifyFields("ar", assignmentRuleFields) + `
 			FROM v3.content_revisions cr JOIN v3.assignment_revision_rules ar ON ar.revision_id=cr.id AND ar.class_id=cr.class_id AND ar.activity_id=cr.activity_id
 			WHERE cr.id=$1 AND cr.class_id=$2 AND cr.activity_id=$3`
-		if !author {
+		if historicalOwner && !author {
+			query += " AND cr.state IN ('PUBLISHED','WITHDRAWN')"
+		} else if !author {
 			query += " AND cr.state='PUBLISHED' AND (cr.available_from IS NULL OR cr.available_from<=clock_timestamp())"
 		}
 		row := tx.QueryRow(ctx, query, revisionID, classID, activityID)

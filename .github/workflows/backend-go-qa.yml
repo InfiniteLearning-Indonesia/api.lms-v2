@@ -59,7 +59,7 @@ jobs:
   fresh-postgres-backend:
     runs-on: ubuntu-24.04
     needs: synthetic-checks
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -75,8 +75,8 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -r qa/requirements.lock
-      - name: Fresh loopback PostgreSQL, backup/restore and backend dependency journey through M09-CP02
-        run: .venv/bin/python -m qa.postgres_lab --create-local-synthetic-cluster --pg-bin "$(pg_config --bindir)" --gradebook-journey
+      - name: Fresh loopback PostgreSQL, backup/restore and backend dependency journey through M14-CP04
+        run: .venv/bin/python -m qa.postgres_lab --create-local-synthetic-cluster --pg-bin "$(pg_config --bindir)" --reporting-performance-journey
         env:
           GOTOOLCHAIN: go1.27.1
           GOPROXY: 'off'

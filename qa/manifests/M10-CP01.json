@@ -1,0 +1,12 @@
+{
+  "m10_cp01_go": [
+    "lmsv3/internal/completion:TestSyntheticCompletionRuleSnapshot",
+    "lmsv3/internal/completion:TestSyntheticCompletionOutcomeSeparation",
+    "lmsv3/internal/completion:TestSyntheticCompletionBoundary"
+  ],
+  "m10_cp01_python": [
+    "M10-CP01-rule-snapshot",
+    "M10-CP01-grade-separation",
+    "M10-CP01-security-boundary"
+  ]
+}

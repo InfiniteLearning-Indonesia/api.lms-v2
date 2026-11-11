@@ -1,0 +1,7 @@
+{
+  "version":1,"module":"M14","scope":"LOCAL_SYNTHETIC_SLICE",
+  "checkpoints":[{"id":"M14-CP01","module":"M14","deliverables":["M14-D01","M14-D04"],"cases":["lmsv3/internal/reporting:TestSyntheticReportIntegrity","lmsv3/internal/reporting:TestReportingContract","M14-CP01-release-read-your-writes","M14-CP01-actor-boundary","M14-CP01-minimal-fields"]}],
+  "m14_cp01_go":["lmsv3/internal/reporting:TestSyntheticReportIntegrity","lmsv3/internal/reporting:TestReportingContract"],
+  "m14_cp01_python":["M14-CP01-release-read-your-writes","M14-CP01-actor-boundary","M14-CP01-minimal-fields"],
+  "external_gates":["SHARED_RUNTIME","WIDER_REPORT_PROJECTIONS","REMOTE_CI"]
+}

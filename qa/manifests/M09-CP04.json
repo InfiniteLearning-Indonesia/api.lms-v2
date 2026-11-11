@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_SLICE",
+  "module": "M09",
+  "checkpoints": [
+    {
+      "id": "M09-CP04",
+      "deliverables": ["M09-D01", "M09-D02", "M09-D03", "M09-D04", "M09-D05"],
+      "cases": [
+        "lmsv3/internal/gradebook:TestSyntheticHistoricalSemantics",
+        "lmsv3/internal/gradebook:TestSyntheticHistoricalScopedMatch",
+        "lmsv3/internal/gradebook:TestSyntheticHistoricalBoundary",
+        "M09-CP04-historical-semantics",
+        "M09-CP04-scoped-match",
+        "M09-CP04-security-boundary"
+      ]
+    }
+  ],
+  "m09_cp04_go": [
+    "lmsv3/internal/gradebook:TestSyntheticHistoricalSemantics",
+    "lmsv3/internal/gradebook:TestSyntheticHistoricalScopedMatch",
+    "lmsv3/internal/gradebook:TestSyntheticHistoricalBoundary"
+  ],
+  "m09_cp04_python": [
+    "M09-CP04-historical-semantics",
+    "M09-CP04-scoped-match",
+    "M09-CP04-security-boundary"
+  ],
+  "external_gates": ["ACADEMIC_POLICY_APPROVAL", "REAL_LEGACY_INVENTORY_AND_MAPPING", "SHARED_RUNTIME_WIRING", "REMOTE_CI_EXECUTION"]
+}

@@ -3,25 +3,161 @@
   "package": "M00",
   "profile": "local-synthetic",
   "full_suite_implemented": false,
-  "pytest_paths": ["qa/tests/ops", "qa/tests/baseline"],
+  "pytest_paths": [
+    "qa/tests/ops",
+    "qa/tests/baseline"
+  ],
   "expected_checks": [
     "Q00-checkpoint-report",
-    "Q00-go-format", "Q00-go-build", "Q00-go-unit", "Q00-go-vet", "Q00-operational-evidence", "Q00-release-contract", "Q00-postgres-lab-boundary",
-    "Q00-local-api-boundary", "M00-T02-fail-closed", "M00-T05-handoff-gate",
-    "M01-T01-backup-predicate", "Q00-evidence-missing-cases",
-    "Q00-evidence-stale-and-gates", "Q00-evidence-duplicates-zero",
-    "Q00-render-preserves-human-section", "Q00-runner-lock-and-env",
-    "Q00-runner-plugin-evidence", "M03-CP06-checkpoint-registry", "M00-T01-local-inventory", "M00-T02-db-cli-offline-gates"
+    "Q00-go-format",
+    "Q00-go-build",
+    "Q00-go-unit",
+    "Q00-go-vet",
+    "Q00-operational-evidence",
+    "Q00-release-contract",
+    "Q00-postgres-lab-boundary",
+    "Q00-local-api-boundary",
+    "M00-T02-fail-closed",
+    "M00-T05-handoff-gate",
+    "M01-T01-backup-predicate",
+    "Q00-evidence-missing-cases",
+    "Q00-evidence-stale-and-gates",
+    "Q00-evidence-duplicates-zero",
+    "Q00-render-preserves-human-section",
+    "Q00-runner-lock-and-env",
+    "Q00-runner-plugin-evidence",
+    "M03-CP06-checkpoint-registry",
+    "M00-T01-local-inventory",
+    "M00-T02-db-cli-offline-gates",
+    "M13-CP04-runner-order",
+    "M14-CP02-instrumentation-regression",
+    "M14-CP04-load-acceptance",
+    "M14-CP04-runner-wiring",
+    "Q00-postgres-stop-budget",
+    "Q00-retention-evidence-gates",
+    "Q00-retention-global-selection",
+    "Q00-retention-path-boundaries",
+    "Q00-retention-protected-exceptions",
+    "Q00-retention-registry-coverage",
+    "Q00-retention-time-pins-duplicates",
+    "Q00-storage-all-entrypoints",
+    "Q00-storage-budget",
+    "Q00-storage-evidence-integrity",
+    "Q00-storage-selective-compression",
+    "Q00-storage-synthetic-scope",
+    "Q00-retention-apply-backup-lock-path",
+    "Q00-retention-apply-job-boundary",
+    "Q00-retention-apply-preservation",
+    "Q00-retention-apply-preview",
+    "Q00-retention-apply-protected-retry",
+    "Q00-retention-apply-active",
+    "Q00-retention-apply-backup",
+    "Q00-retention-apply-cases",
+    "Q00-retention-apply-contract",
+    "Q00-retention-apply-control",
+    "Q00-retention-apply-interruption-before-delete",
+    "Q00-retention-apply-interruption-partial-delete",
+    "Q00-retention-apply-new-pin",
+    "Q00-retention-apply-path",
+    "Q00-retention-apply-plan-hash",
+    "Q00-retention-apply-quota",
+    "Q00-retention-apply-scope",
+    "Q00-retention-apply-stale-pins",
+    "Q00-retention-apply-stale-source",
+    "Q00-retention-apply-expired-plan",
+    "Q00-retention-apply-last-minute-pin",
+    "Q00-retention-apply-replaced-directory",
+    "Q00-retention-apply-tampered-disposal-receipt",
+    "Q00-retention-apply-interruption-before-receipt",
+    "Q00-retention-apply-malformed-marker",
+    "Q00-retention-auto-backup-secret-exclusion",
+    "Q00-retention-auto-concurrent-lock",
+    "Q00-retention-auto-default-disabled",
+    "Q00-retention-auto-entrypoint-wiring",
+    "Q00-retention-auto-fixed-root",
+    "Q00-retention-auto-future-only",
+    "Q00-retention-auto-hook-interruption",
+    "Q00-retention-auto-hook-lock-order",
+    "Q00-retention-auto-native-proof-policy",
+    "Q00-retention-auto-one-per-cycle",
+    "Q00-retention-auto-pin-and-current-run",
+    "Q00-retention-auto-revocation",
+    "Q00-retention-auto-source-change",
+    "Q00-retention-auto-compactor-disposal-aware",
+    "Q00-retention-auto-core-revocation-guard",
+    "Q00-retention-auto-cutoff-timestamp-boundary",
+    "Q00-retention-auto-policy-read-race",
+    "Q00-owner-handoff-admitted",
+    "Q00-owner-handoff-blocked",
+    "Q00-owner-inventory-real-gate",
+    "Q00-preflight-case-evidence",
+    "Q00-preflight-frozen-case-set",
+    "Q00-preflight-manifest-wiring",
+    "Q00-preflight-nonpass-green-exit",
+    "Q00-preflight-secret-archive-exclusion"
   ],
   "deliverables": [
-    {"id": "M00-D01", "checks": ["M00-T01-local-inventory", "Q00-go-unit"], "pending_evidence": ["DEPLOYED_SHA_NOT_VERIFIED", "ROUTE_AND_SCHEMA_DIFF_REVIEW_PENDING"]},
-    {"id": "M00-D02", "checks": ["M00-T02-fail-closed", "Q00-operational-evidence"], "pending_evidence": ["PRODUCTION_IDENTITY_AND_TLS_PENDING", "DEDICATED_READ_ONLY_ROLE_PENDING", "STAGING_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"]},
-    {"id": "M00-D03", "checks": ["M00-T01-local-inventory"], "pending_evidence": ["FULL_NAMESPACE_JOBS_STORAGE_INVENTORY_PENDING", "PUBLIC_CATALOG_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"]},
-    {"id": "M00-D04", "checks": ["Q00-evidence-missing-cases"], "pending_evidence": ["CAPACITY_AND_DATA_ACCESS_REVIEW_NOT_AVAILABLE", "CAPACITY_ACCEPTANCE_TEST_NOT_IMPLEMENTED"]},
-    {"id": "M00-D05", "checks": ["M00-T05-handoff-gate"], "pending_evidence": ["OPERATOR_APPROVAL_AND_SCHEMA_RECEIPT_NOT_AVAILABLE"]}
+    {
+      "id": "M00-D01",
+      "checks": [
+        "M00-T01-local-inventory",
+        "Q00-go-unit"
+      ],
+      "pending_evidence": [
+        "DEPLOYED_SHA_NOT_VERIFIED",
+        "ROUTE_AND_SCHEMA_DIFF_REVIEW_PENDING"
+      ]
+    },
+    {
+      "id": "M00-D02",
+      "checks": [
+        "M00-T02-fail-closed",
+        "Q00-operational-evidence"
+      ],
+      "pending_evidence": [
+        "PRODUCTION_IDENTITY_AND_TLS_PENDING",
+        "DEDICATED_READ_ONLY_ROLE_PENDING",
+        "STAGING_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"
+      ]
+    },
+    {
+      "id": "M00-D03",
+      "checks": [
+        "M00-T01-local-inventory"
+      ],
+      "pending_evidence": [
+        "FULL_NAMESPACE_JOBS_STORAGE_INVENTORY_PENDING",
+        "PUBLIC_CATALOG_OBSERVATION_SEPARATE_FROM_SYNTHETIC_QA"
+      ]
+    },
+    {
+      "id": "M00-D04",
+      "checks": [
+        "Q00-evidence-missing-cases"
+      ],
+      "pending_evidence": [
+        "CAPACITY_AND_DATA_ACCESS_REVIEW_NOT_AVAILABLE",
+        "CAPACITY_ACCEPTANCE_TEST_NOT_IMPLEMENTED"
+      ]
+    },
+    {
+      "id": "M00-D05",
+      "checks": [
+        "M00-T05-handoff-gate"
+      ],
+      "pending_evidence": [
+        "OPERATOR_APPROVAL_AND_SCHEMA_RECEIPT_NOT_AVAILABLE"
+      ]
+    }
   ],
   "required_gates": [
-    {"id": "M00-operator-environment-verification", "status": "BLOCKED"},
-    {"id": "QG01-QG08-full-acceptance", "status": "NOT_RUN"}
+    {
+      "id": "M00-operator-environment-verification",
+      "status": "BLOCKED"
+    },
+    {
+      "id": "QG01-QG08-full-acceptance",
+      "status": "NOT_RUN"
+    }
   ]
 }

@@ -97,6 +97,14 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 		decoder.DisallowUnknownFields()
 		command := Command{ClassID: parts[2]}
 		switch {
+		case len(parts) == 5 && parts[3] == "content" && parts[4] == "clone" && r.Method == http.MethodPost:
+			route, command.Action = "content.clone_structure", "clone_structure"
+			var body struct {
+				SourceClassID string `json:"source_class_id"`
+			}
+			if err = decoder.Decode(&body); err == nil {
+				command.SourceClassID = body.SourceClassID
+			}
 		case len(parts) == 4 && parts[3] == "sections" && r.Method == http.MethodPost:
 			route, command.Action = "content.create_section", "create_section"
 			var body struct {

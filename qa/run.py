@@ -16,6 +16,7 @@ import uuid
 
 from qa.evidence import publish_checkpoint, render_section, source_fingerprint, summarize, verify_go_cases, write_new_json
 from qa.observations import reconcile
+from qa import storage, retention_automation
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,8 +26,8 @@ def clean_environment(root: Path, inherited: dict) -> dict:
                "TMPDIR", "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "PROGRAMFILES"}
     env = {k: v for k, v in inherited.items() if k.upper() in allowed}
     env.update(GOTOOLCHAIN="go1.27.1", GOMODCACHE=str(root / ".cache" / "go-mod"),
-               GOCACHE=str(root / ".cache" / "go-build"), GOPROXY="off", GOENV="off",
-               GOWORK="off", PYTHONPATH=str(root), PYTHONDONTWRITEBYTECODE="1",
+               GOCACHE=str(root.parent.parent / "lms-v3-qa-artifacts" / "go-cache"), GOPROXY="off", GOENV="off",
+               GOWORK="off", GOTELEMETRY="off", PYTHONPATH=str(root), PYTHONDONTWRITEBYTECODE="1",
                PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", GIT_CONFIG_NOSYSTEM="1",
                GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_COUNT="1",
                GIT_CONFIG_KEY_0="safe.directory", GIT_CONFIG_VALUE_0=root.as_posix())
@@ -73,6 +74,7 @@ def run_command(args: list[str], env: dict, destination: Path, name: str,
     except OSError:
         record = {"name": name, "return_code": None, "status": "COMMAND_UNAVAILABLE", "stdout": "", "stderr": ""}
     write_new_json(destination / f"command-{name}.json", record)
+    storage.guard_growth(destination)
     return record
 
 
@@ -89,11 +91,15 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         raise ValueError("M00 requires explicit absolute local workspace")
     started = datetime.now(timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ") + "-" + package + "-" + uuid.uuid4().hex[:12]
-    parent = ROOT / ".qa-artifacts"
+    parent = ROOT.parent.parent / "lms-v3-qa-artifacts"
     parent.mkdir(exist_ok=True)
-    with run_lock(parent / "local-synthetic.lock"):
+    retention_state=retention_automation.before_run(ROOT)
+    with run_lock(parent / "storage.lock"), run_lock(parent / "local-synthetic.lock"):
+        storage_state=storage.preflight(ROOT,parent)
+        storage_state['retention']=retention_state
         directory = parent / run_id
         directory.mkdir()
+        write_new_json(directory / "storage-preflight.json",storage_state)
         (directory / "bin").mkdir()
         tested_hash = source_fingerprint(ROOT)
         env = clean_environment(ROOT, os.environ)

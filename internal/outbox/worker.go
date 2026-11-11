@@ -103,11 +103,21 @@ func (w Worker) RunOnce(ctx context.Context) (int, error) {
 			defer func() { <-sem }()
 			deliveryCtx, cancel := context.WithTimeout(ctx, w.Config.DeliveryTimeout)
 			var deliveryErr error
+			failureCode := "PROVIDER_RETRY"
 			if sink, ok := w.Sink.(ReceiptSink); ok {
 				var receipt ProviderReceipt
 				receipt, deliveryErr = sink.DeliverWithReceipt(deliveryCtx, item)
 				if deliveryErr == nil {
-					deliveryErr = w.Queue.(ReceiptQueue).RecordReceipt(deliveryCtx, item.Lease, receipt)
+					// The provider may succeed at the delivery deadline. Preserve a
+					// separate bounded window for the fenced receipt write.
+					cancel()
+					receiptWindow := min(w.Config.LeaseDuration-w.Config.DeliveryTimeout, 2*time.Second)
+					receiptCtx, receiptCancel := context.WithTimeout(ctx, receiptWindow)
+					deliveryErr = w.Queue.(ReceiptQueue).RecordReceipt(receiptCtx, item.Lease, receipt)
+					receiptCancel()
+					if deliveryErr != nil {
+						failureCode = "PROVIDER_OUTCOME_UNKNOWN"
+					}
 				}
 			} else {
 				deliveryErr = w.Sink.Deliver(deliveryCtx, item)
@@ -122,7 +132,7 @@ func (w Worker) RunOnce(ctx context.Context) (int, error) {
 				errs <- nil
 				return
 			}
-			errs <- w.Queue.RetryWithCode(ctx, item.Lease, "PROVIDER_RETRY")
+			errs <- w.Queue.RetryWithCode(ctx, item.Lease, failureCode)
 		}(event)
 	}
 	group.Wait()

@@ -8,6 +8,7 @@ import tarfile
 import uuid
 from qa.evidence import source_fingerprint, write_new_json
 from qa.run import ROOT, clean_environment, run_command, run_lock
+from qa import storage, retention_automation
 
 
 def static_amd64(data: bytes) -> bool:
@@ -21,12 +22,16 @@ def static_amd64(data: bytes) -> bool:
 
 
 def main():
-    parent = ROOT / ".qa-artifacts"
+    parent = ROOT.parent.parent / "lms-v3-qa-artifacts"
     parent.mkdir(exist_ok=True)
-    with run_lock(parent / "release.lock"):
+    retention_state=retention_automation.before_run(ROOT)
+    with run_lock(parent / "storage.lock"), run_lock(parent / "release.lock"):
+        storage_state=storage.preflight(ROOT,parent)
+        storage_state['retention']=retention_state
         run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-release-" + uuid.uuid4().hex[:12]
         directory = parent / run_id
         directory.mkdir()
+        write_new_json(directory / "storage-preflight.json",storage_state)
         source = source_fingerprint(ROOT)
         env = clean_environment(ROOT, os.environ)
         env.update(GOOS="linux", GOARCH="amd64", CGO_ENABLED="0")

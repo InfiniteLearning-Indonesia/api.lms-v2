@@ -1,0 +1,8 @@
+{
+  "version":1,"module":"M14","scope":"LOCAL_SYNTHETIC_SLICE",
+  "checkpoints":[{"id":"M14-CP04","module":"M14","deliverables":["M14-D01","M14-D02","M14-D03","M14-D04","M14-D05"],"cases":["lmsv3/internal/reportbench:TestLoadConfigurationBoundary","lmsv3/internal/reportbench:TestNearestRankPercentile","lmsv3/internal/reportbench:TestLoadMetricsAndContract","lmsv3/internal/reporting:TestSyntheticReportPerformancePlanAndPool","M14-CP04-load-acceptance","M14-CP04-benchmark"]}],
+  "m14_cp04_load_go":["lmsv3/internal/reportbench:TestLoadConfigurationBoundary","lmsv3/internal/reportbench:TestNearestRankPercentile","lmsv3/internal/reportbench:TestLoadMetricsAndContract"],
+  "m14_cp04_db_go":["lmsv3/internal/reporting:TestSyntheticReportPerformancePlanAndPool"],
+  "m14_cp04_python":["M14-CP04-load-acceptance","M14-CP04-benchmark"],
+  "external_gates":["PRODUCTION_WORKLOAD_SLA","SHARED_CURSOR_KEYS_RUNTIME","WIDER_REPORT_INVENTORY","FRONTEND_INTEGRATION","REMOTE_CI_QG"]
+}

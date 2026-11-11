@@ -26,6 +26,7 @@ var ErrNotFound = errors.New("NOT_FOUND")
 var ErrConflict = errors.New("CONFLICT")
 
 var keyPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
+var suggestionIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 type ScaleInput struct {
 	Name            string `json:"name"`
@@ -99,6 +100,7 @@ type GradeCommand struct {
 	ExpectedVersion      int64  `json:"expected_version"`
 	ValueMilli           int64  `json:"value_milli"`
 	Reason               string `json:"reason,omitempty"`
+	AISuggestionID       string `json:"ai_suggestion_id,omitempty"`
 }
 
 type Grade struct {
@@ -346,10 +348,11 @@ func (s *Store) ExecuteDefinition(ctx context.Context, session, key, requestID s
 
 func normalizeGrade(c GradeCommand) (GradeCommand, error) {
 	c.Reason = strings.TrimSpace(c.Reason)
-	if c.ClassID == "" || c.GradeItemID == "" || c.AggregateID == "" || c.SubmissionRevisionID == "" || c.ExpectedVersion < 0 || !utf8.ValidString(c.Reason) || len(c.Reason) > 1000 || (c.ExpectedVersion > 0 && c.Reason == "") {
+	if c.ClassID == "" || c.GradeItemID == "" || c.AggregateID == "" || c.SubmissionRevisionID == "" || c.ExpectedVersion < 0 || !utf8.ValidString(c.Reason) || len(c.Reason) > 1000 ||
+		(c.ExpectedVersion > 0 && c.Reason == "") || (c.AISuggestionID != "" && (!suggestionIDPattern.MatchString(c.AISuggestionID) || c.Reason == "")) {
 		return c, ErrInvalid
 	}
-	if c.ExpectedVersion == 0 {
+	if c.ExpectedVersion == 0 && c.AISuggestionID == "" {
 		c.Reason = "INITIAL"
 	}
 	return c, nil
@@ -435,7 +438,13 @@ func (s *Store) Grade(ctx context.Context, session, key, requestID string, comma
 		}
 		gradeID, _ := token(16)
 		var grade Grade
-		e = scanGrade(tx.QueryRow(ctx, `INSERT INTO v3.grade_revisions(id,class_id,grade_item_id,definition_version_id,aggregate_id,attempt_id,submission_revision_id,learner_user_id,grader_user_id,version,value_milli,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,class_id,grade_item_id,definition_version_id,aggregate_id,attempt_id,submission_revision_id,learner_user_id,grader_user_id,version,value_milli,reason,created_at`, gradeID, command.ClassID, command.GradeItemID, definitionID, command.AggregateID, attemptID, command.SubmissionRevisionID, learnerID, actor.ID, current+1, command.ValueMilli, command.Reason), &grade)
+		insert := `INSERT INTO v3.grade_revisions(id,class_id,grade_item_id,definition_version_id,aggregate_id,attempt_id,submission_revision_id,learner_user_id,grader_user_id,version,value_milli,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`
+		args := []any{gradeID, command.ClassID, command.GradeItemID, definitionID, command.AggregateID, attemptID, command.SubmissionRevisionID, learnerID, actor.ID, current + 1, command.ValueMilli, command.Reason}
+		if command.AISuggestionID != "" {
+			insert = `INSERT INTO v3.grade_revisions(id,class_id,grade_item_id,definition_version_id,aggregate_id,attempt_id,submission_revision_id,learner_user_id,grader_user_id,version,value_milli,reason,ai_suggestion_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`
+			args = append(args, command.AISuggestionID)
+		}
+		e = scanGrade(tx.QueryRow(ctx, insert+` RETURNING id,class_id,grade_item_id,definition_version_id,aggregate_id,attempt_id,submission_revision_id,learner_user_id,grader_user_id,version,value_milli,reason,created_at`, args...), &grade)
 		if e != nil {
 			return mapWriteError(e)
 		}
@@ -477,10 +486,41 @@ func (s *Store) ReadGrade(ctx context.Context, session, classID, itemID, aggrega
 		if e != nil {
 			return e
 		}
-		if !allowed {
+		if allowed {
+			e = scanGrade(tx.QueryRow(ctx, `SELECT r.id,r.class_id,r.grade_item_id,r.definition_version_id,r.aggregate_id,r.attempt_id,r.submission_revision_id,r.learner_user_id,r.grader_user_id,r.version,r.value_milli,r.reason,r.created_at FROM v3.grade_current c JOIN v3.grade_revisions r ON r.id=c.revision_id WHERE c.class_id=$1 AND c.grade_item_id=$2 AND c.aggregate_id=$3`, classID, itemID, aggregateID), &g)
+			if errors.Is(e, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if e != nil {
+				return e
+			}
+			// A teacher who is also the learner sees only their released result.
+			if g.LearnerUserID != actor.ID {
+				return nil
+			}
+		}
+		// CP02 synthetic fixtures predate the additive release table.
+		var releasesInstalled bool
+		if e = tx.QueryRow(ctx, "SELECT to_regclass('v3.grade_releases') IS NOT NULL").Scan(&releasesInstalled); e != nil {
+			return e
+		}
+		if !releasesInstalled {
 			return ErrForbidden
 		}
-		e = scanGrade(tx.QueryRow(ctx, `SELECT r.id,r.class_id,r.grade_item_id,r.definition_version_id,r.aggregate_id,r.attempt_id,r.submission_revision_id,r.learner_user_id,r.grader_user_id,r.version,r.value_milli,r.reason,r.created_at FROM v3.grade_current c JOIN v3.grade_revisions r ON r.id=c.revision_id WHERE c.class_id=$1 AND c.grade_item_id=$2 AND c.aggregate_id=$3`, classID, itemID, aggregateID), &g)
+		var enrolled bool
+		e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments en JOIN v3.classes c ON c.id=en.class_id
+			 WHERE en.class_id=$1 AND en.user_id=$2 AND en.status='ACTIVE' AND c.state='PUBLISHED'
+			 AND NOT EXISTS(SELECT 1 FROM v3.class_access x WHERE x.class_id=c.id AND x.closed_at IS NOT NULL)
+			 AND NOT EXISTS(SELECT 1 FROM v3.enrollment_access x WHERE x.enrollment_id=en.id AND x.suspended_at IS NOT NULL))`, classID, actor.ID).Scan(&enrolled)
+		if e != nil {
+			return e
+		}
+		if !enrolled {
+			return ErrForbidden
+		}
+		e = scanGrade(tx.QueryRow(ctx, `SELECT r.id,r.class_id,r.grade_item_id,r.definition_version_id,r.aggregate_id,r.attempt_id,r.submission_revision_id,r.learner_user_id,r.grader_user_id,r.version,r.value_milli,r.reason,r.created_at
+			 FROM v3.grade_releases l JOIN v3.grade_revisions r ON r.id=l.revision_id
+			 WHERE l.class_id=$1 AND l.grade_item_id=$2 AND l.aggregate_id=$3 AND l.learner_user_id=$4 ORDER BY l.grade_version DESC LIMIT 1`, classID, itemID, aggregateID, actor.ID), &g)
 		if errors.Is(e, pgx.ErrNoRows) {
 			return ErrNotFound
 		}

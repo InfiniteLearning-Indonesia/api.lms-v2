@@ -1,0 +1,12 @@
+{
+  "m10_cp02_go": [
+    "lmsv3/internal/completion:TestSyntheticCompletionProgressProjection",
+    "lmsv3/internal/completion:TestSyntheticCompletionOverrideReopen",
+    "lmsv3/internal/completion:TestSyntheticCompletionCorrectionBoundary"
+  ],
+  "m10_cp02_python": [
+    "M10-CP02-progress-projection",
+    "M10-CP02-override-reopen",
+    "M10-CP02-security-boundary"
+  ]
+}

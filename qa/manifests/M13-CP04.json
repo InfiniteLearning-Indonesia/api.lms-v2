@@ -1,0 +1,7 @@
+{
+  "version":1,"module":"M13","scope":"LOCAL_SYNTHETIC_SLICE",
+  "checkpoints":[{"id":"M13-CP04","module":"M13","deliverables":["M13-D01","M13-D02","M13-D03","M13-D04","M13-D05"],"cases":["lmsv3/internal/outbox:TestWorkerReceiptDeadline","lmsv3/internal/outbox:TestWorkerUnknownOutcomeRetry","lmsv3/internal/outbox:TestWorkerRetryConcurrencyAndShutdown","M13-CP04-runner-order"],"dependency_case":"lmsv3/internal/outbox:TestSyntheticWorkerLifecycle"}],
+  "m13_cp04_go":["lmsv3/internal/outbox:TestWorkerReceiptDeadline","lmsv3/internal/outbox:TestWorkerUnknownOutcomeRetry","lmsv3/internal/outbox:TestWorkerRetryConcurrencyAndShutdown"],
+  "m13_cp04_python":["M13-CP04-runner-order"],
+  "external_gates":["REAL_PROVIDER_IDEMPOTENCY","SECRET_MANAGER","RECIPIENT_POLICY","SHARED_RUNTIME","REMOTE_CI"]
+}

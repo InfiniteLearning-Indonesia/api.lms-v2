@@ -1,0 +1,9 @@
+{
+  "version":1,"profile":"LOCAL_SYNTHETIC_INSTRUMENTED_CLOSED_LOOP",
+  "samples_per_phase":120,"chunks_per_phase":4,"requests_per_chunk":30,"warmups_per_chunk":2,
+  "request_timeout_seconds":5,"max_response_bytes":262144,"allowed_errors":0,
+  "small":{"items":2,"grade_version":1,"concurrency":[1],"p95_ms":750,"p99_ms":1500},
+  "boundary":{"items":200,"grade_version":3,"concurrency":[1,4],"p95_ms":1500,"p99_ms":3000},
+  "kinds":["report","page","export"],"db_execution_ms":500,"pool_max_connections":4,
+  "pool_cancel_ms":50,"pool_recovery_ms":1000
+}

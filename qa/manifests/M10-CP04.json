@@ -1,0 +1,12 @@
+{
+  "m10_cp04_go": [
+    "lmsv3/internal/completion:TestSyntheticLegacyOutputObservedOnly",
+    "lmsv3/internal/completion:TestSyntheticLegacyOutputIdempotencyBoundary",
+    "lmsv3/internal/completion:TestSyntheticLegacyOutputCorrectionStability"
+  ],
+  "m10_cp04_python": [
+    "M10-CP04-observed-not-issued",
+    "M10-CP04-provenance-retry",
+    "M10-CP04-security-stability"
+  ]
+}

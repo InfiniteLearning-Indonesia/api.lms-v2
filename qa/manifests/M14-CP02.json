@@ -1,0 +1,7 @@
+{
+  "version":1,"module":"M14","scope":"LOCAL_SYNTHETIC_SLICE",
+  "checkpoints":[{"id":"M14-CP02","module":"M14","deliverables":["M14-D02"],"cases":["lmsv3/internal/reporting:TestReportingContract","M14-CP02-contract-response","M14-CP02-contract-errors"]}],
+  "m14_cp02_go":["lmsv3/internal/reporting:TestReportingContract"],
+  "m14_cp02_python":["M14-CP02-contract-response","M14-CP02-contract-errors"],
+  "external_gates":["FULL_API_INVENTORY","FRONTEND_TYPED_CLIENT","REMOTE_CI"]
+}

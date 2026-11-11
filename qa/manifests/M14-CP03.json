@@ -1,0 +1,7 @@
+{
+  "version":1,"module":"M14","scope":"LOCAL_SYNTHETIC_SLICE",
+  "checkpoints":[{"id":"M14-CP03","module":"M14","deliverables":["M14-D03"],"cases":["lmsv3/internal/reporting:TestReportPageCursorSnapshot","lmsv3/internal/reporting:TestReportExportEncodingBounds","lmsv3/internal/reporting:TestSyntheticReportExportAudit","M14-CP03-pages","M14-CP03-boundary","M14-CP03-stale","M14-CP03-export"]}],
+  "m14_cp03_go":["lmsv3/internal/reporting:TestReportPageCursorSnapshot","lmsv3/internal/reporting:TestReportExportEncodingBounds","lmsv3/internal/reporting:TestSyntheticReportExportAudit"],
+  "m14_cp03_python":["M14-CP03-pages","M14-CP03-boundary","M14-CP03-stale","M14-CP03-export"],
+  "external_gates":["SHARED_CURSOR_KEY_POLICY","WIDER_REPORT_INVENTORY","PERFORMANCE_CP04","FRONTEND_EXPORT_UX","REMOTE_CI"]
+}
