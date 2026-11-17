@@ -1,0 +1,13 @@
+# 17 November — local recovery scope freeze
+
+Starting executable hash `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`. Owner run `20261116T210959Z-age-stream-09579d7d1bf9` reviewed before edits: exact 7/7 actual crypto, 79/79 Go, vet, source/backup/tool hashes PASS. Private review.json records unsigned local acceptance, not operational approval. This supersedes earlier restricted-token failures for that source; full M01/DLV-04 remains open.
+
+Authorized continuation while user prepares staging: backend local tooling only. Freeze:
+
+1. Explicit local seal/recover CLI modes. Sealing reads protected local plaintext only; package-specific binding maintained. Recovery authenticates whole package and selected ciphertext before creating an exclusive private plaintext file, then authenticated second-pass read + digest/readback/sync. Partial files retained with no success receipt. No existing ACL/file/DB overwritten, no plaintext emitted to stdout.
+2. Small isolated PostgreSQL 18 recovery QA: new loopback cluster only, generated synthetic credentials, no input DSN/env/existing cluster, bounded disk/time. Back up source/targets' empty prestate with actual new isolated restore proof before fixture/restore changes. Custom dump → SQL from same archive → protected encrypted package → recovered custom/SQL/object bytes → two fresh targets; schema/rows/FK/index/sequence/file hashes compared. No DROP/DELETE/TRUNCATE/--clean, provider/job/legacy startup or shared access. Retain cluster/evidence/backups; no retention disposal hook.
+3. Review/config handoff: `.env` editing cannot enable staging; config.Load supports local-only modes and lab fences remain intact. Do not add staging runtime or production source adapter in this slice.
+
+Supports M01 / DLV-04 local recovery preparation, no new canonical CP/D. Exact QA: retain 7 existing actual tests, add two native recovery/CLI integrity cases, default strict/local-boundary cases and ops refusal case, plus frozen DB recovery stages in a separate manifest. Compile/discovery/fixture mocks are not actual restore proof. Missing native permissions/tools/storage remain failures or NOT_RUN, not skipped/pass. Backend Go; Python only QA orchestration.
+
+Backup source/context before code. No live/staging/env changes, commit/push, destructive SQL/file cleanup, proxy/privilege/ACL relaxation or broad LMS DB journey. Only new synthetic private-directory DACLs at initial creation; use existing storage locks/admission. If required native gate fails, stop dependent DB work and prepare an owner-terminal runner, without claiming execution.

@@ -221,7 +221,7 @@ def test_old_compaction_tool_recognizes_disposal_receipt(lab,monkeypatch):
     import sys
     enable(lab);result=auto.cycle(lab.service,Path('.'),'TEST')
     actual=Path(__file__).resolve().parents[3]
-    spec=importlib.util.spec_from_file_location('retention_compactor_fixture',actual.parent/'portability/manage_qa_storage.py')
+    spec=importlib.util.spec_from_file_location('retention_compactor_fixture',actual/'qa/operators/manage_qa_storage.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     monkeypatch.setattr(module,'BASE',lab.service.parent);monkeypatch.setattr(module,'SERVICE',lab.service)
     monkeypatch.setattr(sys,'argv',['manage_qa_storage.py','--compress-closed-clusters','--run-id',result['run_id']])

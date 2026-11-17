@@ -89,3 +89,8 @@ def test_report_renderer_is_idempotent_and_preserves_manual_scope():
     assert root_hash != result["source_hash"]
     workflow.write_text("name: synthetic-root-workflow-changed\n", encoding="utf-8")
     assert source_fingerprint(root) != root_hash
+    launcher = root / "continue.cmd"
+    launcher.write_text("@echo off\n", encoding="utf-8")
+    launcher_hash = source_fingerprint(root)
+    launcher.write_text("@echo off\nrem changed fixture\n", encoding="utf-8")
+    assert source_fingerprint(root) != launcher_hash

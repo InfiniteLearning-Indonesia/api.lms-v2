@@ -20,7 +20,7 @@ def catalog_cases():
 
 
 @pytest.mark.case("M03-CP06-checkpoint-registry")
-def test_checkpoint_registry_rejects_missing_duplicate_and_stale_evidence(tmp_path):
+def test_checkpoint_registry_rejects_missing_duplicate_and_stale_evidence(qa_scratch):
     registry_path = ROOT / "qa/manifests/M03-CP05-CP06.json"
     registry = load(registry_path)
     registry["module"] = "M03"
@@ -38,7 +38,7 @@ def test_checkpoint_registry_rejects_missing_duplicate_and_stale_evidence(tmp_pa
     broken["checkpoints"][0]["cases"].append("UNREGISTERED")
     with pytest.raises(ValueError):
         validate(broken, deliverables, catalog_cases())
-    duplicate = tmp_path / "duplicate.json"
+    duplicate = qa_scratch / "duplicate.json"
     duplicate.write_text('{"version":1,"version":1}', encoding="utf-8")
     with pytest.raises(ValueError):
         load(duplicate)

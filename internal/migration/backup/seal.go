@@ -69,7 +69,7 @@ func Unseal(data, key []byte, b Binding, target string, now time.Time) ([]byte, 
 // ProtectedDestination performs actual OS checks; a caller's boolean cannot
 // certify ACL/capacity. Unsupported platforms fail closed for real-data export.
 func ProtectedDestination(root string, required uint64) error {
-	if !SafeRoot(root) || required == 0 {
+	if !intakeRoot(root) || required == 0 {
 		return errors.New("BACKUP_DESTINATION_REJECTED")
 	}
 	free, err := AvailableBytes(root)

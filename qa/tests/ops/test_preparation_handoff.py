@@ -36,11 +36,9 @@ def tiny_suite(lab,skip=False,expected=None):
 
 
 def operator(name):
-    path=SERVICE.parent/'portability'/name
-    sys.path.insert(0,str(path.parent))
-    spec=importlib.util.spec_from_file_location('preparation_fixture_'+path.stem,path)
-    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    return module
+    import importlib
+    canonical={'collect_important_context.py':'context_archive'}.get(name,Path(name).stem)
+    return importlib.import_module('qa.operators.'+canonical)
 
 
 @pytest.mark.case('Q00-preflight-case-evidence')
@@ -123,5 +121,5 @@ def test_fixed_preparation_manifest_covers_selected_ops_and_launcher_verifies_ev
             if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr=='case' and node.args:
                 if isinstance(node.args[0],ast.Constant):ids.add(node.args[0].value)
     assert ids==set(manifest['expected_checks'])
-    tree=ast.parse((SERVICE.parent/'portability/run_m14_cp04.py').read_text(encoding='utf-8'))
+    tree=ast.parse((SERVICE/'qa/operators/run_m14_cp04.py').read_text(encoding='utf-8'))
     assert any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='run_ops_checks' for n in ast.walk(tree))

@@ -1,5 +1,21 @@
 # Peta capaian M00–M19 dan checkpoint di dalam modul
 
+> **17 November — current recovery:** [Seven-case dependency accepted](checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
+
+> **17 November — current:** [Protected output/package implementation](checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.
+
+> **Current consolidated next action:** [Rangkuman sebelum live/staging](PROJECT_STATE_BEFORE_LIVE_STAGING.md). Siapkan metadata/identity/scope sambil menutup protected recovery/package tooling M01; current crypto slice accepted, M13/M14 4/4 historical local CPs. Tidak ada module completion atau env switch dari persiapan ini.
+
+> **Accepted latest, 16 November — M01-CP02 support:** [Actual age stream QA reviewed](checkpoints/2026-11-16-age-stream-accepted.md): 4/4 actual crypto, 75/75 Go, vet PASS; same-source 92/92 ops reused. Source `469e7d3b57b55a418994173ef73c3a992863bf6f8f72b6b2d8c12176c58ee6ee`. M01-CP02 stays PARSIAL: protected exporter/custody/ACL and actual restore remain open. No new CP/D; earlier NOT_RUN/tool-block statements are history.
+
+> **16 November — latest M01-CP02 preparation:** [Pinned age adapter/QA handoff](checkpoints/2026-11-16-age-stream-handoff.md), [usage and residual gates](baseline/AGE_STREAM_RECOVERY.md). Streaming code and a four-case actual-tool QA contract now exist; actual crypto remains NOT_RUN until verified tools are available. No new CP/D, M01 closure, real restore or baseline authority. Older dependency-blocked implementation notes below are history.
+
+> **16 November — latest M00/M01 preparation:** [Package integrity + restore-plan offline slices](checkpoints/2026-11-16-package-validator-restore-plan.md) PASS; Go 71/71, ops 90/90. Encrypted large backup masih dependency-blocked, actual restore belum dijalankan. Tidak menambah CP/D canonical, mengotorisasi actual baseline, atau menutup Playwright/DB/remote gates. Earlier updates below are history.
+
+> **12 November — latest M00/M01 support:** [Offline preflight dan streaming integrity](checkpoints/2026-11-12-baseline-preflight-streaming.md): bounded preflight slice PASS; Go 63/63, ops 87/87, Linux cross-build PASS. Streaming byte checks >33 MiB PASS; encryption/protected export masih dependency-blocked. Tidak ada CP/D baru atau actual baseline/restore; full upstream/Playwright/remote gates tetap terbuka. Update QA di bawah merekam source sebelumnya.
+
+> **12 November — QA deliverables:** [Perbaikan registry/helper dan hasil lokal](checkpoints/2026-11-12-qa-deliverables.md): Go 55/55, Python 85/88 PASS; tiga Playwright setup ERROR karena named-pipe access membuat full bootstrap tetap FAIL. Static Linux repeat-build PASS; remote CI belum. [Roadmap baseline nyata](DELIVERABLE_ROADMAP_TO_REAL_BASELINE.md) dan [intake/gap ledger](baseline/REAL_BASELINE_INTAKE.md) mengarahkan pekerjaan berikut. Canonical D/CP tidak ditambah dan live/staging tidak diakses.
+
 > **Accepted 11 November:** [M14 CP04/local closure](checkpoints/2026-11-11-m14-local-closure.md) accepted on source `cb0a9af604011f90e6bc14844f637e5e0bb094104b509ff03905407feae0a7bc`, run `20261111T093737Z-postgres-lab-6e4bc487c4d6`: **M14 4/4 local slices**, CP04 6/6 and M14 direct 21/21 cases PASS; measured load/DB/dependencies reviewed. Canonical 0/5 and project 0/97 remain. No automatic advance to M16/M17: actual-data, rehearsal, identity/owner and frontend inputs still apply. Earlier snapshots below are historical.
 
 > **Current 2 November:** [M14-CP04](checkpoints/2026-11-02-m14-cp04.md) implemented as five sequential subcheckpoints, **full QA pending**. M14 remains 3/4 accepted historical local slices, canonical unchanged. Run fixed `portability/RUN_M14_CP04_QA.ps1` for fresh source-bound native load/DB/CP01–03/M13/dependency evidence before closure. No new top-level CP IDs invented. Older status entries below are historical.
@@ -186,7 +202,7 @@ flowchart LR
 | 11 — rollout | M18-CP01 → M18-CP02 → M18-CP03 | M18 | Pilot accepted + per-wave backup | Operational v3 ownership |
 | Optional | M19-CP01 → M19-CP02 → M19-CP03 | M19 | Feature dipilih; dependency domainnya ditambahkan eksplisit | Hanya feature optional terpilih |
 
-**Langkah kini:** M13 4/4 dan M14 CP01–03 (3/4) accepted historical local. M14-CP04 implemented after workload/threshold freeze; execute fixed full performance journey and review before local closure. Rollout nyata tetap menunggu academic approval, authorized legacy inventory dan M00–M02. M08-CP04 menunggu real chronology mapping. Setiap perubahan schema tetap memerlukan backup + actual restore baru sebelum apply.
+**Langkah kini, 16 November:** M13 **4/4** dan M14 **4/4** sudah accepted historical local; actual age stream crypto slice juga accepted pada current executable source. Berikutnya protected output/key custody dan authenticated package/recovery tooling M01 sambil metadata baseline disiapkan. M00/M02/real identity, actual mapping M06/M08/M12, shared runtime/QA dan DLV-06 tetap terbuka. Tidak mengulang M14-CP04 hanya karena instruksi historis di atas; [urutan gate lengkap](PROJECT_STATE_BEFORE_LIVE_STAGING.md).
 
 ## Kontrak progress dan QA
 

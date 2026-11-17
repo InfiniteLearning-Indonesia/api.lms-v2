@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "scope": "LOCAL_PROTECTED_OUTPUT_AND_AUTHENTICATED_PACKAGE_ONLY",
+  "module": "M01",
+  "checkpoint_support": "M01-CP02",
+  "tool_version": "v1.3.2",
+  "go_tag": "qaage",
+  "full_module_verified": false,
+  "actual_restore_verified": false,
+  "default_tests": [
+    "lmsv3/internal/migration/backup:TestPrivateACLPolicy",
+    "lmsv3/internal/migration/backup:TestProtectedAgeRefusalBeforeWrite",
+    "lmsv3/internal/migration/backup:TestAuthenticatedPackageStrictInput",
+    "lmsv3/internal/migration/backup:TestAuthenticatedPackageCoverageAndBinding"
+  ],
+  "actual_tests": [
+    "lmsv3/internal/migration/backup:TestAgeActualProtectedOutput",
+    "lmsv3/internal/migration/backup:TestAgeActualAuthenticatedPackage",
+    "lmsv3/internal/migration/backup:TestAgeActualPackageTamperAndBinding"
+  ],
+  "ops_checks": ["M01-authenticated-package-cli-refusal"],
+  "regression": "All four previously required age tests remain mandatory in M01-AGE-STREAM.json. Default registry and all previous ops/shared gates remain required."
+}

@@ -12,13 +12,32 @@ func AvailableBytes(path string) (uint64, error) {
 	return s.Bavail * uint64(s.Bsize), err
 }
 func privateDirectory(path string) error {
-	info, err := os.Lstat(path)
+	if !intakeRoot(path) {
+		return errProtection
+	}
+	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return errProtection
+	}
+	defer f.Close()
+	return privateHandle(f)
+}
+func privateHandle(file *os.File) error {
+	info, err := file.Stat()
+	if err != nil {
+		return errProtection
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok || stat.Uid != uint32(os.Geteuid()) || info.Mode().Perm()&0077 != 0 {
 		return errors.New("BACKUP_HOST_PROTECTION_UNVERIFIED")
 	}
 	return nil
+}
+func singleLink(file *os.File) bool {
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	return ok && stat.Nlink == 1
 }

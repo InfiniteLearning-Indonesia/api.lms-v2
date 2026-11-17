@@ -8,8 +8,8 @@ from hashlib import sha256
 
 
 @pytest.mark.case("Q00-operational-evidence")
-def test_operational_evidence(tmp_path):
-    tree = tmp_path / "tree"
+def test_operational_evidence(qa_scratch):
+    tree = qa_scratch / "tree"
     tree.mkdir()
     (tree / "Z.go").write_bytes(b"upper")
     (tree / "a.go").write_bytes(b"lower")
@@ -24,7 +24,7 @@ def test_operational_evidence(tmp_path):
                 source_hash="a"*64, current_source_hash="a"*64, probe_exit_code=0,
                 config_reference=".env.staging (user-identified staging)",
                 backup="NOT_EXECUTED", migration="NOT_EXECUTED", observation_sha256=observation_digest(obs))
-    path = tmp_path / "receipt.json"
+    path = qa_scratch / "receipt.json"
     def check(value, target="b"*64):
         path.write_text(json.dumps(value), encoding="utf-8")
         return reconcile(path, "a"*64, target, now)

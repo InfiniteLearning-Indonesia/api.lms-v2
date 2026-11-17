@@ -86,7 +86,7 @@ def source_fingerprint(root: Path) -> str:
         directories[:] = [name for name in directories if not name.startswith(".") and name != "__pycache__"]
         for name in names:
             p = Path(directory) / name
-            if p.suffix in {".go", ".py", ".json", ".lock", ".sql", ".yaml", ".yml", ".toml", ".sh", ".ps1"} or p.name in {"go.mod", "go.sum", "pytest.ini", "Dockerfile"}:
+            if p.suffix in {".go", ".py", ".json", ".lock", ".sql", ".yaml", ".yml", ".toml", ".sh", ".ps1", ".cmd"} or p.name in {"go.mod", "go.sum", "pytest.ini", "Dockerfile"}:
                 files.append(p)
     # User-supplied root .env.example is now private, not executable source.
     files += [p for p in (root / ".gitignore",) if p.is_file()]

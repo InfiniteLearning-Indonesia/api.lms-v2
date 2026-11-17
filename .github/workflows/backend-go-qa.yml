@@ -50,10 +50,22 @@ jobs:
           GOPROXY: 'off'
           GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
         run: go test -race -count=1 ./...
+      - name: Retain bounded public bootstrap diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bootstrap-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ github.workspace }}/../../lms-v3-qa-artifacts/*-M03-*/ci-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 3
+          compression-level: 9
       - name: Static non-root artifact (build only, no publish)
         run: .venv/bin/python -m qa.release
       # No production/staging secrets, DB services, import, deployment, write
-      # token, report auto-commit, or raw artifact upload. A green bootstrap job
+      # token, report auto-commit, or raw artifact upload. Only the bounded
+      # allowlisted ci-diagnostic.json projection is uploaded for three days.
+      # Missing diagnostic after preflight refusal is not a successful QA run.
+      # A green bootstrap job
       # is NOT BACKEND_VERIFIED and does not satisfy M00 environment checks.
 
   fresh-postgres-backend:
@@ -75,8 +87,26 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -r qa/requirements.lock
+      - name: Download checksum-verified Go dependencies for this fresh job
+        run: go mod download
+        env:
+          GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
+      - name: Install explicit PostgreSQL 18.6 tools (CI machine only)
+        # Official PGDG package setup: https://www.postgresql.org/download/linux/ubuntu/
+        # Upstream minor is explicit; record the selected signed package revision.
+        # Failure to obtain that version stops instead of using runner defaults.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-common ca-certificates
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          echo 'create_main_cluster = false' | sudo tee /etc/postgresql-common/createcluster.conf > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends 'postgresql-18=18.6-*' 'postgresql-client-18=18.6-*'
+          /usr/lib/postgresql/18/bin/postgres --version
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          dpkg-query -W postgresql-18 postgresql-client-18
       - name: Fresh loopback PostgreSQL, backup/restore and backend dependency journey through M14-CP04
-        run: .venv/bin/python -m qa.postgres_lab --create-local-synthetic-cluster --pg-bin "$(pg_config --bindir)" --reporting-performance-journey
+        run: .venv/bin/python -m qa.postgres_lab --create-local-synthetic-cluster --pg-bin /usr/lib/postgresql/18/bin --reporting-performance-journey
         env:
           GOTOOLCHAIN: go1.27.1
           GOPROXY: 'off'

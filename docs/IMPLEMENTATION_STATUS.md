@@ -1,5 +1,21 @@
 # LMS v3 backend — Implementation status
 
+> **17 November — current recovery:** [Seven-case dependency accepted](checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
+
+> **17 November — current:** [Protected output/package implementation](checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.
+
+> **Consolidated current handoff, 16 November:** [Seluruh modul, evidence, blocker dan persiapan live/staging](PROJECT_STATE_BEFORE_LIVE_STAGING.md). Metadata/scope dapat disiapkan sekarang, tetapi real-snapshot tooling/DLV-06 dan operational staging/runtime belum READY. Next coding: protected output/custody dan authenticated package/recovery wiring; tidak mengulang M13/M14 karena next-action historis.
+
+> **Accepted latest, 16 November:** [Actual crypto slice reviewed](checkpoints/2026-11-16-age-stream-accepted.md), run `20261116T104948Z-age-stream-3bc681da9e6f`, source `469e7d3b57b55a418994173ef73c3a992863bf6f8f72b6b2d8c12176c58ee6ee`: **4/4 actual age + 75/75 Go + vet PASS**, same-source 92/92 ops reused. Earlier NOT_RUN/storage/tool blocks below are history. Actual restore/protected exporter/custody/package wiring and API/remote gates remain open; DLV-06 NOT_READY, full M01 and canonical counts unchanged. No live/staging/delete/commit/push.
+
+> **16 November — latest bounded handoff:** [Age streaming implementation and evidence](checkpoints/2026-11-16-age-stream-handoff.md), [one-command runner and limits](baseline/AGE_STREAM_RECOVERY.md). Go adapter uses pinned native age v1.3.2 without new root module dependency. Default safety/regression checks and real tagged crypto evidence are separate: actual crypto is NOT_RUN without verified tools. No current API/DB/remote gate, DLV-06, full M01 or canonical D is closed. Earlier dated summaries remain historical on their hashes.
+
+> **16 November — current offline slices:** [Package validation + restore planning](checkpoints/2026-11-16-package-validator-restore-plan.md), source `078543fa1709650101e98c495a0c10deca1fd5a90db2f75767b043e8a89e9840`: poin 3/4 PASS_OFFLINE, Go 71/71, ops 90/90, backup statement coverage 89.0%, vet/Windows build/Linux cross-build PASS. Poin 2 encryption dependency still blocked. No actual restore/DB/live/staging/ACL mutation/delete/commit/push; current API Playwright/DB/remote NOT_RUN. Full module/canonical counts unchanged; earlier notes are source-bound history.
+
+> **12 November — latest offline baseline tooling:** [Preflight + streaming integrity](checkpoints/2026-11-12-baseline-preflight-streaming.md), source `85afcf9f20ce0efd36878746a99c4bea1db87dd21f355cc5fb1b787d1d2155ca`: offline preflight slice PASS; Go 63/63, ops 87/87, targeted backup unit 92.0% statement coverage, Linux cross-build PASS. Large encrypted backup is PARTIAL_DEPENDENCY_BLOCKED; no new cipher format/plaintext fallback. Current-source API Playwright/full DB/remote CI NOT_RUN. No DB/source connection, new cluster, migration, ACL mutation, commit/push or canonical-count change. Earlier blocks below are source-bound history.
+
+> **12 November — current QA scope:** [DLV-01/02 local implementation and evidence](checkpoints/2026-11-12-qa-deliverables.md), source `36dd36aa1f46b237c62b9216b1241c62895c921df0f30dbf01a3d63576da246a`: registry/public helper repair, Go 55/55 and Python 85/88 PASS; 3 Playwright setup ERROR (`WinError 5` named pipe) keep full bootstrap FAIL/BLOCKED. Static Linux repeat-build PASS_BUILD_ONLY. Remote CI/race/PG job pending; no DB access/new cluster/commit/push. DLV-03–06 preparation is partial; [real baseline intake/gaps](baseline/REAL_BASELINE_INTAKE.md). Canonical counts unchanged; accepted M14 below remains source-bound history.
+
 > **Accepted 11 November:** [M14 local closure](checkpoints/2026-11-11-m14-local-closure.md), run `20261111T093737Z-postgres-lab-6e4bc487c4d6`, source `cb0a9af604011f90e6bc14844f637e5e0bb094104b509ff03905407feae0a7bc`. **M14 4/4 local CP slices**, 21/21 direct M14 cases (CP04 6/6), 1,080 measured requests, actual query/pool/audit, dependencies and 40 backup/restore receipt sets reviewed. Canonical M14 stays 0/5; project 0/97. No new CP, shared database access, Git or production readiness inferred. Older dated notes are history.
 
 > **Current 2 November:** [M14-CP04 five-step package](checkpoints/2026-11-02-m14-cp04.md) **IMPLEMENTED_PENDING_FULL_QA**. Four of six frozen mandatory cases locally exercised; native actual load and PostgreSQL plan/pool cases pending. Fixed unattended backup/preflight/full-QA/review launcher is ready. Accepted historical counts remain M13 4/4, M14 3/4, canonical unchanged. Current executable source differs from the prior full PASS and must pass the new performance journey. Older status snapshots below are historical.
@@ -196,13 +212,13 @@ Coverage adalah fully verified D / planned mandatory D, bukan jumlah file/tes ya
 
 | Field | Nilai |
 |---|---|
-| Pekerjaan saat ini | CP06 synthetic QA selesai; CP07 partial handoff menunggu external inputs; tidak mengubah legacy/frontend |
-| Implementation package aktif | M00 dan independent local portion M03; belum ada full module complete |
-| Last completed QA run | Lihat generated M00/M03 sections; private `.qa-artifacts/<run_id>/summary.json` |
-| Tested commit/tree/schema hash | Source/manifest/binary hashes pada summary; public-catalog hash tersedia di checkpoint CA, bukan full schema/data hash |
-| Migration receipt/backup ID | Shared migration/backup NONE; synthetic backup receipts pada CP06 run `20260906T182956Z-postgres-lab-781490e5578f` |
-| Next safe action | Tutup CP07: production/deployed refs, dedicated read-only role, Data API settings, full jobs/storage/capacity inventory dan owner/reviewer; CP08 perlu otorisasi baru |
-| Stop condition | Tidak copy/migrate shared DB, memperbaiki legacy di checkout lain, push/deploy atau mengasumsikan approvals hanya karena bootstrap PASS |
+| Pekerjaan saat ini | Seven-case dependency accepted on old source; local recovery implemented. Current native nine-case gate pending, ten DB stages NOT_RUN; full M01/DLV-04/DLV-06 open |
+| Implementation package aktif | M00/M01 readiness dan DLV-03–06; domain synthetic slices terpetakan pada handoff; belum ada full canonical module complete |
+| Last completed QA run | `local-recovery-20261117/qa-G`: 81/81 Go + 95/95 ops PASS; native 4 PASS + 5 fixture FAIL; DB stages NOT_RUN. Previous owner seven-case acceptance source-bound |
+| Tested commit/tree/schema hash | Executable fingerprint `454187dda3c48e32681a73c9810d47d92fee196e17f00958a2898df608bdfa33`; HEAD `7e7e86b`; actual production schema not verified |
+| Migration receipt/backup ID | No shared migration or verified production backup from this work; source-only backup receipt on accepted age run. Historical synthetic DB receipts remain source-bound |
+| Next safe action | Owner bundled local recovery runner: nine-case native gate + ten actual DB stages. No dotenv/shared runtime switch; user metadata preparation can continue |
+| Stop condition | No shared DB/env switch, export/apply/cutover, legacy patch/deploy, delete or Git publication inferred from this handoff; actual target/security/mapping/backup gates remain |
 
 ## Aturan update saat runner tersedia
 

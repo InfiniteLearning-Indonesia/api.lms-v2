@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "scope": "LOCAL_SYNTHETIC_AGE_CLI_ONLY",
+  "module": "M01",
+  "tool_version": "v1.3.2",
+  "full_module_verified": false,
+  "actual_restore_verified": false,
+  "go_tag": "qaage",
+  "expected_tests": [
+    "lmsv3/internal/migration/backup:TestAgeActualLargeRoundTrip",
+    "lmsv3/internal/migration/backup:TestAgeActualTamperAndWrongKey",
+    "lmsv3/internal/migration/backup:TestAgeActualBindingAndShortInput",
+    "lmsv3/internal/migration/backup:TestAgeActualCancellationAndWriterFailure",
+    "lmsv3/internal/migration/backup:TestAgeActualProtectedOutput",
+    "lmsv3/internal/migration/backup:TestAgeActualAuthenticatedPackage",
+    "lmsv3/internal/migration/backup:TestAgeActualPackageTamperAndBinding",
+    "lmsv3/internal/migration/backup:TestAgeActualProtectedRecoveryAndCLI",
+    "lmsv3/internal/migration/backup:TestAgeActualRecoveryRejectsCorruptionBeforeCreation"
+  ]
+}

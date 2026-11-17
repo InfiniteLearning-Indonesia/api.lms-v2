@@ -7,7 +7,7 @@ from hashlib import sha256
 
 
 @pytest.mark.case("Q00-postgres-lab-boundary")
-def test_lab_boundary(tmp_path, monkeypatch):
+def test_lab_boundary(qa_scratch, monkeypatch):
     sql = fixture_sql("a"*64)
     assert "CREATE SCHEMA qa_cp05" in sql
     for verb in ("DELETE", "DROP", "TRUNCATE", "UPDATE"):
@@ -15,13 +15,13 @@ def test_lab_boundary(tmp_path, monkeypatch):
     for marker in ("bad'; SELECT", "", "G"*64):
         with pytest.raises(ValueError):
             fixture_sql(marker)
-    assert validate_tools(tmp_path) == {}
+    assert validate_tools(qa_scratch) == {}
     assert "--no-clean" in INITDB_SAFETY_OPTIONS
     assert sql.count("VALUES ('seed')") == 3
     assert "NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS" in sql
     assert "GRANT SELECT ON qa_cp05.marker TO qa_reader" in sql
     assert len(CATALOG_QUERIES) == 3
-    profile = tmp_path / "coverage.out"
+    profile = qa_scratch / "coverage.out"
     valid = "mode: set\n" + "".join(f"lmsv3/internal/{p}/file.go:1.1,2.1 1 1\n" for p in ("classes", "identity", "platform/database"))
     profile.write_text(valid, encoding="utf-8")
     require_coverage(profile)
@@ -34,10 +34,10 @@ def test_lab_boundary(tmp_path, monkeypatch):
     for code, expected in ((0, True), (1, False)):
         with pytest.raises(ValueError):
             require_outcome(code, expected)
-    archive = tmp_path / "test.dump"
+    archive = qa_scratch / "test.dump"
     archive.write_bytes(b"synthetic-only")
     require_digest(archive, sha256(b"synthetic-only").hexdigest())
-    for path, digest in ((archive, "0"*64), (tmp_path / "missing.dump", "0"*64)):
+    for path, digest in ((archive, "0"*64), (qa_scratch / "missing.dump", "0"*64)):
         with pytest.raises(ValueError):
             require_digest(path, digest)
     original = subprocess.run
@@ -46,7 +46,7 @@ def test_lab_boundary(tmp_path, monkeypatch):
         assert kwargs["stdout"].fileno() >= 0 and kwargs["stderr"].fileno() >= 0
         return original(*args, **kwargs)
     monkeypatch.setattr(subprocess, "run", require_file_handles)
-    code, output, errors = run_to_files([sys.executable, "-c", "print('synthetic-ok')"], tmp_path, 1, dict(os.environ), 5)
+    code, output, errors = run_to_files([sys.executable, "-c", "print('synthetic-ok')"], qa_scratch, 1, dict(os.environ), 5)
     assert code == 0 and output.strip() == b"synthetic-ok" and not errors
     with pytest.raises(FileExistsError):
-        run_to_files([sys.executable, "--version"], tmp_path, 1, dict(os.environ), 5)
+        run_to_files([sys.executable, "--version"], qa_scratch, 1, dict(os.environ), 5)

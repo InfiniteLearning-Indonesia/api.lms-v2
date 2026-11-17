@@ -17,6 +17,7 @@ import uuid
 from qa.evidence import publish_checkpoint, render_section, source_fingerprint, summarize, verify_go_cases, write_new_json
 from qa.observations import reconcile
 from qa import storage, retention_automation
+from qa.ci_diagnostics import publish_diagnostic
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -107,8 +108,12 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         api_binary = directory / "bin" / ("api" + extension)
         baseline_binary = directory / "bin" / ("baseline" + extension)
         db_inspect_binary = directory / "bin" / ("db-inspect" + extension)
+        intake_binary = directory / "bin" / ("baseline-preflight" + extension)
+        package_binary = directory / "bin" / ("baseline-package" + extension)
         worker_binary = directory / "bin" / ("worker" + extension)
         env.update(QA_API_BINARY=str(api_binary), QA_ARTIFACT_ROOT=str(directory),
+                   QA_BASELINE_PREFLIGHT_BINARY=str(intake_binary),
+                   QA_BASELINE_PACKAGE_BINARY=str(package_binary),
                    QA_DB_INSPECT_BINARY=str(db_inspect_binary),
                    QA_CASE_RESULTS=str(directory / "pytest-cases.json"),
                    QA_BASELINE_REPORT=str(directory / "baseline.json"))
@@ -129,6 +134,8 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         baseline_build = command(["go", "build", "-trimpath", "-o", str(baseline_binary), "./cmd/baseline"], "go-build-baseline")
         db_inspect_build = command(["go", "build", "-trimpath", "-o", str(db_inspect_binary), "./cmd/db-inspect"], "go-build-db-inspect")
         backup_build = command(["go", "build", "-trimpath", "-o", str(directory / "bin" / ("backup-plan" + extension)), "./cmd/backup-plan"], "go-build-backup-plan")
+        intake_build = command(["go", "build", "-trimpath", "-o", str(intake_binary), "./cmd/baseline-preflight"], "go-build-baseline-preflight")
+        package_build = command(["go", "build", "-trimpath", "-o", str(package_binary), "./cmd/baseline-package"], "go-build-baseline-package")
         unit = command(["go", "test", "-json", "-count=1", "-coverprofile=" + str(directory / "go-coverage.out"), "./..."], "go-unit")
         vet = command(["go", "vet", "./..."], "go-vet")
         go_results = []
@@ -153,7 +160,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
         case_report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {}
         checks = [
             ("Q00-go-format", fmt["return_code"] == 0 and not fmt["stdout"].strip()),
-            ("Q00-go-build", api_build["return_code"] == 0 and worker_build["return_code"] == 0 and baseline_build["return_code"] == 0 and db_inspect_build["return_code"] == 0 and backup_build["return_code"] == 0),
+            ("Q00-go-build", api_build["return_code"] == 0 and worker_build["return_code"] == 0 and baseline_build["return_code"] == 0 and db_inspect_build["return_code"] == 0 and backup_build["return_code"] == 0 and intake_build["return_code"] == 0 and package_build["return_code"] == 0),
             ("Q00-go-unit", unit["return_code"] == 0 and verify_go_cases(go_manifest["expected_tests"], go_results)),
             ("Q00-go-vet", vet["return_code"] == 0),
         ]
@@ -171,13 +178,14 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
                       commands=commands, cases=cases, required_gates=manifest["required_gates"],
                       toolchain=version["stdout"].strip(), python=sys.version.split()[0],
                       go_test_case_count=len(go_results), go_statement_coverage=coverage["stdout"].strip().splitlines()[-1:] or ["NOT_MEASURED"],
-                      binary_sha256={p.name: sha256(p.read_bytes()).hexdigest() for p in (api_binary, worker_binary, baseline_binary, db_inspect_binary) if p.exists()},
+                      binary_sha256={p.name: sha256(p.read_bytes()).hexdigest() for p in (api_binary, worker_binary, baseline_binary, db_inspect_binary, intake_binary, package_binary) if p.exists()},
                       database_access="NOT_EXECUTED", backup="NOT_EXECUTED", migration="NOT_EXECUTED",
                       deployment="NOT_DEPLOYED", source_commit="UNCOMMITTED_WORKTREE_HASH_USED",
                       approval="NOT_REQUESTED_OR_GRANTED_BY_THIS_RUN")
         if observation:
             result["operational_observation"] = reconcile(observation, final_hash, expected_target)
         write_new_json(directory / "summary.json", result)
+        diagnostic = publish_diagnostic(directory, result, manifest, go_manifest, go_results)
         # Preview only: an interrupted or unreviewed run cannot overwrite human status.
         module = ROOT / "docs" / "modules" / f"{package}.md"
         preview = render_section(module.read_text(encoding="utf-8"), package, result, run_id)
@@ -188,6 +196,7 @@ def execute(package: str, workspace: Path | None, checks_only: bool, update_docs
             write_new_json(directory / "publication.json", receipt)
         print(json.dumps({k: result[k] for k in ("run_id", "automated_checks", "package_status", "deliverable_coverage")}, indent=2))
         print("Evidence: " + str(directory / "summary.json"))
+        print("Public diagnostic: " + json.dumps(diagnostic, sort_keys=True))
         if result["automated_checks"] != "PASS":
             return 1
         if checks_only:
@@ -209,7 +218,9 @@ def main() -> int:
     try:
         return execute(args.package, args.workspace, args.checks_only, args.update_docs,
                        args.observation, args.expected_target_fingerprint)
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError) as error:
+        print(json.dumps({"scope": "BOOTSTRAP_DIAGNOSTICS_ONLY", "status": "REFUSED_BEFORE_COMPLETION",
+                          "error_type": type(error).__name__, "release_verified": False}), file=sys.stderr)
         print("Checkpoint refused/interrupted: invalid scope, unavailable evidence or occupied local lock. No database action performed.", file=sys.stderr)
         return 1
 

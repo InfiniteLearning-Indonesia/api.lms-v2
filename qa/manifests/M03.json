@@ -97,7 +97,20 @@
     "Q00-preflight-frozen-case-set",
     "Q00-preflight-manifest-wiring",
     "Q00-preflight-nonpass-green-exit",
-    "Q00-preflight-secret-archive-exclusion"
+    "Q00-preflight-secret-archive-exclusion",
+    "Q00-ci-diagnostic-secret-boundary",
+    "Q00-ci-diagnostic-exact-evidence",
+    "M01-intake-cli-observed-capacity",
+    "M01-intake-cli-strict-redaction",
+    "M01-intake-cli-no-overwrite",
+    "M01-package-cli-integrity-boundary",
+    "M01-package-cli-refusal-redaction",
+    "M01-package-cli-restore-plan-only",
+    "M01-age-runner-probe-no-authority",
+    "M01-age-runner-evidence-and-admission",
+    "M01-authenticated-package-cli-refusal",
+    "M01-local-transfer-cli-refusal",
+    "M01-local-recovery-runner-fences"
   ],
   "deliverables": [
     {

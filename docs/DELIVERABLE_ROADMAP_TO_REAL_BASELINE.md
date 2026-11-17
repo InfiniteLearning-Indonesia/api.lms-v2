@@ -1,0 +1,94 @@
+# Urutan deliverable menuju baseline production nyata
+
+> **17 November — current recovery:** [Seven-case dependency accepted](checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
+
+> **17 November — current:** [Protected output/package implementation](checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.
+
+> **Accepted latest, 16 November — DLV-04 slice:** [Actual crypto review](checkpoints/2026-11-16-age-stream-accepted.md): 4/4 pinned age cases, 75/75 Go and vet PASS, same-source 92/92 ops reused. Prior tool/storage blocks are historical. Next: protected destination/key custody and authenticated package wiring, then isolated synthetic actual DB/object restore. Full DLV-04 and DLV-06 NOT_READY remain open; live data is not yet required to finish these tooling/control gates.
+
+> **16 November — latest DLV-04 preparation:** [Age adapter + one-command actual-tool QA handoff](checkpoints/2026-11-16-age-stream-handoff.md), [format/runner/limits](baseline/AGE_STREAM_RECOVERY.md). Native age v1.3.2 is a pinned external runtime tool; root Go dependency unchanged. Actual crypto four-case execution remains NOT_RUN until tools are available. Protected real-data output, snapshot/exporter wiring, actual DB/object restore and upstream gates remain open. DLV-06 is still NOT_READY; no new CP/D or database access.
+
+> **Latest 16 November:** [Lanjutan poin 2–4](checkpoints/2026-11-16-package-validator-restore-plan.md), source `078543fa1709650101e98c495a0c10deca1fd5a90db2f75767b043e8a89e9840`: package-integrity validator dan restore planner PASS offline; Go 71/71, ops 90/90, Linux cross-build PASS. Poin 2 encrypted streaming masih dependency-blocked. Actual restore/full DLV-04 dan DLV-06 readiness belum granted; current-source Playwright/DB/remote CI NOT_RUN. Earlier dated notes below are history.
+
+Tanggal diagnosis: **12 November 2026**. Scope: backend Go, QA dan kesiapan migrasi. Dokumen ini merinci urutan kerja; bukan izin koneksi production/staging, copy data, deployment, commit atau push.
+
+> **Latest — DLV-03/04 offline slices:** [Preflight/streaming evidence](checkpoints/2026-11-12-baseline-preflight-streaming.md), source `85afcf9f20ce0efd36878746a99c4bea1db87dd21f355cc5fb1b787d1d2155ca`: CLI preflight slice PASS, 63/63 Go dan 87/87 ops, backup unit coverage 92.0%, Linux cross-build PASS. Streaming checksum >33 MiB PASS_INTEGRITY_ONLY; streaming encryption belum dibuat karena dependency download diblokir environment proxy. Full DLV-03/04 dan real readiness belum closed. Current-source Playwright/full DB/remote CI NOT_RUN; laporan QA sebelumnya di bawah adalah histori source-bound.
+
+> **Update pelaksanaan 12 November:** [Hasil QA deliverables](checkpoints/2026-11-12-qa-deliverables.md). DLV-01/02 sudah memiliki perubahan lokal dan evidence; registry/helper defects teratasi pada pemeriksaan lokal, Go 55/55 dan Python 85/88 PASS, tiga Playwright setup ERROR (`WinError 5`) membuat full bootstrap tetap FAIL. Remote CI belum dijalankan. [Intake contract/gap ledger](baseline/REAL_BASELINE_INTAKE.md) menyiapkan sebagian DLV-03–06; readiness baseline nyata belum diberikan. Diagnosis awal di bawah merekam source sebelum perbaikan.
+
+## Posisi dan batas klaim
+
+- Commit yang didiagnosis: `7e7e86b2fa6408d8945f9d2e983cdcb76a27a2d2`, branch `be-v3`.
+- Source executable lokal: `cb0a9af604011f90e6bc14844f637e5e0bb094104b509ff03905407feae0a7bc`.
+- [M14 local closure](checkpoints/2026-11-11-m14-local-closure.md): 4/4 CP lokal sintetis, 21/21 direct cases; run `20261111T093737Z-postgres-lab-6e4bc487c4d6` diterima pada scope tersebut. Ini tidak membuktikan checkout publik atau CI Linux lulus.
+- Canonical M14 tetap 0/5 D dan M00–M18 tetap 0/97 D fully verified. Angka tersebut menghitung acceptance lengkap termasuk syarat eksternal, bukan jumlah fitur yang sudah ditulis. [Peta modul](MODULE_CHECKPOINT_MAP.md) tetap sumber pemetaan M/CP/D.
+- ID `DLV-01` sampai `DLV-06` di sini hanya urutan paket hasil untuk jalur menuju baseline nyata. Tidak menambah CP, mengubah denominator canonical D, atau menyatakan modul yang telah lulus lokal harus ditulis ulang.
+
+## Diagnosis CI yang dapat dibuktikan
+
+[Workflow run 43034862843](https://github.com/InfiniteLearning-Indonesia/api.lms-v2/actions/runs/43034862843), job `synthetic-checks` / `130570914257`, gagal pada **M03 bootstrap and M00/M01 predicate regression**. Checkout, setup Go/Python dan install dependensi Python berhasil. Race detector, static artifact dan dependent job `fresh-postgres-backend` belum berjalan. Tidak ada bukti dari run ini bahwa PostgreSQL atau ketiadaan database live menyebabkan kegagalan.
+
+| Temuan | Bukti dan akibat | Kepastian |
+|---|---|---|
+| Registry Go tertinggal | [go-tests.json](../qa/manifests/go-tests.json) mendeklarasikan 41 tes. Discovery `go test -list ^Test ./...` menemukan 55, dengan 14 belum terdaftar dan tidak ada deklarasi lama yang hilang. [verify_go_cases](../qa/evidence.py) mewajibkan kesamaan set persis; [qa.run](../qa/run.py) menggunakannya pada `Q00-go-unit`. Tambahan tes dapat membuat gate FAIL walaupun tesnya lulus. | Mismatch direproduksi; discovery bukan eksekusi atau bukti 55 tes PASS. |
+| Checkout publik tidak mandiri | [test_preparation_handoff.py](../qa/tests/ops/test_preparation_handoff.py) memuat `SERVICE.parent/portability/continue_m14_cp04.py`. [M03 manifest](../qa/manifests/M03.json) mencakup direktori ops itu. Helper berada di luar root repo dan tidak ikut checkout. Satu tes dijalankan dari arsip persis HEAD; gagal `FileNotFoundError`. [test_qa_retention_automation.py](../qa/tests/ops/test_qa_retention_automation.py) memakai pola dependency serupa. | Satu kegagalan fresh-checkout direproduksi; tidak mengklaim semua tes ops telah dijalankan dalam reproduksi ini. |
+| Bukti kegagalan remote tidak dipublikasikan | [Workflow](../.github/workflows/backend-go-qa.yml) tidak menyimpan laporan diagnostik. Runner menulis summary/command files lokal, tetapi stdout remote hanya aggregate FAIL/BLOCKED. | Daftar lengkap kasus yang gagal pada remote run tersebut tidak tersedia dari log publik. Kedua defect di atas terbukti terpisah; bukan rekonstruksi lengkap seluruh hasil remote. |
+| Versi PostgreSQL CI belum dibekukan eksplisit | Workflow memakai `pg_config --bindir` dari Ubuntu runner; kesetaraan dengan lingkungan native yang telah diuji belum dibuktikan. | Risiko reproduksibilitas, **bukan penyebab bootstrap yang sudah terbukti**; job DB belum berjalan. |
+
+`gofmt -l` pada source Go di `cmd/` dan `internal/` tidak menemukan file yang perlu diformat. Diagnosis tidak mengubah source executable atau menjalankan cluster baru.
+
+Evidence privat: `backend-v3/private-backup/ci-diagnosis-20261112/diagnosis.json`, `go-test-discovery.log`, `go-format.log`, `checkout-reproduction.log`, arsip checkout dan `remote-job.log`. Tidak perlu mempublikasikan seluruh log/arsip itu. Tidak ada akses database, akses live, atau perubahan Git dalam reproduksi.
+
+## Urutan hasil yang dikerjakan dan ditutup satu per satu
+
+Tabel berikut memuat **kontrak target**, dengan status pelaksanaan terbaru pada update di atas. Bounded offline slices dapat PASS sementara full paket/canonical D masih terbuka. Paket boleh dibundel dalam satu sesi, tetapi exit dan hasil QA masing-masing tetap terpisah. Jika dependency gagal, paket yang bergantung padanya berhenti.
+
+| Urutan | Hasil konkret | Mendukung acceptance yang sudah ada | Dependency | Exit yang harus dibuktikan |
+|---|---|---|---|---|
+| **DLV-01 — QA mandiri dari checkout** | Registry Go diperbarui melalui review; implementasi helper publik tersedia dari repo tanpa private state parent workspace. Parent launcher dapat tetap menjadi compatibility shim. | M03-D01, M03-D05 | Diagnosis ini | Fresh checkout dapat mengumpulkan/menjalankan tes yang sama tanpa file parent. Registry mencakup tepat tes wajib, bukan mengabaikan unexpected/missing cases. Source/hash baru dan regresi terdampak dicatat. |
+| **DLV-02 — CI reproduktif dan diagnostik** | Bootstrap, race, artifact build dan fresh PostgreSQL journey berjalan di Linux; toolchain/PG matrix eksplisit. Failure mengeluarkan ID gagal, exit code dan ringkasan redacted yang cukup untuk diagnosis. | M03-D01, M03-D02, M03-D05 | DLV-01 | Bukti fresh-clone lokal dan actual workflow run pada commit baru. Green workflow tidak disamakan full M03, release, SLA atau izin migrasi. Jika publikasi belum diminta/tersedia, status tetap PENDING_REMOTE, tidak diberi PASS. |
+| **DLV-03 — Kontrol baseline dan operator** | Kontrak input source/target, metadata/deployed SHA, CA, role, scope objek, custody key, batas disk/waktu dan allowed operations; preflight offline menolak kondisi ambigu. | M00-D01–D05; M01-D01, M01-D03 | DLV-01; bukti remote DLV-02 diperlukan sebelum final readiness | Fixture salah identitas/same target, CA/role tidak sesuai, missing approval, path/kapasitas tidak aman berhenti tanpa koneksi nyata. Scope yang belum dapat dibuktikan diberi UNKNOWN/BLOCKED. File `.env` bernama production tidak dianggap bukti. |
+| **DLV-04 — Prosedur snapshot/restore siap pakai** | Runbook/tool operator diuji pada data sintetis: custom dump konsisten, SQL dari snapshot yang sama, checksum, inventory objek dan actual restore ke DB lokal baru. | M01-D01–D05; M16-D01 preparation | DLV-03 | Corrupt/truncated/missing-table/objek, mismatch manifest, wrong target dan interrupted restore terdeteksi. Tidak memakai `--clean`, overwrite DB, atau restore ke live/staging. Kapasitas/ukuran tool dibuktikan untuk scope yang dideklarasikan; validator arsip sintetis 32 MiB yang lama tidak otomatis cukup untuk dump production. |
+| **DLV-05 — Kontrak mapping dan accounting siap menerima baseline** | Pakai kembali M15 yang sudah teruji; lengkapi gap adapter/consumer yang dapat dibuktikan tanpa data nyata. Buat daftar keputusan mapping dan invariant, bukan menebak isi production. | M15-D01–D06; preparation M06-CP04, M08-CP04, M12-CP04 sesuai gap | DLV-03; DLV-04 untuk uji import/restore | Uji synthetic duplicates, orphan, ambiguous Class/batch, retake, chronology, legacy score/file mismatch. Hasil di-account sebagai imported/quarantined/explicitly-excluded dengan alasan; replay idempotent, transaksi/provenance benar. Tidak memalsukan nilai/completion atau menutup real-mapping CP dengan fixture. |
+| **DLV-06 — Handoff permintaan baseline nyata** | Satu dossier berisi scope minimum metadata/snapshot/files, required receipt, custody/restore/storage plan, owner/reviewer, daftar unknown dan residual security gates. | M00-D04–D05; M01-D01/D03/D05 preparation; M15-D01; entry M16-D01 | DLV-01–05 dengan evidence dan residual gate jelas | Status terbatas `READY_FOR_REAL_BASELINE_INPUT` hanya bila tooling, kontrol dan penerimaan input siap. Unknown production tetap terbuka; tidak menandai full M00/M01/M15 selesai atau membuat approval/reviewer fiktif. |
+
+### QA dan pelaporan setiap hasil
+
+- Bekukan perubahan, expected cases, acceptance dan dependency sebelum coding. Catat apa yang reused, diubah, belum dikerjakan dan blocked.
+- Go: unit/integration/race sesuai perubahan; Python/Playwright request untuk API, Python ops untuk operator; PostgreSQL lokal terisolasi hanya saat assertion DB/restore diperlukan. Tidak semua dokumen/operator predicate membutuhkan browser atau full database journey baru.
+- Gunakan existing evidence jika masih current untuk input/scope itu. Jangan mengulang full journey hanya untuk perubahan Markdown. Source executable berubah berarti affected evidence harus diperbarui; bukti M14 lama tetap historis pada hash lamanya.
+- Backup sebelum migration/schema/data change; backup harus dapat dipulihkan, bukan hanya file ada. Source/context backup berbeda dari DB backup.
+- Simpan receipt kecil: source/manifest hash, case IDs, PASS/FAIL/BLOCKED/NOT_RUN, checksum/restore outcome, environment scope dan residual gates. Sanitized CI diagnostics punya ukuran/retention terbatas; jangan upload dump, `.env`, credential, private approvals, atau raw command logs tanpa review.
+- Patuhi kebijakan retensi QA yang sudah ada: hanya raw synthetic yang terbukti eligible dapat dibersihkan oleh mekanisme yang diotorisasi. Baseline production dan private backup tidak masuk disposal otomatis synthetic. Tidak membuat cluster besar baru bila targeted check cukup.
+- Coverage deliverable = assertion exit yang terbukti / assertion exit yang dibekukan, **bukan line coverage atau jumlah tes PASS**. Canonical D hanya ditutup bila seluruh persyaratan row-nya terpenuhi; readiness lokal tidak memenuhi persyaratan actual environment.
+
+## Titik berhenti: kapan data production benar-benar diperlukan?
+
+**Setelah DLV-06, langkah berikut memerlukan bukti production nyata untuk melanjutkan jalur migrasi.** Mock tambahan tidak dapat menjawab schema drift sebenarnya, deployed SHA, identitas DB, populasi/chronology/duplikasi, orphan/file hilang, distribusi ukuran atau arti legacy field yang ambigu. Jangan memperpanjang lane mock tanpa pertanyaan yang nyata dan terukur.
+
+Ini kebutuhan **input baseline nyata**, bukan kewajiban menghubungkan backend Go ke DB live atau memberi agent credential live. Operator dapat menyediakan:
+
+1. Bukti deployed artifact/SHA dan metadata source asli: identitas lingkungan, schema/constraint/index/extension, jobs dan storage scope; tanpa password/DSN mentah di dokumen publik.
+2. Dump konsisten dari production dengan checksum, timestamp/snapshot scope dan provenance. SQL/custom harus mewakili snapshot yang sama; jangan membandingkan dump kemarin dengan row count live hari ini seolah snapshot identik.
+3. Inventory/backup file sesuai scope, termasuk missing-object disposition. Dump database saja tidak membawa isi object storage atau membuktikan key recovery.
+4. Persetujuan scope pemrosesan data, lokasi private artifacts, akses, owner/reviewer, dan referensi key custody. Data hasil sanitasi harus menjelaskan transformasi dan keterbatasannya; tidak membuktikan exact production reconciliation jika key/hash/relasinya berubah.
+
+Codex kemudian bekerja pada **restore lokal terisolasi**. Identitas production dalam receipt/metadata harus diverifikasi terhadap bukti operator, bukan ditebak dari isi `.env`. Bila bukti belum cukup, status `BLOCKED_REAL_BASELINE_INPUT`, dengan daftar kekurangan spesifik.
+
+Pengambilan source dump dilakukan melalui read-only source role, TLS terverifikasi, scope/timeout/kapasitas yang disetujui dan window beban yang sesuai. Read-only dump tetap dapat menambah beban/lock; jangan menganggapnya tanpa dampak. Jika dedicated role belum tersedia, provisioning adalah perubahan operasional terpisah yang direview, bukan SQL otomatis dari rencana ini. Metadata/read-only export awal tidak memerlukan menyalakan vulnerable aplikasi legacy atau mempercayainya sebagai identity issuer.
+
+Tidak ada `DELETE`, `TRUNCATE`, `DROP`, `UPDATE`, DDL, restore overwrite, purge, atau automatic migration terhadap DB live/staging. Jangan menjalankan legacy startup/repair, worker, email/notification atau provider nyata pada data hasil restore. Runtime Go v3 tetap memakai DB lokal/synthetic pada fase ini. Staging v3 kelak dipersiapkan terpisah dengan backup pre-state; keberadaan baseline lokal tidak mengotorisasi overwrite staging.
+
+## Sesudah baseline tersedia: gate yang berbeda
+
+1. **Actual baseline review / M00–M01:** verifikasi metadata, identity, capacity dan custody; actual restore ke DB baru dan rekonsiliasi schema/key/relation/file terhadap snapshot. Update unknowns berdasarkan evidence, bukan mengganti seluruh desain dengan asumsi baru.
+2. **Actual mapping / M15 + consumer closure:** review Class-centric mapping bersama owner; batch/cohort dapat menjadi metadata, enrollment/role/grade/completion tetap terpisah. Tutup M06/M08/M12 real mapping yang relevan dengan evidence nyata. M11 attendance/permit dan kebijakan akademik yang belum diputuskan tetap harus diselesaikan sebelum scope fitur tersebut diaktifkan.
+3. **M16 rehearsal:** jalankan snapshot pertama lalu snapshot/delta kedua, konflik, interrupted/resume dan reconciliation; source tetap tidak ditulis. M00/M01/M02 dan operational gates yang dipersyaratkan tetap berlaku sebelum rehearsal environment nyata.
+4. **M02/M04 authority dan M17 pilot:** containment legacy harus terbukti pada actual target sebelum mempercayai real identity bridge. Write ownership/fence, frontend alignment, akademik/privacy dan ops acceptance diperlukan sebelum pilot. Backend synthetic login PASS tidak menggantikan bukti ini.
+5. **M18 rollout:** cutover production baru setelah rehearsal/pilot diterima, backup/recovery dan fresh delta gates lulus, serta scope operasi diotorisasi. **Gate menulis/mengalihkan traffic production ini jauh setelah gate input snapshot.**
+
+Pekerjaan M11/M12 atau keputusan frontend tidak harus semuanya selesai sebelum meminta snapshot pertama. Namun fitur yang belum selesai tidak boleh diaktifkan/diberi PASS demi mengejar cutover. Target jalur ini adalah siap mempelajari dan memigrasikan data nyata dengan aman, bukan mengklaim seluruh LMS siap produksi.
+
+## Langkah berikut yang konkret
+
+Tutup residual Playwright gate DLV-01 dan actual remote execution DLV-02 ketika executor/publikasi tersedia. DLV-03 offline preflight sudah lulus; berikutnya lengkapi DLV-04 encrypted streaming/recovery setelah dependency terverifikasi tersedia, atau validator paket offline memakai integrity primitives yang sudah diuji. [Gap ledger](baseline/REAL_BASELINE_INTAKE.md) tetap berlaku; tidak mengklaim gate upstream lulus atau menghubungkan alat sintetis ke production. Tidak ada canonical completion atau commit/push dari update ini.

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "scope": "NEW_LOCAL_SYNTHETIC_RECOVERY_ONLY",
+  "module": "M01",
+  "full_module_verified": false,
+  "real_baseline_verified": false,
+  "default_go_tests": ["TestLocalTransferStrictInput", "TestLocalTransferFailsBeforeOutput"],
+  "actual_go_tests": ["TestAgeActualProtectedRecoveryAndCLI", "TestAgeActualRecoveryRejectsCorruptionBeforeCreation"],
+  "ops_cases": ["M01-local-transfer-cli-refusal", "M01-local-recovery-runner-fences"],
+  "database_cases": [
+    "source-prestate-backup-restore",
+    "target-prestate-backup-restores",
+    "consistent-custom-and-sql",
+    "actual-package-authentication",
+    "protected-payload-recovery",
+    "custom-restore",
+    "sql-restore",
+    "schema-rows-sequences-files-parity",
+    "foreign-key-denial-retains-state",
+    "normal-stop"
+  ]
+}
