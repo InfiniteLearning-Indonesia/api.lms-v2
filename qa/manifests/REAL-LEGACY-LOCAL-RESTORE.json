@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "scope": "ONE_PINNED_REAL_PUBLIC_BASELINE_NEW_LOCAL_CLUSTER_ONLY",
+  "source_run": "20261118T131839Z-staging-baseline-3fe3bf70b4d4",
+  "tables": 21,
+  "rows": 7843,
+  "enums": 4,
+  "constraints": 52,
+  "foreign_keys": 27,
+  "sequences": 0,
+  "cases": [
+    "encrypted-input-authentication",
+    "schema-and-copy-review",
+    "new-cluster-identity",
+    "empty-target-backup-restore",
+    "minimal-extension-provisioning",
+    "atomic-custom-restore",
+    "schema-constraints-parity",
+    "all-table-row-parity",
+    "reader-and-sequence-safety",
+    "original-baseline-unchanged",
+    "normal-stop"
+  ],
+  "source_connection": "NONE",
+  "r2_access": "NONE",
+  "full_module_verified": false,
+  "migration_authority": false,
+  "automatic_deletion": "NONE"
+}

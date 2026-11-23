@@ -72,6 +72,34 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			fail(identity.ErrUnauthenticated)
 			return
 		}
+		if r.Method == "GET" && r.URL.Path == "/v3/me/classes" && store.accounts != nil {
+			route = "class.my_classes"
+			if identity.ContextToken(ctx) == "" || r.URL.RawQuery != "" {
+				fail(ErrForbidden)
+				return
+			}
+			value, err := store.memberClasses(ctx, token)
+			if err != nil {
+				fail(err)
+				return
+			}
+			respond(200, map[string][]classMembership{"classes": value})
+			return
+		}
+		if r.Method == "GET" && r.URL.Path == "/v3/me/class-invitations" && store.accounts != nil {
+			route = "class.my_invitations"
+			if identity.ContextToken(ctx) == "" || r.URL.RawQuery != "" {
+				fail(ErrForbidden)
+				return
+			}
+			value, err := store.pendingInvitations(ctx, token)
+			if err != nil {
+				fail(err)
+				return
+			}
+			respond(200, map[string][]Invitation{"invitations": value})
+			return
+		}
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		if len(parts) < 2 || parts[0] != "v3" || parts[1] != "classes" {
 			fail(ErrNotFound)
@@ -131,6 +159,16 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 				cmd.Action = "assign_mentor"
 			case "invitations":
 				cmd.Action = "invite"
+			case "account-invitations":
+				if store.accounts == nil {
+					fail(ErrNotFound)
+					return
+				}
+				if identity.ContextToken(ctx) == "" {
+					fail(ErrForbidden)
+					return
+				}
+				cmd.Action = "invite_account"
 			case "publish", "archive", "close", "reopen":
 				cmd.Action = parts[3]
 			default:
@@ -230,6 +268,15 @@ func Handler(store *Store, logger *slog.Logger) http.Handler {
 			}
 			if err = decode(&v); err == nil {
 				cmd.UserID = v.User
+				cmd.Role = v.Role
+			}
+		case "invite_account":
+			var v struct {
+				Email string `json:"email"`
+				Role  string `json:"role"`
+			}
+			if err = decode(&v); err == nil {
+				cmd.AccountEmail = v.Email
 				cmd.Role = v.Role
 			}
 		case "accept_invitation":

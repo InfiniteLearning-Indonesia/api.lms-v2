@@ -1,5 +1,7 @@
 # Implementation Plan — LMS v3
 
+> **Keputusan handover v3.** Site Admin membuat akun dan dapat mengirim Invite Mentor/Mentee. Akun yang sama bisa memakai email + password dan Google Sign-In. Urutan dan bukti M04/M05/M14/M15 mengikuti kontrak autentikasi v3. [Kontrak autentikasi](../AUTHENTICATION_V3.md)
+
 > **Status 29 Oktober 2026:** [M13-CP03](backend-v3/backend-go/docs/checkpoints/2026-10-29-m13-cp03.md) **IMPLEMENTED_UNVERIFIED**. Fresh synthetic QA terhenti sebelum backup/migrasi karena PostgreSQL 18 Windows restricted-token error 87 pada sandbox. Go unit/regression/vet lulus, tetapi CP03 belum memenuhi kontrak Playwright + Go/DB + restore/reconciliation; **M13 tetap 2/4 CP lokal teruji** dan canonical M00–M18 tetap **0/97 D fully verified**. Jangan mulai CP04 atau menggunakan data nyata; ulang CP03 pada fresh cluster yang dapat berjalan. Status bertanggal lebih lama di bawah adalah histori.
 
 > **Status 30 September 2026:** [M07-CP04](backend-v3/backend-go/docs/checkpoints/2026-09-30-m07-cp04.md) lulus **7/7 frozen cases** pada fixture lokal dengan backup SQL/custom, isolated restore, reconciliation dan full dependency regression. M07 kini **4/4 CP slice lokal sintetis**, tetapi **0/5 canonical D**; total M00–M18 tetap **0/97 D fully verified**. Tidak ada koneksi staging/live, data copy, delete, commit, push atau deploy. Berikutnya M06-CP04 setelah scope/mapping freeze atau M13-CP03 setelah AI/policy freeze; M00/M01/M02 tetap gate sebelum data nyata. Semua status bertanggal lebih lama di bawah adalah histori, bukan pembatalan bukti.

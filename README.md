@@ -1,139 +1,38 @@
-# LMS v3 backend — Go
+# LMS v3 backend Go
 
-> **17 November — current recovery:** [Seven-case dependency accepted](docs/checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](docs/checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](docs/baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](docs/baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
+Repositori Go untuk LMS v3 class-sentris. Admin memprovisikan akun dan membuat Class. Keanggotaan serta izin Mentor dan Mentee berlaku pada Class masing-masing. Go memegang sesi dan otorisasi.
 
-> **17 November — current:** [Protected output/package implementation](docs/checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](docs/baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.
+Worktree lokal berada di `backend-v3/backend-go`. Isi worktree ini tampil langsung di root branch `be-v3`. [Layout Git](docs/checkpoints/2026-09-08-git-root.md)
 
-> **Mulai di sini sebelum live/staging:** [Rangkuman proyek dan handoff baseline, 16 November](docs/PROJECT_STATE_BEFORE_LIVE_STAGING.md). Seluruh M, QA current vs historical, remaining gates, input yang perlu disiapkan, urutan recovery→baseline→rehearsal→pilot dan batas Git/backup dirangkum dalam satu dokumen. Metadata dapat disiapkan sekarang; tooling real-snapshot dan staging runtime belum READY.
+## Mulai dari sini
 
-> **Accepted latest, 16 November:** [Actual age crypto evidence reviewed](docs/checkpoints/2026-11-16-age-stream-accepted.md): **4/4 actual crypto + 75/75 Go + vet PASS**, prior same-source ops 92/92 reused. Source `469e7d3b57b55a418994173ef73c3a992863bf6f8f72b6b2d8c12176c58ee6ee`. Storage/tool blocks below are historical; protected real-data exporter/custody, authenticated package wiring, actual DB restore and full M01/DLV-04 remain open. No database access or Git publication.
-
-> **16 November — latest:** [Pinned age streaming adapter + unattended QA handoff](docs/checkpoints/2026-11-16-age-stream-handoff.md). Default Go/ops/build verification is separate from the four mandatory actual crypto cases, which remain NOT_RUN until verified tools are available. [Usage, format and remaining gates](docs/baseline/AGE_STREAM_RECOVERY.md). No database/restore/full-module completion or publication claimed; earlier dated results below are source-bound history.
-
-> **Latest, 16 November:** [Offline package validator and restore planner](docs/checkpoints/2026-11-16-package-validator-restore-plan.md): `baseline-package --verify-only` / `--plan-restore`; Go 71/71 and ops 90/90 PASS, Linux cross-build PASS. No restore command/DB operation is executed. Encrypted streaming remains dependency-blocked; full real-baseline/Playwright/DB/remote gates stay open. [Input contract and limits](docs/baseline/PACKAGE_VALIDATION_AND_RESTORE_PLAN.md).
-
-> **Latest offline tooling, 12 November:** [Baseline preflight + streaming integrity](docs/checkpoints/2026-11-12-baseline-preflight-streaming.md): Go CLI `baseline-preflight --plan-only`, actual disk/no-overwrite checks, bounded large-file checksum. Go 63/63 and ops 87/87 PASS; no DB operations. Streaming encryption remains dependency-blocked; full API/DB/remote gates are not closed. [Usage and limits](docs/baseline/OFFLINE_PREFLIGHT_AND_STREAMING.md).
-
-> **12 November:** [QA repair and current evidence](docs/checkpoints/2026-11-12-qa-deliverables.md): public operator helpers now live in `qa/operators`, exact Go registry is 55 tests. Go 55/55 and Python 85/88 PASS from isolated source; three Playwright setup errors keep bootstrap blocked. Static Linux repeat-build PASS, remote CI pending. See [deliverable roadmap](docs/DELIVERABLE_ROADMAP_TO_REAL_BASELINE.md) and [real-baseline intake/gaps](docs/baseline/REAL_BASELINE_INTAKE.md) before further migration work.
-
-**Status 29 Oktober 2026:** [M13-CP03](docs/checkpoints/2026-10-29-m13-cp03.md) telah diimplementasikan tetapi **QA DB belum dapat berjalan** (`initdb`/`pg_ctl` Windows restricted-token error 87). Go unit/regression dan vet lulus; CP03 **belum dihitung selesai**. M13 tetap 2/4 CP lokal teruji dan canonical M00–M18 tetap 0/97 D. Tidak ada staging/live DB access, backup/migration CP03, delete, commit, push atau deploy. Status lama di bawah adalah histori.
-
-**Status 30 September 2026:** [M07-CP04](docs/checkpoints/2026-09-30-m07-cp04.md) lulus lokal sintetis (Playwright 4/4, Go/DB 3/3, backup/restore dan rekonsiliasi), sehingga M07 **4/4 CP slice lokal** tetapi **0/5 canonical D**. Seluruh M00–M18 tetap **0/97 D fully verified**. Run `20260930T104933Z-postgres-lab-a4ed4b030dc1`; staging/live, real import, commit/push dan deploy tidak dilakukan. Status bertanggal lebih lama di bawah adalah histori.
-
-**Status 29 September 2026:** [M10-CP04](docs/checkpoints/2026-09-29-m10-cp04.md) dan [M05-CP05](docs/checkpoints/2026-09-29-m05-cp05.md) lulus lokal sintetis. M10 kini **4/4 CP slice lokal**, M05 **5/5**, tetapi seluruh M00–M18 tetap **0/97 canonical D fully verified**. Run terakhir `20260929T133707Z-postgres-lab-46f4fba76430` PASS_SYNTHETIC_ONLY; backup/restore dan dependency regression PASS. Staging/production, real data copy, commit/push dan deploy tidak disentuh. Pernyataan bertanggal sebelumnya di bawah adalah histori.
-
-**Status rekonsiliasi 24 September:** [koreksi dokumen](docs/RECONCILIATION_2026-09-24.md), [baseline database lokal](docs/LOCAL_SYNTHETIC_BASELINE.md), dan [handoff frontend](docs/FRONTEND_HANDOFF_STATUS.md). M09 4/4 CP lokal sintetis, M10 3/4, M13 2/4 hasil review bukti; M15 5/5 slice sintetis. Canonical M00–M18 masih 0/97 D fully verified. Run terbaru [M10-CP03](docs/checkpoints/2026-09-22-m10-cp03.md) `PASS_SYNTHETIC_ONLY`; M10-CP04 berikutnya. Baris bertanggal lebih lama di bawah adalah histori, bukan status terkini.
-
-**Update 15 September:** [M12-CP02/CP03](docs/checkpoints/2026-09-15-m12-cp02-cp03.md) lulus 8/8 frozen Go/DB+Playwright cases dengan backup SQL/custom dan actual isolated restore terpisah. M12 kini 3/4 slice lokal; canonical 0/5. Entry/revision dan scoped personal-mentor review baru di harness sintetis, belum shared `cmd/api`. Tidak ada staging/production access, delete, commit atau push.
-
-**Update 14 September:** [M12-CP01](docs/checkpoints/2026-09-14-m12-cp01.md) lulus 4/4 frozen Go/DB+Playwright cases pada cluster sintetis baru dengan backup SQL/custom dan actual isolated restore. M12 kini 1/4 slice lokal; canonical 0/5. Endpoint period-set masih hanya di harness QA, bukan `cmd/api` runtime bersama. Tidak ada staging/production access, delete, commit atau push.
-
-**Update 14 September 2026:** [M15-CP05 + M11-CP01](docs/checkpoints/2026-09-14-m15-cp05-m11-cp01.md) lulus pada full synthetic PostgreSQL journey: masing-masing 3/3 dan 4/4 frozen QA cases, dengan fresh SQL/custom backups dan actual isolated restores. M15 sekarang 5/5 **slice sintetis**, M11 1/4 **slice lokal**; canonical tetap M15 0/6 dan M11 0/5. Status bertanggal 13 September di bawah adalah histori. Tidak ada DB nyata, commit, atau push.
-
-**Pelacakan pekerjaan 13 September:** mulai dari [capaian M00–M19 dan CP di dalam modul](docs/MODULE_CHECKPOINT_MAP.md), bukan nomor CP global. Posisi lokal: M03 6/6 bagian, M04 2/5, M05 4/5, M06 3/4, M07 3/4, M08 3/4 exit lokal dengan CP04 parsial, M15 4/5 slice sintetis; full acceptance terpisah. Next recommended: **M15-CP05 synthetic reconciliation/closure**; source nyata tetap memerlukan CA/backup/approval gate. Peta tersebut menunjukkan urutan dependency seluruh CP lintas M.
-
-Repository/worktree root: **`backend-v3/backend-go`** locally. On branch `be-v3`, GitHub now shows `go.mod`, `cmd/`, `internal/`, `qa/`, `docs/` and `.github/` directly at root, without legacy NestJS files or an extra `backend-go/` wrapper. See [layout correction](docs/checkpoints/2026-09-08-git-root.md). Links to master plan/audit outside this directory are workspace references; those external documents are not bundled in this backend-only repository.
-
-Implementation checkpoint: Go platform dan beberapa domain akademik sudah teruji pada PostgreSQL sintetis lokal. **Belum backend LMS lengkap atau siap staging/production.** Product scope dan acceptance tetap di [docs](docs/README.md); posisi aktual di [implementation status](docs/IMPLEMENTATION_STATUS.md).
-
-Historical M15 work: [M15-CP03/CP04 results](docs/checkpoints/2026-09-13-m15-cp03-cp04.md) dan [CP05](docs/checkpoints/2026-09-14-m15-cp05-m11-cp01.md) menutup 5/5 slice sintetis lokal; canonical M15 tetap 0/6. Tidak ada source nyata/staging/live DB yang diimpor; M08-CP04 tetap parsial menunggu real chronology mapping dan gate M00/M01.
-
-Prior Class scope: [M05-CP03–CP04 results](docs/checkpoints/2026-09-10-m05-cp03-cp04.md) **VERIFIED_LOCAL_SLICES**. Class-owned grouping, personal mentor history, target-bound invitations, explicit retake/transfer/equivalence provenance, backup/restore dan seluruh backend regression lulus. Canonical M05 tetap 0/5 karena CP05/shared/QG gates.
-
-Prior scoped work: [M03-CP03–CP04 results](docs/checkpoints/2026-09-09-m03-cp03-cp04.md) **VERIFIED_LOCAL_SLICES**. Forward migration runner + real `cmd/api` TLS process lulus pada fresh synthetic PostgreSQL; CP04 12/12 API cases, CP03/CP04 coverage 76.4%/69.4%, dan CP08–CP12 regressions PASS.
-
-CP05 continuation **PASS_SYNTHETIC_ONLY** on 7 September: [actual PostgreSQL backup/restore + transaction integration evidence](docs/checkpoints/2026-09-07-cp05-closure.md). Local cluster stopped and retained; production/staging untouched.
-
-## Yang sudah executable
-
-- `cmd/api`: bootstrap health-only mode serta `v3-local-synthetic` real TLS business runtime. Mode business memasang cookie identity + contextual Class handler, dependency readiness dan restricted pools; startup tidak menjalankan DDL. Shared mode belum diaktifkan.
-- `cmd/migrate`: forward-only operator runner dengan katalog terkompilasi, checksum/dependency/lock dan fresh restored-backup gate; checkpoint ini hanya mengizinkan cluster sintetis baru.
-- `cmd/class-lab`: separate opt-in loopback fixture entry point for real Class handlers, hashed opaque bearer sessions and restricted PostgreSQL runtime. No dotenv/shared DSN, seed, migration or login bypass at HTTP startup. Class routes are not yet wired into `cmd/api`; no actual issuer/provider login.
-- `cmd/identity-lab`: HTTPS cookie/CSRF fixture lokal yang juga memasang Class, participation, file, content, submission, gradebook, completion, dan notification slice untuk QA. Ini belum berarti seluruh route terpasang pada shared `cmd/api`. `cmd/bridge-fixture` hanya issuer sintetis offline. [OpenAPI identity lokal](docs/api/cp11-cp12.openapi.json); adapter legacy/real issuer, malware scanner dan private object provider belum tersedia.
-- `cmd/baseline`: scan seluruh `src/**/*.ts` dua checkout backend, Git commit/dirty/source hash dan declaration locations. Config dibandingkan sebagai fingerprint, tanpa mencetak password/host/user/database. **Tidak membuka koneksi DB**, menjalankan NestJS, atau membuktikan deployment/schema aktual.
-- `cmd/db-inspect`: operator-only pgx CLI dengan explicit staging acknowledgement, verified TLS, one connection, transaction read-only, static public-catalog queries dan timeouts. Tidak dipanggil API atau synthetic QA. [Inspeksi staging terbaru](docs/checkpoints/2026-09-06-staging-ca-verified.md) berhasil membaca metadata 20 tabel public dengan CA pengguna; credential teramati memiliki hak luas, bukan least-privilege runtime.
-- `qa/run.py`: Go format/build/unit/vet/coverage → Pytest operator/self-tests → Playwright Python ke binary API baru khusus M03 → evidence/coverage/blockers. M00 menambahkan actual local source inventory. Full suite M00–M19 belum tersedia.
-- `cmd/backup-plan --plan-only`: reads strict JSON from stdin, no env/DB/process execution; checks declarations and refuses unsafe/occupied destination. `PLAN_VALID_NOT_AUTHORIZED` is not real backup, verified disk/ACL/approval, or execution permission.
-- `qa.release`, `qa.linux_qa`, `qa.postgres_lab`: separate static-artifact, Linux race/non-root, and explicitly authorized NEW synthetic PostgreSQL lab workflows. Lab never accepts existing/shared DSNs and retains cluster/backups; see checkpoint for actually executed vs pending evidence.
-- CI bootstrap di [repository workflow](.github/workflows/backend-go-qa.yml), sekarang di root yang sama dengan `go.mod`. Historical checkpoint push status dicatat di masing-masing laporan; publikasi layout terbaru ada di [handoff Git](docs/checkpoints/2026-09-08-git-root.md). Remote CI/deploy tidak diasumsikan lulus dari push.
-
-## Menjalankan checkpoint lokal (PowerShell)
-
-Prasyarat: Git, Go **1.27.1**, Python 3.12, akses download dependency saat setup. Python lokal saat checkpoint ini 3.12.2; production Python bukan runtime aplikasi. Go memakai toolchain terpin; patch berikutnya wajib direview dan QA ulang. [Go releases](https://go.dev/doc/devel/release).
-
-```powershell
-cd D:\Projects\lms-v2\backend-v3\backend-go
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r qa/requirements.lock
-$env:GOTOOLCHAIN = 'go1.27.1'
-$env:GOMODCACHE = "$PWD\.cache\go-mod"
-$env:GOCACHE = "$PWD\.cache\go-build"
-go version
-go mod download
-.\.venv\Scripts\python.exe -m qa.run --package M00 --workspace D:\Projects\lms-v2 --update-docs
-.\.venv\Scripts\python.exe -m qa.run --package M03 --update-docs
-```
-
-Jalankan command M00 dan M03 secara terpisah; jangan memakai success chaining untuk menyembunyikan `BLOCKED`. M03 bootstrap lokal independen dapat diuji saat gate operasional M00 tertahan. Di shell Linux gunakan `.venv/bin/python` dan install Go 1.27.1 terlebih dahulu. Runner tidak mendownload Go/module/dependency, karena child `GOPROXY=off`; initial `go version` di atas menyiapkan toolchain jika Go terpasang berbeda.
-
-Tidak perlu menginstall browser: QA menggunakan [Playwright APIRequestContext](https://playwright.dev/python/docs/api-testing), bukan browser/UI. Dependencies Python dikunci versi dalam `qa/requirements.lock`; artifact-hash lock/wheel provenance dan vulnerability scan penuh masih pekerjaan hardening M03, bukan dianggap selesai.
-
-| Exit runner | Makna |
+| Keperluan | Rujukan |
 |---|---|
-| `0` | Full module verified, **atau** hanya bootstrap checks dengan flag eksplisit `--checks-only`. Periksa `package_status`; flag tidak mengubah coverage/gates. |
-| `1` | Build/test/collection/hash/runner error; baca evidence. |
-| `2` | Checks lokal lulus, tetapi module evidence/dependencies/approvals belum lengkap. Kondisi normal pada bootstrap saat ini. |
+| Sambungkan frontend produk | [Panduan API](API-DOCS.MD) · [OpenAPI inti](api/openapi/lms-v3-core.json) · [Checklist per layar](docs/INTEGRATION_CHECKLIST.md) |
+| Jalankan API Go lokal | [Preview HTTPS dan PostgreSQL](docs/LOCAL_PREVIEW.md) |
+| Lihat urutan integrasi, staging-v2 dan histori | [Roadmap integrasi](docs/FRONTEND_INTEGRATION_ROADMAP.md) · [Persiapan data dan operasi](docs/PROJECT_STATE_BEFORE_LIVE_STAGING.md) |
+| Lihat pekerjaan per modul | [Status implementasi](docs/IMPLEMENTATION_STATUS.md) · [Peta M00–M19](docs/MODULE_CHECKPOINT_MAP.md) · [Plan dan audit](docs/references/README.md) |
+| Verifikasi hasil QA | [Indeks hasil](docs/QA_EVIDENCE.md) · [Rencana QA](docs/QA_AUTOMATION_PLAN.md) · [Retensi penyimpanan](docs/QA_STORAGE_POLICY.md) |
 
-Default package runner hanya mendukung `M00` dan `M03`, profile `local-synthetic`. CP08–CP10 DB/API integration memakai opt-in lab terpisah, bukan full M01/M04/M05 suite. Paket lain/profile staging/live ditolak, tidak ditandai hijau. Satu runner aktif per environment melalui OS lock; crash melepas lock tanpa menghapus lock file. Tidak ada daemon/background agent yang menjanjikan pekerjaan berlanjut setelah sesi ditutup.
+Tiga alur browser dan tujuh skenario API preview sudah lulus lokal. Validasi frontend produk, runtime bersama `staging-v2`, dan penerimaan data historis punya tahap tersendiri. Cek indeks untuk cakupan setiap run.
 
-Setelah izin membuat cluster lokal baru, jalankan CP06 regression + CP08–CP10 sebagai satu command (PostgreSQL tools diperlukan):
+## Setup lokal di Windows
 
-```powershell
-.\.venv\Scripts\python.exe -m qa.postgres_lab --create-local-synthetic-cluster --class-journey --pg-bin 'C:\Program Files\PostgreSQL\18\bin'
-```
-
-Harness membackup/restore sebelum fixture/schema writes, menjalankan Go integration dan Playwright Python, lalu menghentikan server tanpa menghapus cluster/data/backup. Setiap rerun menggunakan direktori baru; tidak menyentuh staging/live. Default coverage 38.6% dan selected API coverage 81.4% punya denominator berbeda; [detail evidence](docs/checkpoints/2026-09-07-cp08-cp10.md).
-
-Angka pada paragraf sebelumnya adalah historical CP10. Untuk CP11–CP12 beserta regresi CP08–CP10, gunakan flag `--identity-journey` menggantikan `--class-journey`. QA CP11 terpicu setelah installment CP11; CP12 hanya dimulai bila CP11 lulus dan backup berikutnya terbukti. `qa.checkpoint_report` menggabungkan evidence terbaru dengan M00/M03/Linux, menolak hasil stale/missing, serta menghitung deliverable dan statement coverage. [Command lengkap dan run final](docs/checkpoints/2026-09-08-cp11-cp12.md#reproduksi-dan-checkpoint-berikutnya).
-
-Untuk M03-CP03–CP04 gunakan `--runtime-journey`; harness membuat cluster baru, backup+actual restore, menjalankan runner/CLI dan seluruh CP08–CP12 regression, lalu menguji proses `cmd/api` nyata dengan Playwright. [Hasil final](docs/checkpoints/2026-09-09-m03-cp03-cp04.md).
-
-Untuk rantai terbaru sampai bounded M08-CP04 gunakan `--submission-journey`. Flag ini meng-include content/file/participation/worker journeys, membackup+restore sebelum tiap schema installment, lalu menjalankan Go/DB dan Playwright API. Gunakan hanya pada NEW synthetic cluster; [hasil dan batas receipt](docs/checkpoints/2026-09-13-m08-cp03-cp04.md).
-
-Untuk M15-CP01/CP02 synthetic preflight/provenance beserta seluruh dependency, gunakan `--migration-foundation-journey` pada NEW loopback cluster saja. Harness membuat backup SQL/dump baru dan actual isolated restore sebelum tiap CP; [hasil dan batas source nyata](docs/checkpoints/2026-09-13-m15-cp01-cp02.md). Tidak menerima DSN staging/production.
-
-Untuk menambah M15-CP03/CP04 mapping dan shadow backfill sintetis pada dependency journey yang sama, gunakan `--migration-backfill-journey`. Opsi ini mengambil backup SQL/dump baru dan actual isolated restore sebelum masing-masing CP; hasil QA dan batasnya dicatat terpisah dari canonical M15.
-
-## Evidence dan status otomatis
-
-Setiap run membuat `.qa-artifacts/<UTC-package-unique-id>/` baru: manifest summary, result per case, Go coverage, command logs, binary hashes, JUnit, report preview. Run lama tidak ditimpa. `--update-docs` memperbarui hanya blok `QA:Mxx` di module dan dashboard, mempertahankan scope/checklist manual, lalu mencatat `publication.json`. Update atomic **per file**, bukan transaksi dua file; bila publikasi terputus, run ID berbeda atau receipt tidak ada berarti publikasi belum lengkap. Rerun checkpoint untuk rekonsiliasi.
-
-Hash mencakup source Go/Python, executable manifests/lock dan workflow. Documentation-only edits tidak mengubah executable hash. Source berubah setelah run → evidence lama bukan current confidence. Local artifacts belum signed/cryptographically attested dan belum memakai WORM; exclusive creation mencegah overwrite oleh runner, bukan modifikasi oleh operator filesystem. Tidak dapat digunakan sebagai izin migrasi/deploy.
-
-`.gitignore` mengecualikan env, toolchain, venv, evidence, dump dan binary. **Gitignore bukan ACL atau enkripsi**: jangan simpan backup/PII nyata di folder evidence sebelum aturan akses, enkripsi dan backup M01 terverifikasi. Tidak ada dump production dibuat di checkpoint ini.
-
-## Safety yang tidak boleh dilompati
-
-API bootstrap tetap tanpa DB connection; mode business hanya mengizinkan marker-bound cluster sintetis lokal dan menolak staging/production. PostgreSQL dipakai restricted API/identity/worker pools serta operator runner terpisah; startup tidak menjalankan migration/seed. Worker substrate ada, tetapi belum ada provider/email nyata atau file-delete endpoint. Harness CP03–CP06 telah membuktikan dump+actual isolated restore lokal; ini bukan backup shared/production. Hak role nyata, production distinctness dan operational backup/restore tetap gate terpisah.
-
-M00 harus menutup unknown deployed SHA dan identitas source/target/role/CA; M01 harus membuat **backup valid dan restore proof sebelum setiap migrasi**. Copy production → staging tidak boleh overwrite existing staging, menjalankan `--clean`, atau menghapus row/schema/object. Live tetap legacy owner sampai cutover disetujui. [Baseline dan blocker](docs/baseline/LOCAL_BASELINE.md).
-
-CI memakai `pull_request` (bukan `pull_request_target`), token read-only, checkout tanpa persisted credential dan action commit pin. Dasar konfigurasi: [checkout](https://github.com/actions/checkout), [setup-go](https://github.com/actions/setup-go), [setup-python](https://github.com/actions/setup-python). Bootstrap job PASS bukan full module/release acceptance. Windows race attempt terhambat compiler C 32-bit; CP04 kini memiliki actual WSL Linux race PASS untuk 17 registered Go tests dan non-root process proof. Remote CI/container execution tetap belum dijalankan.
-
-## Inspeksi staging eksplisit (bukan QA otomatis)
+Gunakan Go sesuai `go.mod`, Python 3.12, serta PostgreSQL 18 untuk lab dan preview. Dari root repositori:
 
 ```powershell
-.\.venv\Scripts\python.exe -m qa.inspect_staging --staging-readonly
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r qa/requirements.lock
+go mod download
+go test ./...
 ```
 
-Wrapper hanya memilih `.env.staging` di service root, mengompilasi Go CLI, dan menyimpan metadata sanitised dengan run ID baru. Tidak menerima raw SQL atau export/import/deploy options. Koneksi maksimum satu, connect timeout 5s, keseluruhan probe 20s, statement timeout 5s, lock timeout 1s. Read-only transaction tidak berarti credential telah terbukti least-privilege.
+Jalankan perintah preview dari [runbook preview](docs/LOCAL_PREVIEW.md#menjalankan-preview-manual). Launcher memakai cluster sintetis baru di loopback, membuktikan backup dan restore target kosong, lalu menjalankan `cmd/api` dalam mode `v3-local-preview`. `/health/ready` memeriksa kesiapan target. Pemilik terminal menjalankan `stop` untuk menutup preview. Untuk pengujian browser, cek kebutuhan build `fe-test` dan browser pada runbook.
 
-Jika `TLS_CERTIFICATE_VERIFICATION_FAILED`, periksa CA **dan hostname** dari provider. Unduh CA project dari Supabase Dashboard → Database Settings → SSL Configuration; simpan lokal lalu tambahkan `DB_SSL_ROOT_CERT=<path>` di `.env.staging` sendiri. Relative path dihitung dari lokasi env; system certificate store tidak dimutasi. Tidak menggunakan `InsecureSkipVerify`, `sslmode=require`, atau mengambil sertifikat dari endpoint belum trusted lalu otomatis mempercayainya. [Supabase SSL](https://supabase.com/docs/guides/platform/ssl-enforcement).
+`cmd/api` juga memiliki mode health dan jalur sintetis lain. `cmd/migrate` menyediakan katalog migrasi maju dengan gate backup untuk lab. `qa/` menyimpan launcher, Go/DB dan Playwright, serta alat operator. Buka [rencana QA](docs/QA_AUTOMATION_PLAN.md) dan laporan checkpoint terkait untuk menjalankan suite yang tepat. Bootstrap `qa.run` mendukung M00 dan M03. Full journey PostgreSQL berjalan melalui `qa.postgres_lab`. [Workflow CI](.github/workflows/backend-go-qa.yml)
 
-Lihat [template DB aman](docs/examples/db-inspect.env.example), [template runtime aman](docs/examples/runtime.env.example), dan [brief sesi staging](docs/checkpoints/2026-09-06-staging-inspection.md). `.env.example` milik pengguna tidak ditimpa; ada nilai `SESSION_SECRET` yang sama dengan staging. Kedua root env sekarang di-ignore dan QA menolak jika tracked; jangan force-add. Nilai secret tidak dicetak atau disalin ke template baru. `.gitignore` tidak menggantikan ACL/enkripsi atau rotasi jika secret pernah dipublikasikan.
-# Current checkpoint — 11 November 2026
+## Database dan artefak
 
-[M14 local closure](docs/checkpoints/2026-11-11-m14-local-closure.md) is accepted: **4/4 local synthetic CPs**, 21/21 direct M14 cases including CP04 6/6, 1,080 measured requests, native query/pool/audit and required dependency regressions. Tested executable source fingerprint: `cb0a9af604011f90e6bc14844f637e5e0bb094104b509ff03905407feae0a7bc`. Canonical M14 remains 0/5 and production/frontend/shared-runtime gates remain open. Earlier dated status notes below are history.
-
-This branch publishes the Go service and public project documentation at repository root. Six QA operator implementations are now versioned under `qa/operators`; invoke them with `python -m qa.operators.<module>`. Existing parent `../portability` entry points remain compatibility launchers. Private policies, native authorization/proof, environment/key material, backup/restore receipts and raw QA artifacts stay outside this repository; missing policy never enables retention automatically. Other historical workspace tools remain external. A fresh clone supplies public QA source, while tools/dependencies and actual operational identity/protection evidence still need setup. Remote CI execution is a separate unverified gate. Preserve private recovery material outside Git.
-
+- Staging lama merupakan sumber snapshot yang dibekukan. Bukti restore lokal dan impor inti Go tersedia. `staging-v2` merupakan target terpisah yang direncanakan. [Status snapshot](docs/baseline/STAGING_LOCAL_SNAPSHOT.md) · [Restore](docs/baseline/LOCAL_LEGACY_RESTORE.md)
+- Backup terverifikasi mendahului setiap migrasi. Proses terhadap data nyata mengikuti runbook dan batas targetnya. [Konfigurasi staging](docs/baseline/STAGING_CONFIGURATION_READINESS.md) · [Intake data](docs/baseline/REAL_BASELINE_INTAKE.md)
+- Git berisi source, kontrak, dan ringkasan bukti yang aman dibagikan. Simpan env, kunci, dump, backup dan artefak mentah secara privat. Pakai [contoh env publik](docs/examples/runtime.env.example) untuk melihat variabel runtime.

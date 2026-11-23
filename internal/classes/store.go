@@ -47,17 +47,27 @@ type Command struct {
 	EpisodeKind   string
 	OriginEpisode string
 	Policy        string
+	AccountEmail  string `json:",omitempty"`
 }
 type Store struct {
 	pool       *pgxpool.Pool
 	failAfter  func(string) error
 	resolve    func(context.Context, pgx.Tx, string) (identity.Actor, error)
 	contextual bool
+	accounts   *identity.Passwords
 }
 
 func New(pool *pgxpool.Pool) *Store           { return &Store{pool: pool} }
 func NewBridge(pool *pgxpool.Pool) *Store     { return &Store{pool: pool, resolve: identity.ResolveBridge} }
 func NewContextual(pool *pgxpool.Pool) *Store { s := NewBridge(pool); s.contextual = true; return s }
+
+// NewWithAccountInvitations enables Site Admin's M04-to-M05 invitation flow.
+// The store is served behind the cookie/CSRF identity gateway.
+func NewWithAccountInvitations(pool *pgxpool.Pool, accounts *identity.Passwords) *Store {
+	s := NewContextual(pool)
+	s.accounts = accounts
+	return s
+}
 func (s *Store) actor(ctx context.Context, tx pgx.Tx, token string) (identity.Actor, error) {
 	if s.resolve != nil {
 		return s.resolve(ctx, tx, token)
@@ -219,6 +229,10 @@ func validate(c Command) error {
 		if !idPattern.MatchString(c.UserID) || (c.Role != "teacher" && c.Role != "student") {
 			return ErrInvalid
 		}
+	case "invite_account":
+		if c.AccountEmail == "" || len(c.AccountEmail) > 254 || (c.Role != "teacher" && c.Role != "student") {
+			return ErrInvalid
+		}
 	case "accept_invitation":
 		if !idPattern.MatchString(c.InvitationID) {
 			return ErrInvalid
@@ -257,6 +271,9 @@ func (s *Store) Execute(ctx context.Context, token, key, requestID string, cmd C
 	if participationAction(cmd.Action) {
 		if !s.contextual {
 			return nil, ErrInvalid
+		}
+		if cmd.Action == "invite_account" && s.accounts == nil {
+			return nil, ErrNotFound
 		}
 		return s.executeParticipation(ctx, token, key, requestID, cmd)
 	}

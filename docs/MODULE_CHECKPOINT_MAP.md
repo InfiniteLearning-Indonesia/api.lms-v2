@@ -1,5 +1,7 @@
 # Peta capaian M00–M19 dan checkpoint di dalam modul
 
+> **Urutan integrasi v3.** Impor inti Go lokal M15, 5/5 checkpoint sintetis M04, 7/7 skenario API runtime preview, dan 3/3 alur browser `/fe-test` lulus. Pemilik proyek meneruskan frontend produk. [Peta integrasi](FRONTEND_INTEGRATION_ROADMAP.md) mengurutkan kontrak Go, runtime staging-v2 dan rehearsal data historis. [Bukti impor](checkpoints/2026-11-22-go-core-import.md) · [Bukti runtime dan browser](LOCAL_PREVIEW.md)
+
 > **17 November — current recovery:** [Seven-case dependency accepted](checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
 
 > **17 November — current:** [Protected output/package implementation](checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.
@@ -74,7 +76,7 @@ Snapshot historis 13 September: M06 dan M07 masing-masing 3/4, M08 3/4 dengan CP
 | [M01 — Backup & restore](modules/M01.md) | 4 | 1/4 | 1 parsial; 1 tertahan_input; 1 rencana | M01-CP02 dapat menyiapkan prosedur; pelaksanaan backup nyata menunggu M00. |
 | [M02 — Containment legacy](modules/M02.md) | 4 | 0/4 | 1 parsial; 3 tertahan_input | Tuntaskan M02-CP01 lalu pilih hotfix legacy dengan otorisasi repo/deployment yang tepat; ini gate real identity M04. |
 | [M03 — Platform Go & runtime](modules/M03.md) | 6 | 6/6 | 0 rencana lokal; external gates tersisa | Worker/robustness local closure selesai; canonical shared/container/remote gates masih blocked. |
-| [M04 — Identity & capability](modules/M04.md) | 5 | 2/5 | 1 tertahan_input; 2 rencana | M04-CP03 memerlukan owner legacy yang hardened; jangan mengganti issuer sintetis dengan trust ke legacy yang belum aman. |
+| [M04 — Identity & capability](modules/M04.md) | 5 | 5/5 | Lulus lokal sintetis | Password, Google dan undangan Class teruji. Runtime dan uji manual menuju handover. |
 | [M05 — Class & participation](modules/M05.md) | 5 | 5/5 sintetis | Semua CP slice lokal teruji; canonical 0/5 | CP05 Class→content→work→grade PASS; real identity, archive policy dan shared/QG masih terbuka. |
 | [M06 — Private files & egress](modules/M06.md) | 4 | 3/4 | 3 teruji lokal; 1 rencana | CP01–03 teruji lokal; CP04 setelah mapping/consumer evidence. |
 | [M07 — Content & activity](modules/M07.md) | 4 | 4/4 sintetis | CP01–04 teruji lokal; canonical 0/5 | Historical owner read dan structure clone lulus; real import/attachment, frontend/shared/QG dan mapping belum. |
@@ -85,7 +87,7 @@ Snapshot historis 13 September: M06 dan M07 masing-masing 3/4, M08 3/4 dengan CP
 | [M12 — Logbook & mentoring](modules/M12.md) | 4 | 3/4 lokal | CP01–CP03 synthetic PASS; CP04 tertahan mapping | Period, entry/revision dan scoped mentor review teruji; legacy mapping/product policy/shared runtime masih gate. |
 | [M13 — Jobs, notifications & AI](modules/M13.md) | 4 | 4/4 sintetis | CP01–04 PASS local synthetic | Local closure accepted; actual provider/secret/privacy/shared gates pending. |
 | [M14 — Reporting & API/performance](modules/M14.md) | 4 | 4/4 | CP01–04 accepted local synthetic; full performance/dependency run reviewed | Local lane closed; canonical/shared/frontend/real-data gates remain, next lane requires dependency review. |
-| [M15 — Migration tool & mapping](modules/M15.md) | 5 | 5/5 sintetis | CP01–05 local synthetic PASS | Read-only reconciliation fixture juga lulus; real source/CA/backup/approval dan actual copy tetap gated; canonical 0/6. |
+| [M15 — Migration tool & mapping](modules/M15.md) | 5 | 5/5 sintetis | Pembuktian impor inti PostgreSQL aktual lulus 4/4. | Petakan domain lanjutan. M04 menangani aktivasi identity. |
 | [M16 — Production→staging rehearsal](modules/M16.md) | 4 | 0/4 | 1 tertahan_input; 3 rencana | M16-CP01 menunggu production identity, backup/restore nyata M01, reviewed M15 mapping dan approval; env staging bukan source production. |
 | [M17 — Pilot & ownership switch](modules/M17.md) | 4 | 0/4 | 1 tertahan_input; 3 rencana | M17-CP01 setelah rehearsal, owner bridge dan frontend integration readiness tersedia. |
 | [M18 — Rollout & operations](modules/M18.md) | 3 | 0/3 | 3 rencana | M18-CP01 sesudah actual pilot accepted; setiap wave tetap punya izin dan backup sendiri. |
@@ -191,7 +193,7 @@ flowchart LR
 | 5C — mentoring | M12-CP01 → M12-CP02 → M12-CP03 → M12-CP04 | M12 | M05-CP03; M06 | Mentoring outcome/reports/migration |
 | 5D — delivery | **M13-CP01 → CP02 selesai lokal sintetis** | M13 | M03-CP05; domain outbox events | CP03 AI suggestion menunggu policy; provider nyata tetap gate |
 | 6A — gradebook | **M09-CP01 → CP02 → CP03 → CP04 selesai lokal** | M09 | M08-CP03/04; academic policy | Synthetic lane dapat lanjut M10; real rollout menunggu academic approval/inventory |
-| 6B — identity closure | M04-CP05 | M04 | M04-CP03–04; M07 ancestry + downstream authorization evidence | Full identity/capability review |
+| 6B — identity closure | **M04-CP05 lulus lokal sintetis** | M04 | M04-CP03–04; ancestry dan otorisasi resource | Integrasi runtime dan acceptance M14 |
 | 6C — content closure | **M07-CP04 selesai lokal sintetis** | M07 | M07-CP01–03; M08 consumer contract | Real import/attachment dan canonical mapping/acceptance masih terbuka |
 | 7A — completion | **M10-CP01–CP04 selesai lokal sintetis** | M10 | M09 release/evidence | Real legacy output/cutover parity dan academic/shared gates tetap terbuka |
 | 7B — async closure | M13-CP03 → M13-CP04 | M13 | M08/M09 + M13-CP01–02 | AI non-authoritative + consumer closure |

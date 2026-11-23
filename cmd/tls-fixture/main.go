@@ -3,8 +3,10 @@
 package main
 
 import (
+	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -22,13 +24,13 @@ func main() {
 	if os.Getenv("QA_PG_ACK") != "new-local-synthetic-cluster" || !backup.SafeRoot(root) {
 		os.Exit(1)
 	}
-	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	key, err := fixtureKey(os.Getenv("LMS_MODE") == "v3-local-preview")
 	if err != nil {
 		os.Exit(1)
 	}
 	now := time.Now().UTC()
 	template := &x509.Certificate{SerialNumber: big.NewInt(now.UnixNano()), Subject: pkix.Name{CommonName: "lms-v3-local-qa"}, NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}}
-	der, err := x509.CreateCertificate(rand.Reader, template, template, pub, key)
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -39,4 +41,12 @@ func main() {
 	if backup.WriteNew(filepath.Join(root, "runtime-tls.crt"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})) != nil || backup.WriteNew(filepath.Join(root, "runtime-tls.key"), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private})) != nil {
 		os.Exit(1)
 	}
+}
+
+func fixtureKey(browserPreview bool) (crypto.Signer, error) {
+	if browserPreview {
+		return rsa.GenerateKey(rand.Reader, 2048)
+	}
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	return key, err
 }

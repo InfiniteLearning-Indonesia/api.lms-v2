@@ -29,7 +29,7 @@ type Config struct {
 // identity and ownership gates exist, the server is loopback-synthetic only.
 func Load(getenv func(string) string) (Config, error) {
 	c := Config{Mode: getenv("LMS_MODE"), Address: getenv("LMS_HTTP_ADDR"), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, ShutdownTimeout: 5 * time.Second}
-	if c.Mode != "local-synthetic" && c.Mode != "v3-local-synthetic" {
+	if c.Mode != "local-synthetic" && c.Mode != "v3-local-synthetic" && c.Mode != "v3-local-preview" {
 		return Config{}, errors.New("LMS_MODE must explicitly select an implemented local mode")
 	}
 	host, port, err := net.SplitHostPort(c.Address)
@@ -41,7 +41,7 @@ func Load(getenv func(string) string) (Config, error) {
 	if ip == nil || !ip.IsLoopback() || portErr != nil || p < 0 || p > 65535 {
 		return Config{}, errors.New("only loopback IP listeners are permitted")
 	}
-	if c.Mode == "v3-local-synthetic" {
+	if c.Mode != "local-synthetic" {
 		if p == 0 {
 			return Config{}, errors.New("business runtime requires an explicit port")
 		}
@@ -50,9 +50,13 @@ func Load(getenv func(string) string) (Config, error) {
 		if c.Origin != "https://"+c.Address {
 			return Config{}, errors.New("LMS_ORIGIN must exactly match the direct TLS listener")
 		}
-		key, err := hex.DecodeString(c.BridgePublicKey)
-		if err != nil || len(key) != 32 {
-			return Config{}, errors.New("LMS_BRIDGE_PUBLIC_KEY must be an Ed25519 public key")
+		if c.Mode == "v3-local-synthetic" {
+			key, err := hex.DecodeString(c.BridgePublicKey)
+			if err != nil || len(key) != 32 {
+				return Config{}, errors.New("LMS_BRIDGE_PUBLIC_KEY must be an Ed25519 public key")
+			}
+		} else if host != "127.0.0.1" {
+			return Config{}, errors.New("local preview requires IPv4 loopback")
 		}
 		for _, path := range []string{c.TLSCertFile, c.TLSKeyFile} {
 			if !filepath.IsAbs(path) || filepath.Clean(path) != path {

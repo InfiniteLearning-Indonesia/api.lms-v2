@@ -43,6 +43,11 @@ CREATE TABLE v3.commands(actor_id text NOT NULL REFERENCES v3.users(id), key tex
 
 func Digest(data []byte) string { v := sha256.Sum256(data); return hex.EncodeToString(v[:]) }
 func Checksum() string          { return Digest([]byte(schema)) }
+
+// CoreDDL exposes the same core schema to the isolated migration rehearsal.
+// Install remains restricted to the synthetic lab, with its own target proofs.
+func CoreDDL() string { return schema }
+
 func Target(port, marker string) string {
 	return Digest([]byte("127.0.0.1\x00" + port + "\x00qa_cp05\x00" + marker))
 }

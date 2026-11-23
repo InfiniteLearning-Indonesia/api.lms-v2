@@ -13,7 +13,7 @@ import (
 
 func participationAction(action string) bool {
 	switch action {
-	case "create_group", "assign_group", "assign_mentor", "invite", "accept_invitation", "start_episode":
+	case "create_group", "assign_group", "assign_mentor", "invite", "invite_account", "accept_invitation", "start_episode":
 		return true
 	default:
 		return false
@@ -38,9 +38,19 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 	hash := identity.TokenHash(string(raw))
 	var response json.RawMessage
 	err := transaction.Within(ctx, s.pool, func(tx pgx.Tx) error {
+		if cmd.Action == "invite_account" {
+			// Acquire the identity fence before the Class row lock, matching the
+			// session and Class lifecycle ordering. Never upgrade a shared lock.
+			if err := identity.Fence(ctx, tx, true); err != nil {
+				return err
+			}
+		}
 		actor, err := s.actor(ctx, tx, token)
 		if err != nil {
 			return err
+		}
+		if cmd.Action == "invite_account" && !actor.Admin {
+			return ErrForbidden
 		}
 		class, err := s.load(ctx, tx, cmd.ClassID)
 		if err != nil {
@@ -49,16 +59,17 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 		if class.State == "ARCHIVED" || class.State == "CLOSED" {
 			return ErrConflict
 		}
+		var invitedRole, invitationStatus string
 		if cmd.Action == "accept_invitation" {
 			var target string
-			err = tx.QueryRow(ctx, "SELECT user_id FROM v3.invitations WHERE id=$1 AND class_id=$2 FOR UPDATE", cmd.InvitationID, class.ID).Scan(&target)
+			err = tx.QueryRow(ctx, "SELECT user_id,role,status FROM v3.invitations WHERE id=$1 AND class_id=$2 FOR UPDATE", cmd.InvitationID, class.ID).Scan(&target, &invitedRole, &invitationStatus)
 			if errors.Is(err, pgx.ErrNoRows) || (err == nil && target != actor.ID) {
 				return ErrForbidden
 			}
 			if err != nil {
 				return err
 			}
-		} else {
+		} else if cmd.Action != "invite_account" {
 			if err = s.allowed(ctx, tx, actor, class, cmd); err != nil {
 				return err
 			}
@@ -79,6 +90,7 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 		}
 
 		var result any
+		reusedInvitation := false
 		switch cmd.Action {
 		case "create_group":
 			groupID, e := ID()
@@ -163,45 +175,14 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 			}
 			result = map[string]string{"id": assignmentID, "class_id": class.ID, "student_enrollment_id": student, "mentor_enrollment_id": mentor}
 
-		case "invite":
-			var active bool
-			err = tx.QueryRow(ctx, `SELECT u.active AND l.active AND l.valid_until>clock_timestamp()
- FROM v3.users u JOIN v3identity.links l ON l.user_id=u.id WHERE u.id=$1`, cmd.UserID).Scan(&active)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrInvalid
-			}
+		case "invite", "invite_account":
+			result, reusedInvitation, err = s.createInvitation(ctx, tx, actor, class.ID, cmd)
 			if err != nil {
 				return err
 			}
-			if !active {
-				return ErrConflict
-			}
-			var exists bool
-			if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v3.enrollments e JOIN v3.roles r ON r.enrollment_id=e.id AND r.class_id=e.class_id
- WHERE e.class_id=$1 AND e.user_id=$2 AND e.status='ACTIVE' AND r.role=$3 AND r.revoked_at IS NULL)`, class.ID, cmd.UserID, cmd.Role).Scan(&exists); err != nil {
-				return err
-			}
-			if exists {
-				return ErrConflict
-			}
-			invitationID, e := ID()
-			if e != nil {
-				return e
-			}
-			if _, err = tx.Exec(ctx, "INSERT INTO v3.invitations(id,class_id,user_id,role,invited_by) VALUES($1,$2,$3,$4,$5)", invitationID, class.ID, cmd.UserID, cmd.Role, actor.ID); err != nil {
-				return mapConstraint(err)
-			}
-			result = map[string]string{"id": invitationID, "class_id": class.ID, "user_id": cmd.UserID, "role": cmd.Role, "status": "INVITED"}
 
 		case "accept_invitation":
-			var target, role, status string
-			if err = tx.QueryRow(ctx, "SELECT user_id,role,status FROM v3.invitations WHERE id=$1 AND class_id=$2 FOR UPDATE", cmd.InvitationID, class.ID).Scan(&target, &role, &status); err != nil {
-				return err
-			}
-			if target != actor.ID {
-				return ErrForbidden
-			}
-			if status != "INVITED" {
+			if invitationStatus != "INVITED" {
 				return ErrConflict
 			}
 			enrollment, episode, e := s.activateFromInvitation(ctx, tx, actor.ID, class.ID)
@@ -214,7 +195,7 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 			}
 			var inserted string
 			err = tx.QueryRow(ctx, `INSERT INTO v3.roles(id,enrollment_id,class_id,role) VALUES($1,$2,$3,$4)
- ON CONFLICT(enrollment_id,role) WHERE revoked_at IS NULL DO NOTHING RETURNING id`, roleID, enrollment, class.ID, role).Scan(&inserted)
+ ON CONFLICT(enrollment_id,role) WHERE revoked_at IS NULL DO NOTHING RETURNING id`, roleID, enrollment, class.ID, invitedRole).Scan(&inserted)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrConflict
 			}
@@ -231,7 +212,7 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 			if err = s.transition(ctx, tx, actor.ID, class.ID, enrollment, "accept_invitation", "INVITED", "ACTIVE"); err != nil {
 				return err
 			}
-			result = map[string]string{"invitation_id": cmd.InvitationID, "class_id": class.ID, "enrollment_id": enrollment, "role": role, "status": "ACCEPTED", "episode_id": episode}
+			result = map[string]string{"invitation_id": cmd.InvitationID, "class_id": class.ID, "enrollment_id": enrollment, "role": invitedRole, "status": "ACCEPTED", "episode_id": episode}
 
 		case "start_episode":
 			enrollment, e := s.endedStudentEnrollment(ctx, tx, class.ID, cmd.UserID)
@@ -267,24 +248,10 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 			result = map[string]string{"class_id": class.ID, "enrollment_id": enrollment, "episode_id": episodeID, "kind": cmd.EpisodeKind, "origin_episode_id": cmd.OriginEpisode, "recognition_policy": cmd.Policy, "status": "ACTIVE"}
 		}
 
-		if err = s.fail("domain"); err != nil {
-			return err
-		}
-		eventID, e := ID()
-		if e != nil {
-			return e
-		}
-		if _, err = tx.Exec(ctx, "INSERT INTO v3.audit(id,actor_id,class_id,action,request_id) VALUES($1,$2,$3,$4,$5)", eventID, actor.ID, class.ID, cmd.Action, requestID); err != nil {
-			return err
-		}
-		if err = s.fail("audit"); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, "INSERT INTO v3.outbox(event_id) VALUES($1)", eventID); err != nil {
-			return err
-		}
-		if err = s.fail("outbox"); err != nil {
-			return err
+		if !reusedInvitation {
+			if err = s.recordParticipation(ctx, tx, actor.ID, class.ID, cmd.Action, requestID); err != nil {
+				return err
+			}
 		}
 		response, err = json.Marshal(result)
 		if err != nil {
@@ -294,6 +261,26 @@ func (s *Store) executeParticipation(ctx context.Context, token, key, requestID 
 		return err
 	})
 	return response, err
+}
+
+func (s *Store) recordParticipation(ctx context.Context, tx pgx.Tx, actor, class, action, requestID string) error {
+	if err := s.fail("domain"); err != nil {
+		return err
+	}
+	eventID, err := ID()
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO v3.audit(id,actor_id,class_id,action,request_id) VALUES($1,$2,$3,$4,$5)", eventID, actor, class, action, requestID); err != nil {
+		return err
+	}
+	if err = s.fail("audit"); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO v3.outbox(event_id) VALUES($1)", eventID); err != nil {
+		return err
+	}
+	return s.fail("outbox")
 }
 
 func (s *Store) activateFromInvitation(ctx context.Context, tx pgx.Tx, actorID, classID string) (string, string, error) {

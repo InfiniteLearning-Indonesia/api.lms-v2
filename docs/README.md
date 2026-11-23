@@ -1,5 +1,7 @@
 # LMS v3 — Brief eksekusi backend Go
 
+Mulai dari [README backend](../README.md) untuk setup dan navigasi, [kontrak API](../API-DOCS.MD) untuk wiring, [checklist integrasi](INTEGRATION_CHECKLIST.md) untuk acceptance per layar, dan [indeks QA](QA_EVIDENCE.md) untuk hasil per run. Catatan bertanggal di bawah adalah riwayat modul.
+
 > **17 November — current recovery:** [Seven-case dependency accepted](checkpoints/2026-11-17-protected-package-accepted.md); [new local recovery implementation](checkpoints/2026-11-17-local-recovery.md): **81 Go/95 ops PASS**, current native **4/9 PASS + 5 fixture AccessDenied FAIL**, ten DB cases NOT_RUN. [Owner runner](baseline/LOCAL_RECOVERY_RUNBOOK.md); [why dotenv is not staging activation](baseline/STAGING_CONFIGURATION_READINESS.md). No native recovery/module acceptance, env/DB edits or publication. Earlier source-bound snapshots below are history.
 
 > **17 November — current:** [Protected output/package implementation](checkpoints/2026-11-17-protected-package.md), source `126c217ad43a732e67d5d3b32473233ed5bd94385596a78872f0ba9b7b63371b`: **79/79 Go + 93/93 ops + vet/Windows build PASS**, Linux cross-build/tagged compile PASS_BUILD_ONLY. Mandatory actual suite **4 PASS + 3 fixture AccessDenied FAIL**; restricted token confirmed. **IMPLEMENTED_PENDING_OWNER_NATIVE_QA**, no CP/module/restore closure. [Contract/runner](baseline/PROTECTED_PACKAGE_RECOVERY.md). Earlier source-bound results below remain history; no DB/delete/commit/push.

@@ -15,6 +15,7 @@ import (
 
 const SessionCookie = "__Host-lms-v3"
 const BindingCookie = "__Host-lms-v3-challenge"
+const GoogleBindingCookie = "__Host-lms-v3-google"
 
 type sessionKey struct{}
 
@@ -48,6 +49,26 @@ func uniqueCookie(r *http.Request, name string) string {
 // Gateway is cookie-only. CP10 bearer transport remains in its separate lab;
 // it is never a fallback in this gateway. No X-User/X-Role/forwarded-origin trust.
 func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.Logger) http.Handler {
+	return GatewayWithPasswords(service, nil, origin, next, logger)
+}
+
+// GatewayWithPasswords adds the local account authority to the same TLS,
+// origin, cookie, CSRF and request-body boundaries as the bridge.
+func GatewayWithPasswords(service *Lifecycle, passwords *Passwords, origin string, next http.Handler, logger *slog.Logger) http.Handler {
+	return gateway(service, passwords, nil, origin, next, logger)
+}
+
+// GatewayWithGoogle uses the identity authority that owns both credentials.
+// The frontend relays the fixed OAuth landing page's code and state on this
+// origin. No query string, provider token or client secret enters API logs.
+func GatewayWithGoogle(google *Google, origin string, next http.Handler, logger *slog.Logger) (http.Handler, error) {
+	if google == nil || google.provider.redirectURI != origin+googleCallbackPath {
+		return nil, ErrPasswordInput
+	}
+	return gateway(google.passwords.lifecycle, google.passwords, google, origin, next, logger), nil
+}
+
+func gateway(service *Lifecycle, passwords *Passwords, google *Google, origin string, next http.Handler, logger *slog.Logger) http.Handler {
 	var mu sync.Mutex
 	window := time.Now()
 	attempts := 0
@@ -61,6 +82,7 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		w.Header().Set("X-Request-ID", requestID)
@@ -81,6 +103,12 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 			case errors.Is(err, ErrConflict):
 				code = 409
 				message = "CONFLICT"
+			case errors.Is(err, ErrPasswordInput):
+				code = 400
+				message = "INVALID_INPUT"
+			case errors.Is(err, ErrPasswordRate):
+				code = 429
+				message = "RATE_LIMITED"
 			}
 			reply(code, map[string]string{"error": message})
 		}
@@ -118,7 +146,112 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 		session := uniqueCookie(r, SessionCookie)
 		csrf := r.Header.Get("X-CSRF-Token")
 		switch {
-		case r.URL.Path == "/v3/auth/challenge" && r.Method == "POST":
+		case google != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/google/start":
+			route = "identity.google_start"
+			var body googleStart
+			if !decode(&body) {
+				return
+			}
+			url, binding, err := google.start(ctx, body, session, csrf)
+			if err != nil {
+				fail(err)
+				return
+			}
+			cookie(w, GoogleBindingCookie, binding, 300)
+			reply(200, map[string]string{"authorization_url": url})
+		case google != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/google/complete":
+			route = "identity.google_complete"
+			var body struct {
+				State string `json:"state"`
+				Code  string `json:"code"`
+			}
+			if !decode(&body) {
+				return
+			}
+			c, err := google.complete(ctx, body.State, body.Code, uniqueCookie(r, GoogleBindingCookie), session)
+			if err != nil {
+				fail(err)
+				return
+			}
+			cookie(w, GoogleBindingCookie, "", -1)
+			cookie(w, SessionCookie, c.Token, int(time.Until(c.Expires).Seconds()))
+			reply(200, map[string]string{"csrf_token": c.CSRF})
+		case passwords != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/password/login":
+			route = "identity.password_login"
+			var body struct {
+				Email    string `json:"email"`
+				Password string `json:"password"`
+			}
+			if !decode(&body) {
+				return
+			}
+			c, err := passwords.Login(ctx, body.Email, body.Password)
+			if err != nil {
+				fail(err)
+				return
+			}
+			cookie(w, SessionCookie, c.Token, int(time.Until(c.Expires).Seconds()))
+			reply(200, map[string]string{"csrf_token": c.CSRF})
+		case passwords != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/accounts/invite":
+			route = "identity.invite_account"
+			var body struct {
+				Email string `json:"email"`
+			}
+			if !decode(&body) {
+				return
+			}
+			user, err := passwords.Invite(ctx, session, csrf, body.Email)
+			if err != nil {
+				fail(err)
+				return
+			}
+			reply(202, map[string]string{"user_id": user, "status": "invited"})
+		case passwords != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/accounts/suspend":
+			route = "identity.suspend_account"
+			var body struct {
+				User string `json:"user_id"`
+			}
+			if !decode(&body) {
+				return
+			}
+			if err := passwords.Suspend(ctx, session, csrf, body.User); err != nil {
+				fail(err)
+				return
+			}
+			reply(200, map[string]string{"status": "suspended"})
+		case passwords != nil && r.Method == "POST" && r.URL.Path == "/v3/auth/password/reset/request":
+			route = "identity.password_reset_request"
+			var body struct {
+				Email string `json:"email"`
+			}
+			if !decode(&body) {
+				return
+			}
+			if err := passwords.RequestReset(ctx, body.Email); err != nil {
+				fail(err)
+				return
+			}
+			reply(202, map[string]string{"status": "accepted"})
+		case passwords != nil && r.Method == "POST" &&
+			(r.URL.Path == "/v3/auth/password/invite/accept" || r.URL.Path == "/v3/auth/password/reset/confirm"):
+			purpose := "reset"
+			if r.URL.Path == "/v3/auth/password/invite/accept" {
+				purpose = "invite"
+			}
+			route = "identity.password_" + purpose
+			var body struct {
+				Token    string `json:"token"`
+				Password string `json:"password"`
+			}
+			if !decode(&body) {
+				return
+			}
+			if err := passwords.SetPassword(ctx, body.Token, purpose, body.Password); err != nil {
+				fail(err)
+				return
+			}
+			reply(200, map[string]string{"status": "password_set"})
+		case service.Verifier.Issuer != "" && r.URL.Path == "/v3/auth/challenge" && r.Method == "POST":
 			route = "identity.challenge"
 			var body struct{}
 			if !decode(&body) {
@@ -143,7 +276,7 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 			}
 			cookie(w, BindingCookie, binding, 60)
 			reply(200, map[string]string{"nonce": nonce})
-		case r.URL.Path == "/v3/auth/exchange" && r.Method == "POST":
+		case service.Verifier.Issuer != "" && r.URL.Path == "/v3/auth/exchange" && r.Method == "POST":
 			route = "identity.exchange"
 			var body struct {
 				Assertion string `json:"assertion"`
@@ -159,7 +292,7 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 			cookie(w, BindingCookie, "", -1)
 			cookie(w, SessionCookie, c.Token, 900)
 			reply(200, map[string]string{"csrf_token": c.CSRF})
-		case r.URL.Path == "/v3/auth/account-state" && r.Method == "POST":
+		case service.Verifier.Issuer != "" && r.URL.Path == "/v3/auth/account-state" && r.Method == "POST":
 			// A signed, purpose-specific authority message; a browser's self-profile
 			// request cannot supply account status/roles directly. No outbound owner call.
 			route = "identity.account_state"
@@ -244,8 +377,7 @@ func Gateway(service *Lifecycle, origin string, next http.Handler, logger *slog.
 			}
 			reply(200, map[string]string{"status": "updated"})
 		case strings.HasPrefix(r.URL.Path, "/v3/auth/"):
-			// Invite/reset/profile and global identity administration belong to the
-			// hardened legacy owner. There is no local duplicate password authority.
+			// Disabled or unknown identity endpoints fail closed.
 			reply(404, map[string]string{"error": "OWNER_ROUTE_NOT_AVAILABLE"})
 		default:
 			if _, err := service.Validate(ctx, session, csrf, mutation); err != nil {

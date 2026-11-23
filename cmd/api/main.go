@@ -5,9 +5,11 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
+	"io"
 	"lmsv3/internal/classes"
 	"lmsv3/internal/identity"
 	"lmsv3/internal/labdb"
+	"lmsv3/internal/localpreview"
 	"lmsv3/internal/migration/runner"
 	"log/slog"
 	"net"
@@ -38,6 +40,13 @@ func main() {
 	if c.Mode == "local-synthetic" {
 		if err := httpserver.Serve(ctx, c, listener, logger); err != nil {
 			logger.Error("server_stopped_with_error")
+			os.Exit(1)
+		}
+		return
+	}
+	if c.Mode == "v3-local-preview" {
+		if err := servePreview(ctx, c, listener, logger); err != nil {
+			logger.Error("local_preview_rejected")
 			os.Exit(1)
 		}
 		return
@@ -89,4 +98,34 @@ func main() {
 		logger.Error("server_stopped_with_error")
 		os.Exit(1)
 	}
+}
+
+func servePreview(ctx context.Context, c config.Config, listener net.Listener, logger *slog.Logger) error {
+	if os.Getenv("LMS_PREVIEW_ATTACHED") == "1" {
+		attached, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go func() {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+			cancel()
+		}()
+		ctx = attached
+	}
+	preview, err := localpreview.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	startup, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pool, err := localpreview.Open(startup, preview)
+	cancel()
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	business, closeWeb, err := localpreview.Handler(preview, c.Origin, pool, os.Getenv, logger)
+	if err != nil {
+		return err
+	}
+	defer closeWeb()
+	ready := func(ctx context.Context) error { return localpreview.Ready(ctx, pool, preview) }
+	return httpserver.ServeApplicationTLS(ctx, c, listener, httpserver.ApplicationHandler(logger, ready, business), logger)
 }

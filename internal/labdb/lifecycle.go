@@ -26,6 +26,10 @@ CREATE TABLE v3identity.role_events(user_id text NOT NULL REFERENCES v3.users(id
 CREATE INDEX role_events_actor_idx ON v3identity.role_events(actor_id);
 CREATE TABLE v3identity.account_events(user_id text NOT NULL REFERENCES v3identity.links(user_id),version bigint NOT NULL,previous_version bigint NOT NULL,previous_active boolean NOT NULL,active boolean NOT NULL,occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(user_id,version));`
 
+// IdentityDDL supplies the existing identity schema to a fresh QA database.
+// The normal migration installer continues to require the synthetic lab proof.
+func IdentityDDL() string { return identitySchema }
+
 const accessSchema = `CREATE TABLE v3.class_access(class_id text PRIMARY KEY REFERENCES v3.classes(id),closed_at timestamptz);
 CREATE TABLE v3.enrollment_access(enrollment_id text PRIMARY KEY REFERENCES v3.enrollments(id),suspended_at timestamptz);
 CREATE TABLE v3.transition_events(id text PRIMARY KEY,actor_id text NOT NULL REFERENCES v3.users(id),class_id text NOT NULL REFERENCES v3.classes(id),enrollment_id text REFERENCES v3.enrollments(id),action text NOT NULL,previous_state text NOT NULL,next_state text NOT NULL,occurred_at timestamptz NOT NULL DEFAULT clock_timestamp());

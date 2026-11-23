@@ -1,0 +1,2001 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LMS v3 Go — kontrak integrasi frontend",
+    "version": "0.1.0",
+    "description": "Kontrak runtime Go v3-local-preview untuk identitas, Class, tugas dan nilai. Lihat API-DOCS.MD untuk urutan panggilan, status integrasi dan batas cakupan."
+  },
+  "servers": [{"url":"https://127.0.0.1:9443","description":"Origin preview HTTPS pada port default"}],
+  "security": [{"SessionCookie":[]}],
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getLiveness",
+        "summary": "Periksa proses Go",
+        "security": [],
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Alive"}}}}
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getReadiness",
+        "summary": "Periksa kesiapan Go dan skema target",
+        "security": [],
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Ready"}}}},
+          "503": {
+            "description": "Runtime belum siap.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/NotReady"}}}
+          }
+        }
+      }
+    },
+    "/v3/auth/password/login": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "loginWithPassword",
+        "summary": "Masuk dengan email dan kata sandi",
+        "security": [],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/PasswordLogin"},
+              "example": {"email":"mentee@example.invalid","password":"contoh-lokal-ubah-sandi"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/CsrfToken"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/accounts/invite": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "inviteAccount",
+        "summary": "Undang akun tanpa memberi akses Class",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/EmailInput"},"example":{"email":"mentee@example.invalid"}}
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Permintaan diterima.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/AccountInvited"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/password/invite/accept": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "activatePassword",
+        "summary": "Aktifkan password dari undangan akun",
+        "description": "Set password lalu panggil login dengan password untuk membentuk sesi.",
+        "security": [],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SetPassword"}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/PasswordSet"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/password/reset/request": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "requestPasswordReset",
+        "summary": "Minta email reset password",
+        "security": [],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/EmailInput"},"example":{"email":"mentee@example.invalid"}}
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Permintaan diterima.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ResetAccepted"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/password/reset/confirm": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "confirmPasswordReset",
+        "summary": "Tetapkan kata sandi baru",
+        "security": [],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SetPassword"}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/PasswordSet"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/google/start": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "startGoogle",
+        "summary": "Mulai alur Google",
+        "description": "Provider harus aktif pada runtime. Mode link memerlukan sesi, CSRF dan password akun yang sama. Mode invite memakai token aktivasi akun.",
+        "security": [{},{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GoogleStart"},"example":{"mode":"login"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GoogleAuthorization"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/google/complete": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "completeGoogle",
+        "summary": "Selesaikan alur Google",
+        "description": "Panggil dari halaman callback dengan state dan code pada body JSON. Mode link juga membutuhkan sesi yang memulai alur.",
+        "security": [{"GoogleBinding":[]},{"GoogleBinding":[],"SessionCookie":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/GoogleComplete"}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/CsrfToken"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/me": {
+      "get": {
+        "tags": ["Identity"],
+        "operationId": "getCurrentAccount",
+        "summary": "Baca identitas sesi",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Account"}}}
+          },
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/rotate": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "rotateSession",
+        "summary": "Rotasi sesi dan CSRF",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Empty"},"example":{}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/CsrfToken"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/logout": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "logout",
+        "summary": "Cabut sesi aktif",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Empty"},"example":{}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/SessionRevoked"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/auth/revoke-all": {
+      "post": {
+        "tags": ["Identity"],
+        "operationId": "revokeAllSessions",
+        "summary": "Cabut seluruh sesi milik akun aktif",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Empty"},"example":{}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie sesi atau binding dikirim sebagai header HTTP. Browser menyimpannya sendiri. Google complete mengirim dua field Set-Cookie untuk binding dan sesi.",
+                "schema": {"type":"string"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/SessionRevoked"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/me/classes": {
+      "get": {
+        "tags": ["Classes"],
+        "operationId": "listMyClasses",
+        "summary": "Daftar Class yang terlihat oleh akun",
+        "description": "Maksimal 250 Class diurutkan menurut nama lalu ID. Roles berisi peran kontekstual akun, sedangkan akses Site Admin berasal dari /v3/auth/me.",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ClassList"}}}
+          },
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/me/class-invitations": {
+      "get": {
+        "tags": ["Classes"],
+        "operationId": "listMyClassInvitations",
+        "summary": "Daftar undangan tertunda milik akun aktif",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Invitations"}}}
+          },
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes": {
+      "post": {
+        "tags": ["Classes"],
+        "operationId": "createClass",
+        "summary": "Buat Class draft sebagai Site Admin",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/ClassCreate"},
+              "example": {"name":"Kelas Go","program_label":"Backend","cohort_label":"01"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Class"}}}},
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "get": {
+        "tags": ["Classes"],
+        "operationId": "getClass",
+        "summary": "Baca detail Class",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Class"}}}},
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      },
+      "patch": {
+        "tags": ["Classes"],
+        "operationId": "updateClass",
+        "summary": "Ubah nama atau label Class",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/ClassUpdate"},"example":{"name":"Kelas Go Lanjutan","version":1}}
+          }
+        },
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Class"}}}},
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/account-invitations": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "post": {
+        "tags": ["Classes"],
+        "operationId": "inviteAccountToClass",
+        "summary": "Undang Mentor atau Mentee ke Class sebagai Site Admin",
+        "description": "Mengembalikan data undangan Class. Akun baru perlu diaktifkan sebelum mengakses acceptance.",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/ClassInvitationCreate"},
+              "example": {"email":"mentor@example.invalid","role":"teacher"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/invitations/{invitation_id}/accept": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"invitation_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Classes"],
+        "operationId": "acceptClassInvitation",
+        "summary": "Terima undangan Class milik sesi aktif",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Empty"},"example":{}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/AcceptedInvitation"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/publish": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "post": {
+        "tags": ["Classes"],
+        "operationId": "publishClass",
+        "summary": "Publikasikan Class",
+        "description": "Site Admin atau Teacher pada Class. Class harus memiliki Teacher aktif. Kirim versi Class terakhir.",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Version"},"example":{"version":1}}}
+        },
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Class"}}}},
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/content": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "get": {
+        "tags": ["Content"],
+        "operationId": "getClassContent",
+        "summary": "Baca struktur Class dan revisi yang dapat dilihat",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Content"}}}
+          },
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/sections": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "post": {
+        "tags": ["Content"],
+        "operationId": "createSection",
+        "summary": "Tambah bagian konten",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/SectionCreate"},"example":{"title":"Materi","position":1}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replay dari aksi create yang sama.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Section"}}}
+          },
+          "201": {
+            "description": "Berhasil dibuat.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Section"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/sections/{section_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"section_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "patch": {
+        "tags": ["Content"],
+        "operationId": "updateSection",
+        "summary": "Ubah bagian konten",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentStructureUpdate"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Section"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "post": {
+        "tags": ["Content"],
+        "operationId": "createActivity",
+        "summary": "Tambah aktivitas di sebuah section",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/ActivityCreate"},
+              "example": {
+                "section_id": "0123456789abcdef0123456789abcdef",
+                "activity_type": "ASSIGNMENT",
+                "title": "Tugas",
+                "position": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replay dari aksi create yang sama.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Activity"}}}
+          },
+          "201": {
+            "description": "Berhasil dibuat.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Activity"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities/{activity_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"activity_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "patch": {
+        "tags": ["Content"],
+        "operationId": "updateActivity",
+        "summary": "Ubah judul dan posisi aktivitas",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentStructureUpdate"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Activity"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities/{activity_id}/revisions": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"activity_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Content"],
+        "operationId": "createContentRevision",
+        "summary": "Buat revisi konten draft",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/ContentRevisionCreate"},
+              "example": {
+                "raw_body": "Jawab pertanyaan berikut.",
+                "timezone": "Asia/Jakarta",
+                "assignment": {
+                  "submission_mode": "TEXT",
+                  "max_attempts": 2,
+                  "max_files": 0,
+                  "max_file_bytes": 0,
+                  "late_policy": "REJECT_AFTER_CUTOFF"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replay dari aksi create yang sama.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentRevision"}}}
+          },
+          "201": {
+            "description": "Berhasil dibuat.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentRevision"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities/{activity_id}/revisions/{revision_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"activity_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"revision_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "patch": {
+        "tags": ["Content"],
+        "operationId": "updateContentRevision",
+        "summary": "Ubah revisi draft",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentRevisionUpdate"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentRevision"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      },
+      "get": {
+        "tags": ["Content"],
+        "operationId": "getAssignmentContract",
+        "summary": "Baca aturan assignment dari revisi tertentu",
+        "description": "Endpoint ini mengembalikan kontrak assignment. Konten umum dibaca dari snapshot /content.",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/AssignmentContract"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities/{activity_id}/revisions/{revision_id}/publish": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"activity_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"revision_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Content"],
+        "operationId": "publishContentRevision",
+        "summary": "Publikasikan revisi draft",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Version"},"example":{"version":1}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ContentRevision"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/activities/{activity_id}/revisions/{revision_id}/submissions": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"activity_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"revision_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Submissions"],
+        "operationId": "createSubmission",
+        "summary": "Mulai pengumpulan untuk revisi assignment tertentu",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Empty"},"example":{}}}},
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Submission"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/submissions/{aggregate_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"aggregate_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "get": {
+        "tags": ["Submissions"],
+        "operationId": "getSubmission",
+        "summary": "Baca pengumpulan, attempt, revisi dan receipt",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Submission"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/submissions/{aggregate_id}/revisions": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"aggregate_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Submissions"],
+        "operationId": "appendAnswer",
+        "summary": "Simpan snapshot jawaban pada attempt draft",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/AnswerAppend"},
+              "example": {"version":1,"body":"Jawaban uji.","file_asset_ids":[]}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/AnswerRevision"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/submissions/{aggregate_id}/handin": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"aggregate_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Submissions"],
+        "operationId": "handInSubmission",
+        "summary": "Serahkan attempt dan dapatkan receipt revisi",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/HandIn"},"example":{"version":1,"attempt_version":1}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Receipt"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items": {
+      "parameters": [{"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}],
+      "post": {
+        "tags": ["Grades"],
+        "operationId": "createGradeItem",
+        "summary": "Buat item nilai dan definisi pertama",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/GradeItemCreate"},
+              "example": {
+                "activity_id": "0123456789abcdef0123456789abcdef",
+                "title": "Nilai tugas",
+                "weight_bps": 10000,
+                "scale": {"name":"Skala 100","minimum_milli":0,"maximum_milli":100000,"display_decimals":1},
+                "criteria": [{"key":"answer","title":"Jawaban","weight_bps":10000,"maximum_milli":100000,"position":1}]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Berhasil dibuat.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradeDefinition"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "get": {
+        "tags": ["Grades"],
+        "operationId": "getGradeDefinitions",
+        "summary": "Baca daftar versi definisi satu item nilai",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradeDefinitions"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}/versions": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Grades"],
+        "operationId": "createGradeDefinition",
+        "summary": "Buat versi definisi baru",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DefinitionCreate"}}}},
+        "responses": {
+          "201": {
+            "description": "Berhasil dibuat.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradeDefinition"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}/versions/{definition_version_id}/publish": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"definition_version_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Grades"],
+        "operationId": "publishGradeDefinition",
+        "summary": "Aktifkan versi definisi nilai",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/PublishDefinition"},"example":{"expected_publication_revision":0}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradePublication"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}/grades": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Grades"],
+        "operationId": "recordGrade",
+        "summary": "Simpan nilai revisi jawaban yang diserahkan",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref":"#/components/schemas/GradeWrite"},
+              "example": {
+                "aggregate_id": "0123456789abcdef0123456789abcdef",
+                "submission_revision_id": "fedcba9876543210fedcba9876543210",
+                "expected_version": 0,
+                "value_milli": 85000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Grade"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}/grades/{aggregate_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"aggregate_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "get": {
+        "tags": ["Grades"],
+        "operationId": "getGrade",
+        "summary": "Baca nilai untuk satu pengumpulan",
+        "description": "Teacher yang berwenang membaca nilai terkini milik learner lain. Learner membaca versi miliknya yang sudah dirilis. Nilai belum dirilis bisa mengembalikan 404.",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {"description":"Berhasil.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Grade"}}}},
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/grade-items/{grade_item_id}/grades/{aggregate_id}/release": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"grade_item_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"aggregate_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "post": {
+        "tags": ["Grades"],
+        "operationId": "releaseGrade",
+        "summary": "Rilis versi nilai kepada learner",
+        "security": [{"SessionCookie":[],"Csrf":[]}],
+        "parameters": [{"$ref":"#/components/parameters/Origin"},{"$ref":"#/components/parameters/IdempotencyKey"}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"$ref":"#/components/schemas/ReleaseGrade"},"example":{"expected_version":1}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Dikirim bernilai true pada replay yang berhasil.",
+                "schema": {"type":"string","const":"true"}
+              }
+            },
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradeRelease"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "409": {"$ref":"#/components/responses/Conflict"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/v3/classes/{class_id}/reports/grades/{learner_user_id}": {
+      "parameters": [
+        {"name":"class_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}},
+        {"name":"learner_user_id","in":"path","required":true,"schema":{"$ref":"#/components/schemas/Id"}}
+      ],
+      "get": {
+        "tags": ["Grades"],
+        "operationId": "getReleasedGrades",
+        "summary": "Baca ringkasan nilai yang sudah dirilis",
+        "description": "Akun membaca nilai sendiri. Teacher di Class tersebut dan Site Admin dapat memilih learner sesuai scope. Lihat spesifikasi Reporting untuk paging dan CSV.",
+        "security": [{"SessionCookie":[]}],
+        "responses": {
+          "200": {
+            "description": "Berhasil.",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/GradeReport"}}}
+          },
+          "400": {"$ref":"#/components/responses/InvalidInput"},
+          "401": {"$ref":"#/components/responses/Unauthenticated"},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "413": {"$ref":"#/components/responses/ReportTooLarge"},
+          "503": {"$ref":"#/components/responses/Unavailable"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {"type":"apiKey","in":"cookie","name":"__Host-lms-v3"},
+      "Csrf": {"type":"apiKey","in":"header","name":"X-CSRF-Token"},
+      "GoogleBinding": {"type":"apiKey","in":"cookie","name":"__Host-lms-v3-google"}
+    },
+    "parameters": {
+      "Origin": {
+        "name": "Origin",
+        "in": "header",
+        "required": true,
+        "description": "Origin HTTPS sama persis dengan konfigurasi Go. Browser mengirimkannya secara otomatis untuk mutasi.",
+        "schema": {"type":"string"}
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Pakai satu key untuk satu aksi logis. Pakai key yang sama saat retry payload yang sama.",
+        "schema": {"type":"string","pattern":"^[A-Za-z0-9_-]{8,80}$"}
+      }
+    },
+    "responses": {
+      "InvalidInput": {
+        "description": "Payload, path parameter atau body JSON tidak valid.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"INVALID_INPUT"}}}
+      },
+      "Unauthenticated": {
+        "description": "Transport atau sesi dan kredensial tidak diterima oleh gateway.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"UNAUTHENTICATED"}}}
+      },
+      "Forbidden": {
+        "description": "Origin, CSRF atau izin operasi ditolak.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"FORBIDDEN"}}}
+      },
+      "NotFound": {
+        "description": "Resource, kondisi visibility atau operasi tidak tersedia.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"NOT_FOUND"}}}
+      },
+      "Conflict": {
+        "description": "Versi, state atau key bertentangan. Submission juga dapat mengembalikan DEADLINE_PASSED.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"CONFLICT"}}}
+      },
+      "ReportTooLarge": {
+        "description": "Laporan melewati batas response.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"REPORT_TOO_LARGE"}}}
+      },
+      "RateLimited": {
+        "description": "Batas percobaan tercapai.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"RATE_LIMITED"}}}
+      },
+      "Unavailable": {
+        "description": "Layanan sementara tidak dapat memproses request.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"error":"UNAVAILABLE"}}}
+      }
+    },
+    "schemas": {
+      "Id": {"type":"string","pattern":"^[a-f0-9]{32}$","description":"ID opak yang dikirim Go. Simpan sebagai string."},
+      "Timestamp": {"type":"string","format":"date-time"},
+      "Empty": {"type":"object","properties":{},"additionalProperties":false},
+      "Error": {
+        "type": "object",
+        "properties": {"error":{"type":"string"},"request_id":{"type":"string"}},
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "Alive": {"type":"object","properties":{"status":{"const":"alive"}},"required":["status"],"additionalProperties":false},
+      "Ready": {"type":"object","properties":{"status":{"const":"ready"}},"required":["status"],"additionalProperties":false},
+      "NotReady": {
+        "type": "object",
+        "properties": {"status":{"const":"not_ready"}},
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "PasswordLogin": {
+        "type": "object",
+        "properties": {"email":{"type":"string","format":"email","maxLength":254},"password":{"type":"string","writeOnly":true}},
+        "required": ["email","password"],
+        "additionalProperties": false
+      },
+      "EmailInput": {
+        "type": "object",
+        "properties": {"email":{"type":"string","format":"email","maxLength":254}},
+        "required": ["email"],
+        "additionalProperties": false
+      },
+      "SetPassword": {
+        "type": "object",
+        "properties": {
+          "token": {"type":"string","pattern":"^[a-f0-9]{64}$","writeOnly":true},
+          "password": {"type":"string","minLength":15,"maxLength":1024,"writeOnly":true}
+        },
+        "required": ["token","password"],
+        "additionalProperties": false
+      },
+      "CsrfToken": {
+        "type": "object",
+        "properties": {"csrf_token":{"type":"string","pattern":"^[a-f0-9]{64}$"}},
+        "required": ["csrf_token"],
+        "additionalProperties": false
+      },
+      "Account": {
+        "type": "object",
+        "properties": {"id":{"$ref":"#/components/schemas/Id"},"site_admin":{"type":"boolean"}},
+        "required": ["id","site_admin"],
+        "additionalProperties": false
+      },
+      "AccountInvited": {
+        "type": "object",
+        "properties": {"user_id":{"$ref":"#/components/schemas/Id"},"status":{"const":"invited"}},
+        "required": ["user_id","status"],
+        "additionalProperties": false
+      },
+      "ResetAccepted": {
+        "type": "object",
+        "properties": {"status":{"const":"accepted"}},
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "PasswordSet": {
+        "type": "object",
+        "properties": {"status":{"const":"password_set"}},
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "SessionRevoked": {"type":"object","properties":{"status":{"const":"revoked"}},"required":["status"],"additionalProperties":false},
+      "GoogleStart": {
+        "oneOf": [
+          {"type":"object","properties":{"mode":{"const":"login"}},"required":["mode"],"additionalProperties":false},
+          {
+            "type": "object",
+            "properties": {"mode":{"const":"invite"},"invite_token":{"type":"string","pattern":"^[a-f0-9]{64}$","writeOnly":true}},
+            "required": ["mode","invite_token"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {"const":"link"},
+              "email": {"type":"string","format":"email","maxLength":254},
+              "password": {"type":"string","minLength":15,"maxLength":1024,"writeOnly":true}
+            },
+            "required": ["mode","email","password"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "GoogleAuthorization": {
+        "type": "object",
+        "properties": {"authorization_url":{"type":"string","format":"uri"}},
+        "required": ["authorization_url"],
+        "additionalProperties": false
+      },
+      "GoogleComplete": {
+        "type": "object",
+        "properties": {
+          "state": {"type":"string","pattern":"^[a-f0-9]{64}$","writeOnly":true},
+          "code": {"type":"string","minLength":1,"writeOnly":true}
+        },
+        "required": ["state","code"],
+        "additionalProperties": false
+      },
+      "ClassCreate": {
+        "type": "object",
+        "properties": {
+          "name": {"type":"string","minLength":1,"maxLength":200},
+          "program_label": {"type":"string","maxLength":200},
+          "cohort_label": {"type":"string","maxLength":200}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "ClassUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {"type":"string","minLength":1,"maxLength":200},
+          "version": {"type":"integer","minimum":1},
+          "program_label": {"type":"string","maxLength":200},
+          "cohort_label": {"type":"string","maxLength":200}
+        },
+        "required": ["name","version"],
+        "additionalProperties": false
+      },
+      "Class": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "name": {"type":"string"},
+          "program_label": {"type":"string"},
+          "cohort_label": {"type":"string"},
+          "state": {"type":"string","enum":["DRAFT","PUBLISHED","CLOSED","ARCHIVED"]},
+          "version": {"type":"integer","minimum":1}
+        },
+        "required": ["id","name","program_label","cohort_label","state","version"],
+        "additionalProperties": false
+      },
+      "ClassMembership": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "name": {"type":"string"},
+          "program_label": {"type":"string"},
+          "cohort_label": {"type":"string"},
+          "state": {"type":"string","enum":["DRAFT","PUBLISHED","CLOSED","ARCHIVED"]},
+          "version": {"type":"integer","minimum":1},
+          "roles": {"type":"array","items":{"type":"string","enum":["teacher","student"]}}
+        },
+        "required": ["id","name","program_label","cohort_label","state","version","roles"],
+        "additionalProperties": false
+      },
+      "ClassList": {
+        "type": "object",
+        "properties": {"classes":{"type":"array","items":{"$ref":"#/components/schemas/ClassMembership"},"maxItems":250}},
+        "required": ["classes"],
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "properties": {"version":{"type":"integer","minimum":1}},
+        "required": ["version"],
+        "additionalProperties": false
+      },
+      "ClassInvitationCreate": {
+        "type": "object",
+        "properties": {
+          "email": {"type":"string","format":"email","maxLength":254},
+          "role": {"type":"string","enum":["teacher","student"]}
+        },
+        "required": ["email","role"],
+        "additionalProperties": false
+      },
+      "Invitation": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "role": {"type":"string","enum":["teacher","student"]},
+          "status": {"type":"string","enum":["INVITED","ACCEPTED"]},
+          "user_id": {"$ref":"#/components/schemas/Id"}
+        },
+        "required": ["id","class_id","role","status"],
+        "additionalProperties": false
+      },
+      "Invitations": {
+        "type": "object",
+        "properties": {"invitations":{"type":"array","items":{"$ref":"#/components/schemas/Invitation"}}},
+        "required": ["invitations"],
+        "additionalProperties": false
+      },
+      "AcceptedInvitation": {
+        "type": "object",
+        "properties": {
+          "invitation_id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "enrollment_id": {"$ref":"#/components/schemas/Id"},
+          "episode_id": {"type":"string","pattern":"^(?:[a-f0-9]{32})?$","description":"Dapat berupa string kosong."},
+          "role": {"type":"string","enum":["teacher","student"]},
+          "status": {"const":"ACCEPTED"}
+        },
+        "required": ["invitation_id","class_id","enrollment_id","episode_id","role","status"],
+        "additionalProperties": false
+      },
+      "SectionCreate": {
+        "type": "object",
+        "properties": {
+          "title": {"type":"string","minLength":1,"maxLength":200},
+          "position": {"type":"integer","minimum":1,"maximum":10000}
+        },
+        "required": ["title","position"],
+        "additionalProperties": false
+      },
+      "ContentStructureUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {"type":"string","minLength":1,"maxLength":200},
+          "position": {"type":"integer","minimum":1,"maximum":10000},
+          "version": {"type":"integer","minimum":1}
+        },
+        "required": ["title","position","version"],
+        "additionalProperties": false
+      },
+      "Section": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "title": {"type":"string"},
+          "position": {"type":"integer","minimum":1,"maximum":10000},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": ["id","class_id","title","position","version","created_at","updated_at"],
+        "additionalProperties": false
+      },
+      "ActivityCreate": {
+        "type": "object",
+        "properties": {
+          "section_id": {"$ref":"#/components/schemas/Id"},
+          "activity_type": {"type":"string","enum":["RESOURCE","ASSIGNMENT","QUIZ"]},
+          "title": {"type":"string","minLength":1,"maxLength":200},
+          "position": {"type":"integer","minimum":1,"maximum":10000}
+        },
+        "required": ["section_id","activity_type","title","position"],
+        "additionalProperties": false
+      },
+      "Activity": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "section_id": {"$ref":"#/components/schemas/Id"},
+          "activity_type": {"type":"string","enum":["RESOURCE","ASSIGNMENT","QUIZ"]},
+          "title": {"type":"string"},
+          "position": {"type":"integer","minimum":1,"maximum":10000},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": ["id","class_id","section_id","activity_type","title","position","version","created_at","updated_at"],
+        "additionalProperties": false
+      },
+      "AssignmentRuleInput": {
+        "type": "object",
+        "properties": {
+          "submission_mode": {"type":"string","enum":["TEXT","FILES","TEXT_AND_FILES"]},
+          "max_attempts": {"type":"integer","minimum":1,"maximum":100},
+          "max_files": {"type":"integer","minimum":0,"maximum":20},
+          "max_file_bytes": {"type":"integer","minimum":0,"maximum":2097152},
+          "late_policy": {"type":"string","enum":["REJECT_AFTER_CUTOFF","ALLOW_MARKED_LATE"]}
+        },
+        "required": ["submission_mode","max_attempts","late_policy"],
+        "additionalProperties": false
+      },
+      "AssignmentRule": {
+        "type": "object",
+        "properties": {
+          "revision_id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "contract_version": {"type":"integer","minimum":1},
+          "submission_mode": {"type":"string","enum":["TEXT","FILES","TEXT_AND_FILES"]},
+          "max_attempts": {"type":"integer","minimum":1,"maximum":100},
+          "max_files": {"type":"integer","minimum":0,"maximum":20},
+          "max_file_bytes": {"type":"integer","minimum":0,"maximum":2097152},
+          "late_policy": {"type":"string","enum":["REJECT_AFTER_CUTOFF","ALLOW_MARKED_LATE"]},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": [
+          "revision_id",
+          "class_id",
+          "activity_id",
+          "contract_version",
+          "submission_mode",
+          "max_attempts",
+          "max_files",
+          "max_file_bytes",
+          "late_policy",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "ContentRevisionCreate": {
+        "type": "object",
+        "properties": {
+          "raw_body": {"type":"string"},
+          "timezone": {"type":"string"},
+          "available_from": {"type":["string","null"],"format":"date-time"},
+          "due_at": {"type":["string","null"],"format":"date-time"},
+          "cutoff_at": {"type":["string","null"],"format":"date-time"},
+          "assignment": {"anyOf":[{"$ref":"#/components/schemas/AssignmentRuleInput"},{"type":"null"}]}
+        },
+        "required": ["raw_body","timezone"],
+        "additionalProperties": false
+      },
+      "ContentRevisionUpdate": {
+        "type": "object",
+        "properties": {
+          "raw_body": {"type":"string"},
+          "timezone": {"type":"string"},
+          "version": {"type":"integer","minimum":1},
+          "available_from": {"type":["string","null"],"format":"date-time"},
+          "due_at": {"type":["string","null"],"format":"date-time"},
+          "cutoff_at": {"type":["string","null"],"format":"date-time"},
+          "assignment": {"anyOf":[{"$ref":"#/components/schemas/AssignmentRuleInput"},{"type":"null"}]}
+        },
+        "required": ["raw_body","timezone","version"],
+        "additionalProperties": false
+      },
+      "ContentRevision": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "revision_no": {"type":"integer","minimum":1},
+          "state": {"type":"string","enum":["DRAFT","PUBLISHED","WITHDRAWN"]},
+          "canonical_body": {"type":"string"},
+          "content_format": {"type":"string"},
+          "timezone": {"type":"string"},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"},
+          "available_from": {"$ref":"#/components/schemas/Timestamp"},
+          "due_at": {"$ref":"#/components/schemas/Timestamp"},
+          "cutoff_at": {"$ref":"#/components/schemas/Timestamp"},
+          "assignment": {"$ref":"#/components/schemas/AssignmentRule"}
+        },
+        "required": [
+          "id",
+          "class_id",
+          "activity_id",
+          "revision_no",
+          "state",
+          "canonical_body",
+          "content_format",
+          "timezone",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "Content": {
+        "type": "object",
+        "properties": {
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "sections": {"type":"array","items":{"$ref":"#/components/schemas/Section"}},
+          "activities": {"type":"array","items":{"$ref":"#/components/schemas/Activity"}},
+          "revisions": {"type":"array","items":{"$ref":"#/components/schemas/ContentRevision"}},
+          "assignment_rules": {"type":"array","items":{"$ref":"#/components/schemas/AssignmentRule"}}
+        },
+        "required": ["class_id","sections","activities","revisions","assignment_rules"],
+        "additionalProperties": false
+      },
+      "AssignmentContract": {
+        "type": "object",
+        "properties": {
+          "revision": {"$ref":"#/components/schemas/ContentRevision"},
+          "rule": {"$ref":"#/components/schemas/AssignmentRule"}
+        },
+        "required": ["revision","rule"],
+        "additionalProperties": false
+      },
+      "Submission": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "assignment_revision_id": {"$ref":"#/components/schemas/Id"},
+          "enrollment_id": {"$ref":"#/components/schemas/Id"},
+          "episode_id": {"$ref":"#/components/schemas/Id"},
+          "owner_user_id": {"$ref":"#/components/schemas/Id"},
+          "current_attempt_no": {"type":"integer","minimum":1},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"},
+          "attempts": {"type":"array","items":{"$ref":"#/components/schemas/Attempt"}}
+        },
+        "required": [
+          "id",
+          "class_id",
+          "activity_id",
+          "assignment_revision_id",
+          "enrollment_id",
+          "episode_id",
+          "owner_user_id",
+          "current_attempt_no",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "Attempt": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "assignment_revision_id": {"$ref":"#/components/schemas/Id"},
+          "attempt_no": {"type":"integer","minimum":1},
+          "state": {"type":"string"},
+          "version": {"type":"integer","minimum":1},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "updated_at": {"$ref":"#/components/schemas/Timestamp"},
+          "locked_at": {"$ref":"#/components/schemas/Timestamp"},
+          "returned_at": {"$ref":"#/components/schemas/Timestamp"},
+          "returned_by": {"$ref":"#/components/schemas/Id"},
+          "revisions": {"type":"array","items":{"$ref":"#/components/schemas/AnswerRevision"}},
+          "receipt": {"$ref":"#/components/schemas/Receipt"}
+        },
+        "required": [
+          "id",
+          "aggregate_id",
+          "class_id",
+          "activity_id",
+          "assignment_revision_id",
+          "attempt_no",
+          "state",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "AnswerAppend": {
+        "type": "object",
+        "properties": {
+          "version": {"type":"integer","minimum":1},
+          "body": {"type":"string"},
+          "file_asset_ids": {"type":"array","items":{"$ref":"#/components/schemas/Id"}}
+        },
+        "required": ["version"],
+        "additionalProperties": false
+      },
+      "AnswerRevision": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "attempt_id": {"$ref":"#/components/schemas/Id"},
+          "revision_no": {"type":"integer","minimum":1},
+          "body": {"type":"string"},
+          "body_sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"},
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {"asset_id":{"$ref":"#/components/schemas/Id"},"position":{"type":"integer","minimum":1}},
+              "required": ["asset_id","position"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["id","class_id","aggregate_id","attempt_id","revision_no","body","body_sha256","created_at","files"],
+        "additionalProperties": false
+      },
+      "HandIn": {
+        "type": "object",
+        "properties": {"version":{"type":"integer","minimum":1},"attempt_version":{"type":"integer","minimum":1}},
+        "required": ["version","attempt_version"],
+        "additionalProperties": false
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "attempt_id": {"$ref":"#/components/schemas/Id"},
+          "revision_id": {"$ref":"#/components/schemas/Id"},
+          "submitted_by": {"$ref":"#/components/schemas/Id"},
+          "submitted_at": {"$ref":"#/components/schemas/Timestamp"},
+          "submitted_local": {"type":"string"},
+          "timezone": {"type":"string"},
+          "late": {"type":"boolean"},
+          "late_policy": {"type":"string","enum":["REJECT_AFTER_CUTOFF","ALLOW_MARKED_LATE"]},
+          "due_at": {"$ref":"#/components/schemas/Timestamp"},
+          "cutoff_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": [
+          "id",
+          "class_id",
+          "aggregate_id",
+          "attempt_id",
+          "revision_id",
+          "submitted_by",
+          "submitted_at",
+          "submitted_local",
+          "timezone",
+          "late",
+          "late_policy"
+        ],
+        "additionalProperties": false
+      },
+      "Scale": {
+        "type": "object",
+        "properties": {
+          "name": {"type":"string"},
+          "minimum_milli": {"type":"integer","minimum":-1000000000},
+          "maximum_milli": {"type":"integer","maximum":1000000000},
+          "display_decimals": {"type":"integer","minimum":0,"maximum":3}
+        },
+        "required": ["name","maximum_milli"],
+        "additionalProperties": false
+      },
+      "CriterionInput": {
+        "type": "object",
+        "properties": {
+          "key": {"type":"string"},
+          "title": {"type":"string"},
+          "weight_bps": {"type":"integer","minimum":1,"maximum":10000},
+          "maximum_milli": {"type":"integer","minimum":1},
+          "position": {"type":"integer","minimum":1,"maximum":1000},
+          "parent_key": {"type":"string"}
+        },
+        "required": ["key","title","weight_bps","maximum_milli","position"],
+        "additionalProperties": false
+      },
+      "GradeItemCreate": {
+        "type": "object",
+        "properties": {
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "title": {"type":"string"},
+          "weight_bps": {"type":"integer","minimum":1,"maximum":10000},
+          "scale": {"$ref":"#/components/schemas/Scale"},
+          "criteria": {"type":"array","items":{"$ref":"#/components/schemas/CriterionInput"}}
+        },
+        "required": ["activity_id","title","weight_bps","scale","criteria"],
+        "additionalProperties": false
+      },
+      "DefinitionCreate": {
+        "type": "object",
+        "properties": {
+          "weight_bps": {"type":"integer","minimum":1,"maximum":10000},
+          "scale": {"$ref":"#/components/schemas/Scale"},
+          "criteria": {"type":"array","items":{"$ref":"#/components/schemas/CriterionInput"}}
+        },
+        "required": ["weight_bps","scale","criteria"],
+        "additionalProperties": false
+      },
+      "GradeDefinition": {
+        "type": "object",
+        "properties": {
+          "grade_item_id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "activity_id": {"$ref":"#/components/schemas/Id"},
+          "title": {"type":"string"},
+          "definition_version_id": {"$ref":"#/components/schemas/Id"},
+          "version": {"type":"integer","minimum":1},
+          "scale_id": {"$ref":"#/components/schemas/Id"},
+          "scale": {
+            "type": "object",
+            "properties": {
+              "name": {"type":"string"},
+              "minimum_milli": {"type":"integer","minimum":-1000000000},
+              "maximum_milli": {"type":"integer","maximum":1000000000},
+              "display_decimals": {"type":"integer","minimum":0,"maximum":3}
+            },
+            "required": ["name","minimum_milli","maximum_milli","display_decimals"],
+            "additionalProperties": false
+          },
+          "weight_bps": {"type":"integer","minimum":1,"maximum":10000},
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"$ref":"#/components/schemas/Id"},
+                "key": {"type":"string"},
+                "title": {"type":"string"},
+                "weight_bps": {"type":"integer","minimum":1,"maximum":10000},
+                "maximum_milli": {"type":"integer","minimum":1},
+                "position": {"type":"integer","minimum":1,"maximum":1000},
+                "parent_id": {"$ref":"#/components/schemas/Id"}
+              },
+              "required": ["id","key","title","weight_bps","maximum_milli","position"],
+              "additionalProperties": false
+            }
+          },
+          "created_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": [
+          "grade_item_id",
+          "class_id",
+          "activity_id",
+          "title",
+          "definition_version_id",
+          "version",
+          "scale_id",
+          "scale",
+          "weight_bps",
+          "criteria",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "GradeDefinitions": {"type":"array","items":{"$ref":"#/components/schemas/GradeDefinition"}},
+      "PublishDefinition": {
+        "type": "object",
+        "properties": {"expected_publication_revision":{"type":"integer","minimum":0}},
+        "required": ["expected_publication_revision"],
+        "additionalProperties": false
+      },
+      "GradePublication": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "grade_item_id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "definition_version_id": {"$ref":"#/components/schemas/Id"},
+          "revision": {"type":"integer","minimum":1},
+          "actor_id": {"$ref":"#/components/schemas/Id"},
+          "published_at": {"$ref":"#/components/schemas/Timestamp"},
+          "previous_definition_version_id": {"$ref":"#/components/schemas/Id"}
+        },
+        "required": ["id","grade_item_id","class_id","definition_version_id","revision","actor_id","published_at"],
+        "additionalProperties": false
+      },
+      "GradeWrite": {
+        "type": "object",
+        "properties": {
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "submission_revision_id": {"$ref":"#/components/schemas/Id"},
+          "expected_version": {"type":"integer","minimum":0},
+          "value_milli": {"type":"integer"},
+          "reason": {"type":"string"},
+          "ai_suggestion_id": {"$ref":"#/components/schemas/Id"}
+        },
+        "required": ["aggregate_id","submission_revision_id","expected_version","value_milli"],
+        "additionalProperties": false
+      },
+      "Grade": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "grade_item_id": {"$ref":"#/components/schemas/Id"},
+          "definition_version_id": {"$ref":"#/components/schemas/Id"},
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "attempt_id": {"$ref":"#/components/schemas/Id"},
+          "submission_revision_id": {"$ref":"#/components/schemas/Id"},
+          "learner_user_id": {"$ref":"#/components/schemas/Id"},
+          "grader_user_id": {"$ref":"#/components/schemas/Id"},
+          "version": {"type":"integer","minimum":1},
+          "value_milli": {"type":"integer"},
+          "reason": {"type":"string"},
+          "created_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": [
+          "id",
+          "class_id",
+          "grade_item_id",
+          "definition_version_id",
+          "aggregate_id",
+          "attempt_id",
+          "submission_revision_id",
+          "learner_user_id",
+          "grader_user_id",
+          "version",
+          "value_milli",
+          "reason",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseGrade": {
+        "type": "object",
+        "properties": {"expected_version":{"type":"integer","minimum":1}},
+        "required": ["expected_version"],
+        "additionalProperties": false
+      },
+      "GradeRelease": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref":"#/components/schemas/Id"},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "grade_item_id": {"$ref":"#/components/schemas/Id"},
+          "aggregate_id": {"$ref":"#/components/schemas/Id"},
+          "revision_id": {"$ref":"#/components/schemas/Id"},
+          "grade_version": {"type":"integer","minimum":1},
+          "learner_user_id": {"$ref":"#/components/schemas/Id"},
+          "released_at": {"$ref":"#/components/schemas/Timestamp"}
+        },
+        "required": ["id","class_id","grade_item_id","aggregate_id","revision_id","grade_version","learner_user_id","released_at"],
+        "additionalProperties": false
+      },
+      "GradeReport": {
+        "type": "object",
+        "properties": {
+          "contract_version": {"const":1},
+          "class_id": {"$ref":"#/components/schemas/Id"},
+          "learner_user_id": {"$ref":"#/components/schemas/Id"},
+          "watermark": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "release_id": {"$ref":"#/components/schemas/Id"},
+                  "released_at": {"$ref":"#/components/schemas/Timestamp"}
+                },
+                "required": ["release_id","released_at"],
+                "additionalProperties": false
+              },
+              {"type":"null"}
+            ]
+          },
+          "grades": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "grade_item_id": {"$ref":"#/components/schemas/Id"},
+                "title": {"type":"string"},
+                "value_milli": {"type":"integer"},
+                "grade_version": {"type":"integer","minimum":1},
+                "release_id": {"$ref":"#/components/schemas/Id"},
+                "released_at": {"$ref":"#/components/schemas/Timestamp"}
+              },
+              "required": ["grade_item_id","title","value_milli","grade_version","release_id","released_at"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["contract_version","class_id","learner_user_id","watermark","grades"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
